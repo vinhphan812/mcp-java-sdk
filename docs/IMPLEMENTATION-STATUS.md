@@ -188,7 +188,7 @@ Current tests cover baseline configuration, registration, protocol dispatch, ini
 - No root `LICENSE` file is currently present.
 - Dependency license notice/SBOM has not been generated.
 - Source contains a restrictive copyright notice; publication requires explicit license decision and dependency notices.
-- Project is not release-ready for public redistribution until licensing and notices are resolved.
+- Project is not release-ready for public redistribution until licensing and notices are resolved. GitHub Packages workflow is configured, but this licensing blocker remains.
 
 ## Recommended next work
 

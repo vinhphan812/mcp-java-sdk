@@ -1,18 +1,6 @@
 # MCP Java SDK
 
-Portable Java 8 MCP core extracted from the Cruzr application.
-
-## Scope
-
-This library contains the transport-neutral MCP JSON-RPC core:
-
-- annotations for tools, prompts, resources, and parameters;
-- handler interfaces and server configuration;
-- reflection-based registration;
-- concurrent registry;
-- MCP protocol request/response handling and session state.
-
-Android, Cruzr robot, application services, and credential storage are intentionally excluded. An optional Grizzly Streamable HTTP transport and server bootstrap are included for standalone Java applications. Applications can also provide their own transport through the public API.
+Single portable Java 8 artifact containing MCP protocol core plus optional Grizzly Streamable HTTP transport and server bootstrap. Android, Cruzr robot, application services, and credential storage are excluded. Android API 21 compatibility is not claimed without device/emulator evidence.
 
 ## Build
 
@@ -20,28 +8,58 @@ Android, Cruzr robot, application services, and credential storage are intention
 ./gradlew clean test build
 ```
 
-The build targets Java 8 and produces the main JAR, sources JAR, and Javadoc JAR under `build/libs`.
+Build outputs `mcp-java-sdk-*.jar`, `mcp-java-sdk-*-sources.jar`, and `mcp-java-sdk-*-javadoc.jar` under `build/libs`.
 
-## Dependency and license
+Override version for a local build with `./gradlew -PsdkVersion=1.2.3 build`. Release tag `v1.2.3` automatically publishes version `1.2.3`; ordinary builds default to `1.0-SNAPSHOT`.
 
-JSON parsing uses Gson `2.11.0`, resolved from Maven Central. Gson is Apache License 2.0. Check `./gradlew dependencies` and the upstream license before redistribution.
+## GitHub Packages dependency
 
-The portable source retains the original copyright/license notice where present. Review and replace the project license header before publishing a public release; the current source notice is not an OSI-approved open-source license by itself.
+Create a GitHub Packages Maven repository token with `read:packages` and authenticate before resolving the dependency. The repository must be declared in Gradle; credentials must come from environment variables or Gradle properties, never source control:
 
-## Usage outline
+```groovy
+repositories {
+    maven {
+        url = uri('https://maven.pkg.github.com/vinhphan812/mcp-java-sdk')
+        credentials {
+            username = System.getenv('GITHUB_ACTOR')
+            password = System.getenv('GITHUB_TOKEN')
+        }
+    }
+}
 
-1. Create an `McpRegistry`.
-2. Register `McpToolHandler`, `McpPromptHandler`, or `McpResourceHandler` instances, or use `McpReflectionRegistrar`.
-3. Construct `McpProtocolHandler` with the registry and optional `McpServerConfig`.
-4. Pass JSON-RPC request bodies to `handleRequest` from an application-owned HTTP, SSE, or stdio adapter.
+dependencies {
+    implementation 'io.github.vinhphan812.mcp:mcp-java-sdk:1.2.3'
+}
+```
+
+`GITHUB_TOKEN` needs `read:packages` for consumers. Release workflow uses its repository `GITHUB_TOKEN` with `packages: write`; publishing is restricted to `v*` tags. No Maven Central publication is configured.
+
+## CI and release
+
+CI runs on pushes and pull requests targeting `master`:
+
+```bash
+./gradlew clean test build
+```
+
+To publish one artifact and create a GitHub Release with main, sources, and Javadoc JARs:
+
+```bash
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+GitHub Actions performs tests, build, GitHub Packages publication, and release creation. Do not run `publish` locally unless `GITHUB_ACTOR` and a GitHub token with `write:packages` are configured.
+
+## Scope and licensing
+
+The API includes annotations, handlers, configuration, reflection registration, concurrent registry, JSON-RPC protocol handling, session state, and optional Grizzly transport. Applications can provide another transport through the public API.
+
+Source files retain a restrictive personal/educational-use notice and no root `LICENSE` exists. No license was invented; public redistribution and release remain blocked until copyright holder grants or selects a project license. Gson `2.11.0` and Grizzly `4.0.2` are resolved from Maven Central; review their upstream notices before redistribution.
 
 Documentation:
 
-- `docs/PROJECT-GUIDE.md` — detailed architecture, API, protocol, transport, testing, and release guide.
-- `docs/IMPLEMENTATION-STATUS.md` — current completed, incomplete, and unverified areas.
+- `docs/PROJECT-GUIDE.md` — architecture, API, protocol, transport, testing, and release guide.
+- `docs/IMPLEMENTATION-STATUS.md` — completed, incomplete, and unverified areas.
 - `docs/GRIZZLY-EXAMPLE.md` — standalone Grizzly example and HTTP requests.
-- `docs/MCP-PORTING-PLAN.md` — scope, exclusions, and acceptance criteria.
 - `docs/MCP-COMPATIBILITY-2026.md` — MCP baseline and compatibility status.
-- `docs/audits/2026-09-01-full-source-audit.md` — full source, security, license, and compatibility audit.
-
-The implementation is a tested MCP subset for baseline `2025-11-25`, not full MCP parity.

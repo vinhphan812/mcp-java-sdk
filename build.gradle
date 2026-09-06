@@ -1,14 +1,19 @@
 plugins {
     id 'java'
+    id 'maven-publish'
 }
 
 group = 'io.github.vinhphan812.mcp'
-version = '1.0-SNAPSHOT'
+// Release tags (for example v1.2.3) publish as 1.2.3. sdkVersion is
+// available for local/reproducible builds without changing this file.
+def releaseVersion = System.getenv('GITHUB_REF_NAME')?.with { ref ->
+    ref.startsWith('v') ? ref.substring(1) : null
+}
+version = providers.gradleProperty('sdkVersion').orElse(releaseVersion ?: '1.0-SNAPSHOT').get()
 
 java {
     sourceCompatibility = JavaVersion.VERSION_1_8
     targetCompatibility = JavaVersion.VERSION_1_8
-
     withSourcesJar()
     withJavadocJar()
 }
@@ -27,4 +32,32 @@ dependencies {
 
 test {
     useJUnitPlatform()
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            pom {
+                name = 'MCP Java SDK'
+                description = 'Portable Java MCP protocol core with optional Grizzly Streamable HTTP transport'
+                url = 'https://github.com/vinhphan812/mcp-java-sdk'
+                scm {
+                    url = 'https://github.com/vinhphan812/mcp-java-sdk'
+                    connection = 'scm:git:https://github.com/vinhphan812/mcp-java-sdk.git'
+                    developerConnection = 'scm:git:ssh://git@github.com/vinhphan812/mcp-java-sdk.git'
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            name = 'GitHubPackages'
+            url = uri('https://maven.pkg.github.com/vinhphan812/mcp-java-sdk')
+            credentials {
+                username = findProperty('gpr.user') ?: System.getenv('GITHUB_ACTOR')
+                password = findProperty('gpr.key') ?: System.getenv('GITHUB_TOKEN')
+            }
+        }
+    }
 }
