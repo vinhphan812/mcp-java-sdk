@@ -18,16 +18,28 @@ java {
     withJavadocJar()
 }
 
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['-Xlint:unchecked', '-Xlint:-options']
+}
+
 repositories {
     mavenCentral()
 }
 
 dependencies {
     implementation 'com.google.code.gson:gson:2.11.0'
+
+    /*
+     * Grizzly 4.0.2 is retained for Java 8/JVM compatibility. The reported
+     * CVE-2024-45687 applies to affected Payara distributions; this SDK does
+     * not include Payara. The transport sanitises response headers and SSE
+     * data before emission. Reassess this dependency before a release.
+     */
     implementation 'org.glassfish.grizzly:grizzly-http-server:4.0.2'
 
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 test {
@@ -42,6 +54,13 @@ publishing {
                 name = 'MCP Java SDK'
                 description = 'Portable Java MCP protocol core with optional Grizzly Streamable HTTP transport'
                 url = 'https://github.com/vinhphan812/mcp-java-sdk'
+                licenses {
+                    license {
+                        name = 'Apache License, Version 2.0'
+                        url = 'https://www.apache.org/licenses/LICENSE-2.0.txt'
+                        distribution = 'repo'
+                    }
+                }
                 scm {
                     url = 'https://github.com/vinhphan812/mcp-java-sdk'
                     connection = 'scm:git:https://github.com/vinhphan812/mcp-java-sdk.git'

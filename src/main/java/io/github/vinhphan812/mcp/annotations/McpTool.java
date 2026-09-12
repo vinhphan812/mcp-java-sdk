@@ -9,6 +9,16 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 public @interface McpTool {
+    /** @return tool name, or empty string for default handling */
     String name() default "";
+
+    /** @return tool description, or empty string for default handling */
     String description() default "";
+
+    /**
+     * Declares the tool's output schema as a JSON string.
+     * When absent or empty, no outputSchema is emitted in tools/list.
+     * @return output schema as a JSON string (e.g. a static final field containing JSON)
+     */
+    String outputSchema() default "";
 }

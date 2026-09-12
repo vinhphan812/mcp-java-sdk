@@ -1,0 +1,27 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+application {
+    mainClass = 'io.github.vinhphan812.mcp.examples.GrizzlyExample'
+}
+
+def sdkJar = providers.gradleProperty('sdkJar')
+        .orElse('../build/libs/mcp-java-sdk-1.0-SNAPSHOT.jar')
+        .get()
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation files(sdkJar)
+    implementation 'com.google.code.gson:gson:2.11.0'
+    implementation 'org.glassfish.grizzly:grizzly-http-server:4.0.2'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}

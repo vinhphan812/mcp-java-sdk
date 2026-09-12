@@ -1,110 +1,172 @@
 /*
- * Copyright (c) 2025 Phan Thanh Vinh. All rights reserved.
- * This work is licensed for personal and educational use only unless otherwise stated.
- * Unauthorized copying, redistribution, or modification of any part of this project is strictly prohibited
- * without prior written permission from the author.
+ * Copyright 2025 Phan Thanh Vinh
  *
- * For inquiries, please contact: vinhphan812@gmail.com
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package io.github.vinhphan812.mcp.core;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import io.github.vinhphan812.mcp.api.McpPromptHandler;
-import io.github.vinhphan812.mcp.api.McpRegistrar;
-import io.github.vinhphan812.mcp.api.McpResourceHandler;
-import io.github.vinhphan812.mcp.api.McpServerConfig;
-import io.github.vinhphan812.mcp.api.McpToolHandler;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import io.github.vinhphan812.mcp.api.config.McpServerConfig;
+import io.github.vinhphan812.mcp.api.dto.McpBlobContent;
+import io.github.vinhphan812.mcp.api.dto.McpTask;
+import io.github.vinhphan812.mcp.api.handler.*;
+import io.github.vinhphan812.mcp.api.logging.McpLogger;
+import io.github.vinhphan812.mcp.api.spi.McpRegistrar;
+import io.github.vinhphan812.mcp.api.spi.McpRegistryChangeListener;
+
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
 /**
  * Lightweight MCP protocol handler that implements JSON-RPC 2.0 for MCP
  * without depending on the MCP SDK's server-side code (which uses Stream.toList(),
  * incompatible with Android API 22).
- *
+ * <p>
  * This handler replaces McpAsyncServer/McpSyncServer while keeping the schema types.
  * Definitions are supplied by an application-owned {@link McpRegistry}; the
  * protocol layer does not construct project-specific tools or resources.
  */
-public class McpProtocolHandler implements McpRegistrar {
+@SuppressWarnings("unused")
+public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListener {
 
-    private static final Logger LOGGER = Logger.getLogger(McpProtocolHandler.class.getName());
     private static final String JSONRPC_VERSION = "2.0";
-    private static final String SERVER_NAME = "cruzr_robot_mcp";
-    private static final String SERVER_VERSION = "0.1.0";
+    private static final String SERVER_NAME = "mcp-java-sdk";
+        private static final String SERVER_VERSION = "1.0.0";
+    private static final Logger LOGGER = Logger.getLogger(McpProtocolHandler.class.getName());
 
     private final Gson mapper;
     private final McpRegistry registry;
     private final McpServerConfig config;
+    private final McpLogger applicationLogger;
+
+    private static final int MAX_QUEUED_EVENTS = 1000;
+
+    private static final class SseEvent {
+        final long id;
+        final String body;
+
+        SseEvent(long id, String body) {
+            this.id = id;
+            this.body = body;
+        }
+    }
 
     // Session state
     private static class SessionState {
         final String sessionId;
         final long createdAt;
-        Map<String, Object> clientInfo;
-        Map<String, Object> clientCapabilities;
-        String protocolVersion;
         final Set<String> subscriptions = ConcurrentHashMap.newKeySet();
-        final ConcurrentLinkedQueue<String> pendingNotifications = new ConcurrentLinkedQueue<>();
+        final ConcurrentLinkedQueue<SseEvent> pendingEvents = new ConcurrentLinkedQueue<>();
+        final AtomicLong nextEventId = new AtomicLong(1L);
 
         SessionState(String sessionId) {
             this.sessionId = sessionId;
             this.createdAt = System.currentTimeMillis();
         }
+
+        void enqueueEvent(String body) {
+            if (pendingEvents.size() >= MAX_QUEUED_EVENTS) pendingEvents.poll();
+            pendingEvents.offer(new SseEvent(nextEventId.getAndIncrement(), body));
+        }
     }
 
     private final ConcurrentHashMap<String, SessionState> sessions = new ConcurrentHashMap<>();
 
-    /** Request-local protocol output used by transports to set response headers safely. */
+    /**
+     * Request-local protocol output used by transports to set response headers safely.
+     */
     public static final class McpResponse {
         private final String body;
         private final String sessionId;
 
+        /**
+         * Creates response metadata.
+         *
+         * @param body      response body
+         * @param sessionId response session ID
+         */
         public McpResponse(String body, String sessionId) {
             this.body = body;
             this.sessionId = sessionId;
         }
 
+        /**
+         * Returns response body.
+         *
+         * @return JSON response body
+         */
         public String getBody() {
             return body;
         }
 
+        /**
+         * Returns response session ID.
+         *
+         * @return session ID, possibly null
+         */
         public String getSessionId() {
             return sessionId;
         }
     }
 
-    /** Thrown to signal a JSON-RPC error from within a handler method without a full stack trace. */
+    /**
+     * Thrown to signal a JSON-RPC error from within a handler method without a full stack trace.
+     */
     private static final class McpErrorException extends RuntimeException {
         private final int code;
-        McpErrorException(int code, String message) { super(message); this.code = code; }
-        int getCode() { return code; }
+
+        McpErrorException(int code, String message) {
+            super(message);
+            this.code = code;
+        }
+
+        int getCode() {
+            return code;
+        }
     }
 
-    /** Create a protocol handler from application-owned MCP definitions. */
+    /**
+     * Creates a protocol handler from application-owned MCP definitions.
+     *
+     * @param registry application-owned MCP registry
+     */
     public McpProtocolHandler(McpRegistry registry) {
         this(registry, defaultConfig());
     }
 
-    /** Create a protocol handler with application-owned definitions and metadata. */
+    /**
+     * Creates a protocol handler with application-owned definitions and metadata.
+     *
+     * @param registry application-owned MCP registry
+     * @param config   protocol metadata and capability configuration
+     */
     public McpProtocolHandler(McpRegistry registry, McpServerConfig config) {
         if (registry == null) throw new IllegalArgumentException("registry cannot be null");
         if (config == null) throw new IllegalArgumentException("config cannot be null");
         this.mapper = new Gson();
         this.registry = registry;
         this.config = config;
+        this.applicationLogger = config.logger;
         registry.setNotificationTarget(this);
+        registry.addRegistryChangeListener(this);
     }
 
     private static McpServerConfig defaultConfig() {
@@ -114,13 +176,23 @@ public class McpProtocolHandler implements McpRegistrar {
                 .build();
     }
 
-    /** Return whether server accepts a protocol version during HTTP negotiation. */
+    /**
+     * Returns whether server accepts a protocol version during HTTP negotiation.
+     *
+     * @param version requested protocol version
+     * @return true when version is supported
+     */
     public boolean supportsProtocolVersion(String version) {
         return version == null || config.protocolVersion.equals(version)
                 || "2025-06-18".equals(version) || "2025-03-26".equals(version);
     }
 
-    /** Return whether a session is currently active. */
+    /**
+     * Returns whether a session is currently active.
+     *
+     * @param sessionId session identifier
+     * @return true when session is active
+     */
     public boolean hasSession(String sessionId) {
         return sessionId != null && sessions.containsKey(sessionId);
     }
@@ -128,6 +200,10 @@ public class McpProtocolHandler implements McpRegistrar {
     /**
      * Handle a JSON-RPC request and return only its response body.
      * The sessionId parameter is the Mcp-Session-Id from the request header (maybe null).
+     *
+     * @param requestBody JSON-RPC request body.
+     * @param sessionId   request session ID, possibly null.
+     * @return response body.
      */
     public String handleRequest(String requestBody, String sessionId) {
         return handleRequestResponse(requestBody, sessionId).getBody();
@@ -136,12 +212,17 @@ public class McpProtocolHandler implements McpRegistrar {
     /**
      * Handle a request and return request-local metadata for the transport layer.
      * Keeping the response session ID in this object avoids cross-request races.
+     *
+     * @param requestBody JSON-RPC request body.
+     * @param sessionId   request session ID, possibly null.
+     * @return response body and session metadata.
      */
     @SuppressWarnings("unchecked")
     public McpResponse handleRequestResponse(String requestBody, String sessionId) {
         Object id = null;
         try {
-            Map<String, Object> request = mapper.fromJson(requestBody, new TypeToken<Map<String, Object>>() {}.getType());
+            Map<String, Object> request = mapper.fromJson(requestBody, new TypeToken<Map<String, Object>>() {
+            }.getType());
             if (request == null || !JSONRPC_VERSION.equals(request.get("jsonrpc"))) {
                 return new McpResponse(errorResponse(null, -32600, "Invalid Request: jsonrpc must be 2.0"), sessionId);
             }
@@ -156,7 +237,7 @@ public class McpProtocolHandler implements McpRegistrar {
                         "Invalid Request: missing method"), sessionId);
             }
 
-            LOGGER.info("Handling MCP request: " + method);
+            applicationLogger.debug("Handling MCP request: " + method);
 
             if (!isSessionOptional(method) && !hasSession(sessionId)) {
                 return new McpResponse(errorResponse(id, -32001,
@@ -165,6 +246,10 @@ public class McpProtocolHandler implements McpRegistrar {
 
             String responseSessionId = sessionId;
             Map<String, Object> result;
+
+            // Intentional: each MCP list handler calls a different registry method,
+            // even though the capability-check + call pattern is structurally similar.
+            //noinspection DuplicateBranchesInSwitch
             switch (method) {
                 case "initialize":
                     Map<String, Object> initializeParams = params instanceof Map
@@ -175,34 +260,36 @@ public class McpProtocolHandler implements McpRegistrar {
                         return new McpResponse(errorResponse(id, -32602,
                                 "Invalid params: protocolVersion must be a string"), sessionId);
                     }
-                    if (requestedVersion instanceof String
-                            && !supportsProtocolVersion((String) requestedVersion)) {
+                    if (requestedVersion != null && !supportsProtocolVersion((String) requestedVersion)) {
                         return new McpResponse(errorResponse(id, -32602,
                                 "Unsupported protocol version: " + requestedVersion), sessionId);
                     }
-                    responseSessionId = UUID.randomUUID().toString();
-                    result = handleInitialize(initializeParams, responseSessionId);
+                    String initSessionId = UUID.randomUUID().toString();
+                    result = handleInitialize(initializeParams, initSessionId);
+                    responseSessionId = initSessionId;
                     break;
                 case "notifications/initialized":
+                case "notifications/message":
                     return new McpResponse(null, sessionId);
                 case "tools/list":
                     if (!config.tools) {
                         return new McpResponse(capabilityError(id, "tools"), sessionId);
                     }
-                    result = handleToolsList();
+                    result = handleToolsList(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
                 case "tools/call":
                     if (!config.tools) {
                         return new McpResponse(capabilityError(id, "tools"), sessionId);
                     }
-                    result = handleToolsCall(params instanceof Map
-                            ? (Map<String, Object>) params : null);
+                    result = handleToolsCall(
+                            params instanceof Map ? (Map<String, Object>) params : null,
+                            sessionId, id);
                     break;
                 case "resources/list":
                     if (!config.resources) {
                         return new McpResponse(capabilityError(id, "resources"), sessionId);
                     }
-                    result = handleResourcesList();
+                    result = handleResourcesList(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
                 case "resources/read":
                     if (!config.resources) {
@@ -215,7 +302,7 @@ public class McpProtocolHandler implements McpRegistrar {
                     if (!config.resources) {
                         return new McpResponse(capabilityError(id, "resources"), sessionId);
                     }
-                    result = handleResourceTemplatesList();
+                    result = handleResourceTemplatesList(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
                 case "resources/templates/get":
                     return new McpResponse(errorResponse(id, -32601,
@@ -238,7 +325,7 @@ public class McpProtocolHandler implements McpRegistrar {
                     if (!config.prompts) {
                         return new McpResponse(capabilityError(id, "prompts"), sessionId);
                     }
-                    result = handlePromptsList();
+                    result = handlePromptsList(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
                 case "prompts/get":
                     if (!config.prompts) {
@@ -247,6 +334,34 @@ public class McpProtocolHandler implements McpRegistrar {
                     result = handlePromptsGet(params instanceof Map
                             ? (Map<String, Object>) params : null);
                     break;
+                case "tasks/get":
+                    if (!config.tasks) return new McpResponse(capabilityError(id, "tasks"), sessionId);
+                    result = handleTasksGet(params instanceof Map ? (Map<String, Object>) params : null);
+                    break;
+                case "tasks/result":
+                    if (!config.tasks) return new McpResponse(capabilityError(id, "tasks"), sessionId);
+                    result = handleTasksResult(params instanceof Map ? (Map<String, Object>) params : null);
+                    break;
+                case "tasks/cancel":
+                    if (!config.tasks) return new McpResponse(capabilityError(id, "tasks"), sessionId);
+                    result = handleTasksCancel(params instanceof Map ? (Map<String, Object>) params : null, sessionId, id);
+                    break;
+                case "tasks/create":
+                    if (!config.tasks) return new McpResponse(capabilityError(id, "tasks"), sessionId);
+                    result = handleTasksCreate(params instanceof Map ? (Map<String, Object>) params : null, sessionId, id);
+                    break;
+                case "completion/complete":
+                    if (!config.completions) return new McpResponse(capabilityError(id, "completions"), sessionId);
+                    result = handleCompletion(params instanceof Map ? (Map<String, Object>) params : null);
+                    break;
+                case "logging/setLevel":
+                    if (!config.logging) return new McpResponse(capabilityError(id, "logging"), sessionId);
+                    result = handleSetLogLevel(params instanceof Map ? (Map<String, Object>) params : null);
+                    break;
+                case "notifications/cancelled":
+                    handleNotificationCancelled(sessionId, params instanceof Map
+                            ? (Map<String, Object>) params : null);
+                    return new McpResponse(null, sessionId);
                 case "ping":
                     result = new LinkedHashMap<>();
                     break;
@@ -262,9 +377,10 @@ public class McpProtocolHandler implements McpRegistrar {
         } catch (McpErrorException e) {
             return new McpResponse(errorResponse(id, e.getCode(), e.getMessage()), sessionId);
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error handling MCP request", e);
+            applicationLogger.error("Error handling MCP request: " + e.getMessage());
             try {
-                Map<String, Object> req = mapper.fromJson(requestBody, new TypeToken<Map<String, Object>>() {}.getType());
+                Map<String, Object> req = mapper.fromJson(requestBody, new TypeToken<Map<String, Object>>() {
+                }.getType());
                 if (req != null) id = req.get("id");
             } catch (Exception ignored) {
                 // Keep the JSON-RPC error id null when the request cannot be parsed.
@@ -280,12 +396,21 @@ public class McpProtocolHandler implements McpRegistrar {
     }
 
     // Backward-compatible overload
+
+    /**
+     * Creates or performs the requested operation.
+     *
+     * @param requestBody parameter used by this operation.
+     * @return operation result.
+     */
     public String handleRequest(String requestBody) {
         return handleRequest(requestBody, null);
     }
 
     /**
-     * Terminate a session.
+     * Terminates a session.
+     *
+     * @param sessionId session identifier
      */
     public void terminateSession(String sessionId) {
         if (sessionId != null && sessions.remove(sessionId) != null) {
@@ -293,7 +418,9 @@ public class McpProtocolHandler implements McpRegistrar {
         }
     }
 
-    /** Terminate every active session and discard subscriptions and queued notifications. */
+    /**
+     * Terminate every active session and discard subscriptions and queued notifications.
+     */
     public void closeAllSessions() {
         int count = sessions.size();
         sessions.clear();
@@ -304,29 +431,21 @@ public class McpProtocolHandler implements McpRegistrar {
 
     // ==================== Initialize ====================
 
-    @SuppressWarnings("unchecked")
     private Map<String, Object> handleInitialize(Map<String, Object> params,
-                                                      String newSessionId) {
+                                                 String newSessionId) {
         SessionState state = new SessionState(newSessionId);
-        if (params != null) {
-            Object clientInfo = params.get("clientInfo");
-            Object clientCapabilities = params.get("capabilities");
-            state.clientInfo = clientInfo instanceof Map
-                    ? (Map<String, Object>) clientInfo : null;
-            state.clientCapabilities = clientCapabilities instanceof Map
-                    ? (Map<String, Object>) clientCapabilities : null;
-            Object requestedProtocolValue = params.get("protocolVersion");
-            String requestedProtocolVersion = requestedProtocolValue instanceof String
-                    ? (String) requestedProtocolValue : null;
-            state.protocolVersion = requestedProtocolVersion;
-        }
         sessions.put(newSessionId, state);
 
         LOGGER.info("Initialized session: " + newSessionId);
 
-        String negotiatedVersion = state.protocolVersion != null
-                && supportsProtocolVersion(state.protocolVersion)
-                ? state.protocolVersion : config.protocolVersion;
+        String negotiatedVersion = config.protocolVersion;
+        if (params != null) {
+            String requestedVersion = (String) params.get("protocolVersion");
+            if (requestedVersion != null && supportsProtocolVersion(requestedVersion)) {
+                negotiatedVersion = requestedVersion;
+            }
+        }
+
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("protocolVersion", negotiatedVersion);
 
@@ -351,6 +470,11 @@ public class McpProtocolHandler implements McpRegistrar {
             capabilities.put("prompts", promptsCap);
         }
 
+        if (config.completions) capabilities.put("completions", new LinkedHashMap<String, Object>());
+        if (config.logging) capabilities.put("logging", new LinkedHashMap<String, Object>());
+        if (config.tasks) capabilities.put("tasks", new LinkedHashMap<String, Object>());
+        if (!config.experimental.isEmpty()) capabilities.put("experimental", config.experimental);
+
         result.put("capabilities", capabilities);
 
         Map<String, Object> serverInfo = new LinkedHashMap<>();
@@ -361,89 +485,310 @@ public class McpProtocolHandler implements McpRegistrar {
         return result;
     }
 
-    // ==================== Tools ====================
+    private Map<String, Object> handleTasksGet(Map<String, Object> params) {
+        return findTask(params).toMap();
+    }
 
-    private Map<String, Object> handleToolsList() {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("tools", registry.getRegisteredTools());
+    private Map<String, Object> handleTasksResult(Map<String, Object> params) {
+        McpTask task = findTask(params);
+        if (task.getStatus() == McpTask.Status.WORKING)
+            throw new McpErrorException(-32001, "Task is not complete: " + task.getTaskId());
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("taskId", task.getTaskId());
+        if (task.getStatus() == McpTask.Status.FAILED || task.getStatus() == McpTask.Status.CANCELLED)
+            out.put("error", task.getError());
+        else if (task.getResult() != null) out.put("result", task.getResult());
+        return out;
+    }
+
+    private Map<String, Object> handleTasksCancel(Map<String, Object> params, String sessionId, Object requestId) {
+        McpTask task = findTask(params);
+        if (task.getStatus() != McpTask.Status.WORKING)
+            throw new McpErrorException(-32002, "Task is already terminal: " + task.getStatus().name().toLowerCase());
+        registry.cancelRequest(sessionId, requestId == null ? null : requestId.toString());
+        Map<String, Object> result = registry.cancelTask(task.getTaskId()).toMap();
+        // Emit server-initiated notifications/cancelled to client
+        Map<String, Object> notifyParams = new LinkedHashMap<>();
+        notifyParams.put("requestId", requestId);
+        notifyParams.put("reason", "Task cancelled by server");
+        sessions.get(sessionId).enqueueEvent(mapper.toJson(mapAsRpcNotification("notifications/cancelled", notifyParams)));
         return result;
     }
 
+    /**
+     * Creates a task for deferred execution.  The returned task is queued and a
+     * {@code task} notification is emitted so the client can begin tracking progress.
+     *
+     * @param params must contain "name" (String) and optionally "input" (Map) and
+     *               "inputSchema" (Map — JSON Schema for the input)
+     * @param sessionId session to emit the notification to
+     * @param requestId request id for the task token
+     */
     @SuppressWarnings("unchecked")
-    private Map<String, Object> handleToolsCall(Map<String, Object> params) {
+    private Map<String, Object> handleTasksCreate(Map<String, Object> params, String sessionId, Object requestId) {
+        if (params == null) throw new McpErrorException(-32602, "Invalid params: params required");
+        String name = params.get("name") instanceof String ? (String) params.get("name") : null;
+        if (name == null || name.trim().isEmpty())
+            throw new McpErrorException(-32602, "Invalid params: name is required");
+        Map<String, Object> input = params.get("input") instanceof Map
+                ? (Map<String, Object>) params.get("input") : new LinkedHashMap<>();
+        Map<String, Object> inputSchema = params.get("inputSchema") instanceof Map
+                ? (Map<String, Object>) params.get("inputSchema") : null;
+        McpTask task = registry.createTask(name, sessionId, requestId, input, inputSchema);
+        // Emit task notification so client knows the task token
+        Map<String, Object> notifParams = new LinkedHashMap<>();
+        notifParams.put("task", task.toMap());
+        notifParams.put("token", task.getTaskId());
+        sessions.get(sessionId).enqueueEvent(mapper.toJson(mapAsRpcNotification("tasks/task", notifParams)));
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("task", task.toMap());
+        resp.put("token", task.getTaskId());
+        return resp;
+    }
+
+    private McpTask findTask(Map<String, Object> params) {
+        if (params == null || !(params.get("taskId") instanceof String) || ((String) params.get("taskId")).trim().isEmpty())
+            throw new McpErrorException(-32602, "Invalid params: taskId is required");
+        McpTask t = registry.getTask((String) params.get("taskId"));
+        if (t == null) throw new McpErrorException(-32602, "Unknown task: " + params.get("taskId"));
+        return t;
+    }
+
+    private Map<String, Object> handleCompletion(Map<String, Object> params) {
+        if (params == null || !(params.get("ref") instanceof Map) || !(params.get("argument") instanceof Map))
+            throw new McpErrorException(-32602, "Invalid params: ref and argument are required");
+        Map<?, ?> rawRef = (Map<?, ?>) params.get("ref");
+        Map<?, ?> rawArgument = (Map<?, ?>) params.get("argument");
+        Map<String, Object> ref = stringObjectMap(rawRef, "ref");
+        Map<String, Object> argument = stringObjectMap(rawArgument, "argument");
+        Object type = ref.get("type");
+        McpCompletionProvider provider = registry.getCompletionProvider(type instanceof String ? (String) type : null);
+        if (provider == null) throw new McpErrorException(-32602, "No completion provider for reference type: " + type);
+        Map<String, Object> result = provider.complete(ref, argument);
+        return result == null ? new LinkedHashMap<>() : result;
+    }
+
+    private Map<String, Object> stringObjectMap(Map<?, ?> source, String field) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : source.entrySet()) {
+            if (!(entry.getKey() instanceof String))
+                throw new McpErrorException(-32602, "Invalid params: " + field + " keys must be strings");
+            result.put((String) entry.getKey(), entry.getValue());
+        }
+        return result;
+    }
+
+    private Map<String, Object> handleSetLogLevel(Map<String, Object> params) {
+        if (params == null || !(params.get("level") instanceof String))
+            throw new McpErrorException(-32602, "Invalid params: level is required");
+        try {
+            Level level = Level.parse((String) params.get("level"));
+            LOGGER.setLevel(level);
+            return new LinkedHashMap<>();
+        } catch (IllegalArgumentException e) {
+            throw new McpErrorException(-32602, "Invalid log level: " + params.get("level"));
+        }
+    }
+
+    // ==================== Tools ====================
+
+    private Map<String, Object> handleToolsList(Map<String, Object> params) {
+        return paginate("tools", registry.getRegisteredTools(), params);
+    }
+
+    private Map<String, Object> paginate(String key, List<Map<String, Object>> definitions,
+                                         Map<String, Object> params) {
+        int offset = decodeCursor(params == null ? null : params.get("cursor"), definitions.size());
+        int end = Math.min(offset + config.pageSize, definitions.size());
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put(key, new ArrayList<>(definitions.subList(offset, end)));
+        if (end < definitions.size()) result.put("nextCursor", encodeCursor(end));
+        return result;
+    }
+
+    private static String encodeCursor(int offset) {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(
+                String.valueOf(offset).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static int decodeCursor(Object cursor, int size) {
+        if (cursor == null) return 0;
+        if (!(cursor instanceof String) || ((String) cursor).isEmpty()) {
+            throw new McpErrorException(-32602, "Invalid params: cursor is invalid");
+        }
+        try {
+            String decoded = new String(Base64.getUrlDecoder().decode((String) cursor), StandardCharsets.UTF_8);
+            if (!decoded.matches("[0-9]+")) throw new IllegalArgumentException();
+            long offset = Long.parseLong(decoded);
+            if (offset < 0 || offset >= size) throw new IllegalArgumentException();
+            return (int) offset;
+        } catch (Exception e) {
+            throw new McpErrorException(-32602, "Invalid params: cursor is invalid");
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> handleToolsCall(Map<String, Object> params, String sessionId, Object requestId) {
         if (params == null) throw new McpErrorException(-32602, "Invalid params: missing params");
 
-        Object nameValue = params.get("name");
-        if (!(nameValue instanceof String) || ((String) nameValue).trim().isEmpty()) {
-            throw new McpErrorException(-32602, "Invalid params: tool name must be a non-empty string");
-        }
-        String name = (String) nameValue;
-
-        Object argumentsValue = params.get("arguments");
-        if (argumentsValue != null && !(argumentsValue instanceof Map)) {
-            throw new McpErrorException(-32602, "Invalid params: arguments must be an object");
-        }
-        Map<String, Object> arguments = argumentsValue instanceof Map
-                ? (Map<String, Object>) argumentsValue
-                : new LinkedHashMap<>();
+        String name = requireName(params, "tool");
+        Map<String, Object> arguments = optionalArguments(params);
+        Object progressToken = params.get("_meta") instanceof Map
+                ? ((Map<String, Object>) params.get("_meta")).get("progressToken")
+                : null;
 
         McpToolHandler handler = registry.getToolHandler(name);
         if (handler == null) throw new McpErrorException(-32602, "Unknown tool: " + name);
 
         try {
-            Map<String, Object> toolResult = handler.call(arguments);
-            return toolResult;
+            if (progressToken != null) {
+                notifyToolProgress(sessionId, progressToken, 0d, 1d, "Tool " + name + " started");
+            }
+            Map<String, Object> result = handler.call(arguments);
+            if (progressToken != null) {
+                notifyToolProgress(sessionId, progressToken, 1d, 1d, "Tool " + name + " completed");
+            }
+            return result;
+        } catch (McpErrorException e) {
+            throw e;
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Tool call error: " + name, e);
-            return errorToolResult("Error calling " + name + ": " + e.getMessage());
+            return handleHandlerException("Tool", name, e);
         }
+    }
+
+    /**
+     * Handles {@code notifications/cancelled} by recording the cancellation flag
+     * so subsequent in-flight tool invocations on the same session can observe it.
+     * Does not abort running tool code; tool authors must cooperatively poll
+     * {@link McpRegistry#isCancelled(String, String)} from long-running logic.
+     */
+    private void handleNotificationCancelled(String sessionId, Map<String, Object> params) {
+        if (sessionId == null || params == null) return;
+        Object requestId = params.get("requestId");
+        if (requestId == null) requestId = params.get("request_id");
+        String idString = requestId == null ? null : requestId.toString();
+        if (idString != null) registry.cancelRequest(sessionId, idString);
+        Object reason = params.get("reason");
+        applicationLogger.info("Cancellation received for session=" + sessionId
+                + " requestId=" + idString + " reason=" + reason);
+    }
+
+    /**
+     * Emits a {@code notifications/progress} message to the session's SSE queue.
+     *
+     * @param sessionId target session
+     * @param progressToken client-supplied progress token echoed in params
+     * @param current progress value so far
+     * @param total expected total progress
+     * @param message optional human-readable message
+     */
+    public void notifyToolProgress(String sessionId, Object progressToken,
+                                    double current, double total, String message) {
+        SessionState state = sessions.get(sessionId);
+        if (state == null) return;
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("progressToken", progressToken);
+        params.put("progress", current);
+        params.put("total", total);
+        if (message != null) params.put("message", message);
+        String body = mapper.toJson(mapAsRpcNotification("notifications/progress", params));
+        state.enqueueEvent(body);
+    }
+
+    /**
+     * Log and handle a handler-level exception, returning the appropriate error result.
+     * Separates tool exceptions (return error result) from resource exceptions (throw).
+     *
+     * @param kind identifier kind label for logging
+     * @param identifier resource/tool name or URI
+     * @param e the caught exception
+     * @return error result for tool handlers; throws McpErrorException for resources
+     */
+    private Map<String, Object> handleHandlerException(String kind, String identifier, Exception e) {
+        LOGGER.log(Level.SEVERE, kind + " error (" + identifier + "): " + e.getMessage(), e);
+        if ("Tool".equals(kind)) {
+            return errorToolResult("Error calling " + identifier + ": " + e.getMessage());
+        }
+        throw new McpErrorException(-32603, "Error reading " + identifier + ": " + e.getMessage());
+    }
+
+    private String requireName(Map<String, Object> params, String kind) {
+        Object value = params.get("name");
+        if (!(value instanceof String) || ((String) value).trim().isEmpty()) {
+            throw new McpErrorException(-32602,
+                    "Invalid params: " + kind + " name must be a non-empty string");
+        }
+        return (String) value;
+    }
+
+    private Map<String, Object> optionalArguments(Map<String, Object> params) {
+        Object value = params.get("arguments");
+        if (value == null) return new LinkedHashMap<>();
+        if (!(value instanceof Map)) {
+            throw new McpErrorException(-32602, "Invalid params: arguments must be an object");
+        }
+        return stringObjectMap((Map<?, ?>) value, "arguments");
+    }
+
+    private Map<String, Object> resourceContents(String uri, String text) {
+        Map<String, Object> contentItem = new LinkedHashMap<>();
+        contentItem.put("uri", uri);
+        contentItem.put("mimeType", mimeTypeForUri(uri));
+        contentItem.put("text", text);
+        return wrapContents(contentItem);
+    }
+
+    /**
+     * Wraps a blob resource result as MCP blob content shape:
+     * {@code {"uri":"...","mimeType":"...","blob":"<base64>"}}.
+     */
+    private Map<String, Object> blobContents(String uri, McpBlobContent blob) {
+        return wrapContents(blob);
+    }
+
+    /** Wraps a single content item as the MCP {@code contents} envelope. */
+    private static Map<String, Object> wrapContents(Map<String, Object> contentItem) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        List<Map<String, Object>> contents = new ArrayList<>();
+        contents.add(contentItem);
+        result.put("contents", contents);
+        return result;
     }
 
     // ==================== Resources ====================
 
-    private Map<String, Object> handleResourcesList() {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("resources", registry.getRegisteredResources());
-        return result;
+    private Map<String, Object> handleResourcesList(Map<String, Object> params) {
+        return paginate("resources", registry.getRegisteredResources(), params);
     }
 
-    @SuppressWarnings("unchecked")
     private Map<String, Object> handleResourcesRead(Map<String, Object> params) {
         if (params == null) throw new McpErrorException(-32602, "Invalid params: missing params");
-                Object uriValue = params.get("uri");
-                if (!(uriValue instanceof String) || ((String) uriValue).trim().isEmpty()) {
-                    throw new McpErrorException(-32602, "Invalid params: uri must be a non-empty string");
-                }
-                String uri = (String) uriValue;
+        Object uriValue = params.get("uri");
+        if (!(uriValue instanceof String) || ((String) uriValue).trim().isEmpty()) {
+            throw new McpErrorException(-32602, "Invalid params: uri must be a non-empty string");
+        }
+        String uri = (String) uriValue;
 
-                McpResourceHandler handler = registry.getResourceHandler(uri);
-                if (handler == null) handler = findTemplateHandler(uri);
-                if (handler == null) throw new McpErrorException(-32602, "Unknown resource: " + uri);
+        McpResourceHandler handler = registry.getResourceHandler(uri);
+        if (handler == null) handler = findTemplateHandler(uri);
+        if (handler == null) throw new McpErrorException(-32602, "Unknown resource: " + uri);
 
-                try {
-                    String content = handler.read(uri);
-                    Map<String, Object> result = new LinkedHashMap<>();
-                    List<Map<String, Object>> contents = new ArrayList<>();
-                    Map<String, Object> contentItem = new LinkedHashMap<>();
-                    contentItem.put("uri", uri);
-                    contentItem.put("mimeType", mimeTypeForUri(uri));
-                    contentItem.put("text", content);
-                    contents.add(contentItem);
-                    result.put("contents", contents);
-                    return result;
-                } catch (McpErrorException e) { throw e; }
-                catch (Exception e) {
-                    LOGGER.log(Level.SEVERE, "Resource read error: " + uri, e);
-                    throw new McpErrorException(-32603, "Error reading " + uri + ": " + e.getMessage());
-                }
+        try {
+            if (handler instanceof McpBlobResourceHandler) {
+                return blobContents(uri, ((McpBlobResourceHandler) handler).readBlob(uri));
+            }
+            return resourceContents(uri, handler.read(uri));
+        } catch (McpErrorException e) {
+            throw e;
+        } catch (Exception e) {
+            return handleHandlerException("Resource", uri, e);
+        }
     }
 
     // ==================== Resource Templates ====================
 
-    private Map<String, Object> handleResourceTemplatesList() {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("resourceTemplates", registry.getRegisteredResourceTemplates());
-        return result;
+    private Map<String, Object> handleResourceTemplatesList(Map<String, Object> params) {
+        return paginate("resourceTemplates", registry.getRegisteredResourceTemplates(), params);
     }
 
     private Map<String, Object> handleResourceTemplatesGet(Map<String, Object> params) {
@@ -456,24 +801,23 @@ public class McpProtocolHandler implements McpRegistrar {
         if (handler == null) return errorResourceResult("Unknown resource template URI: " + uri);
 
         try {
-            Map<String, Object> result = new LinkedHashMap<>();
-            List<Map<String, Object>> contents = new ArrayList<>();
-            Map<String, Object> contentItem = new LinkedHashMap<>();
-            contentItem.put("uri", uri);
-            contentItem.put("mimeType", mimeTypeForUri(uri));
-            contentItem.put("text", handler.read(uri));
-            contents.add(contentItem);
-            result.put("contents", contents);
-            return result;
+            if (handler instanceof McpBlobResourceHandler) {
+                return blobContents(uri, ((McpBlobResourceHandler) handler).readBlob(uri));
+            }
+            return resourceContents(uri, handler.read(uri));
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Resource template read error: " + uri, e);
-            return errorResourceResult("Error reading " + uri + ": " + e.getMessage());
+            return handleHandlerException("Resource", uri, e);
         }
     }
 
     private McpResourceHandler findTemplateHandler(String uri) {
         if (uri == null) return null;
         for (Map.Entry<String, McpResourceHandler> entry : registry.getResourceTemplateHandlers().entrySet()) {
+            if (templateMatches(entry.getKey(), uri)) {
+                return entry.getValue();
+            }
+        }
+        for (Map.Entry<String, McpBlobResourceHandler> entry : registry.getBlobResourceTemplateHandlers().entrySet()) {
             if (templateMatches(entry.getKey(), uri)) {
                 return entry.getValue();
             }
@@ -495,7 +839,9 @@ public class McpProtocolHandler implements McpRegistrar {
         return "application/json";
     }
 
-    /** Match URI templates using exact path boundaries and every placeholder. */
+    /**
+     * Match URI templates using exact path boundaries and every placeholder.
+     */
     private boolean templateMatches(String template, String uri) {
         if (template == null || uri == null) return false;
         StringBuilder regex = new StringBuilder("^");
@@ -504,7 +850,6 @@ public class McpProtocolHandler implements McpRegistrar {
             int open = template.indexOf('{', cursor);
             if (open < 0) {
                 regex.append(Pattern.quote(template.substring(cursor)));
-                cursor = template.length();
                 break;
             }
             int close = template.indexOf('}', open + 1);
@@ -518,11 +863,8 @@ public class McpProtocolHandler implements McpRegistrar {
     }
 
     private Map<String, Object> handleResourceSubscribe(String sessionId, Map<String, Object> params) {
-        if (sessionId == null) return errorResourceResult("Missing session ID");
-        SessionState state = sessions.get(sessionId);
-        if (state == null) return errorResourceResult("Unknown session: " + sessionId);
-        if (params == null || params.get("uri") == null) return errorResourceResult("Missing resource URI");
-        String uri = (String) params.get("uri");
+        SessionState state = requireSession(sessionId);
+        String uri = requireResourceUri(params);
         if (registry.getResourceHandler(uri) == null && findTemplateHandler(uri) == null) {
             return errorResourceResult("Unknown resource URI: " + uri);
         }
@@ -531,39 +873,37 @@ public class McpProtocolHandler implements McpRegistrar {
     }
 
     private Map<String, Object> handleResourceUnsubscribe(String sessionId, Map<String, Object> params) {
-        if (sessionId == null) return errorResourceResult("Missing session ID");
-        SessionState state = sessions.get(sessionId);
-        if (state == null) return errorResourceResult("Unknown session: " + sessionId);
-        if (params == null || params.get("uri") == null) return errorResourceResult("Missing resource URI");
-        state.subscriptions.remove((String) params.get("uri"));
+        SessionState state = requireSession(sessionId);
+        state.subscriptions.remove(requireResourceUri(params));
         return new LinkedHashMap<>();
+    }
+
+    private SessionState requireSession(String sessionId) {
+        if (sessionId == null) throw new McpErrorException(-32602, "Missing session ID");
+        SessionState state = sessions.get(sessionId);
+        if (state == null) throw new McpErrorException(-32602, "Unknown session: " + sessionId);
+        return state;
+    }
+
+    private String requireResourceUri(Map<String, Object> params) {
+        if (params == null || !(params.get("uri") instanceof String)
+                || ((String) params.get("uri")).trim().isEmpty()) {
+            throw new McpErrorException(-32602, "Missing resource URI");
+        }
+        return (String) params.get("uri");
     }
 
     // ==================== Prompts ====================
 
-    private Map<String, Object> handlePromptsList() {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("prompts", registry.getRegisteredPrompts());
-        return result;
+    private Map<String, Object> handlePromptsList(Map<String, Object> params) {
+        return paginate("prompts", registry.getRegisteredPrompts(), params);
     }
 
-    @SuppressWarnings("unchecked")
     private Map<String, Object> handlePromptsGet(Map<String, Object> params) {
         if (params == null) return errorPromptResult("Missing params");
 
-        Object nameValue = params.get("name");
-        if (!(nameValue instanceof String) || ((String) nameValue).trim().isEmpty()) {
-            throw new McpErrorException(-32602, "Invalid params: prompt name must be a non-empty string");
-        }
-        String name = (String) nameValue;
-
-        Object argumentsValue = params.get("arguments");
-        if (argumentsValue != null && !(argumentsValue instanceof Map)) {
-            throw new McpErrorException(-32602, "Invalid params: arguments must be an object");
-        }
-        Map<String, Object> arguments = argumentsValue instanceof Map
-                ? (Map<String, Object>) argumentsValue
-                : new LinkedHashMap<>();
+        String name = requireName(params, "prompt");
+        Map<String, Object> arguments = optionalArguments(params);
 
         McpPromptHandler handler = registry.getPromptHandler(name);
         if (handler == null) return errorPromptResult("Unknown prompt: " + name);
@@ -579,69 +919,187 @@ public class McpProtocolHandler implements McpRegistrar {
     // ==================== Registration (called by Managers) ====================
 
     /**
+     * Registers an externally managed task with the server registry.
+     *
+     * @param task task to register
+     */
+    public void registerTask(McpTask task) {
+        registry.registerTask(task);
+    }
+
+    /**
+     * Creates a bounded server task in working state.
+     *
+     * @return newly created task
+     */
+    public McpTask createTask() {
+        return registry.createTask();
+    }
+
+    /**
+     * Completes a task created through this handler.
+     *
+     * @param taskId task identifier
+     * @param result task result value
+     * @return updated task
+     */
+    @SuppressWarnings("unused, UnusedReturnValue")
+    public McpTask completeTask(String taskId, Object result) {
+        return registry.completeTask(taskId, result);
+    }
+
+    /**
+     * Fails a task created through this handler.
+     *
+     * @param taskId task identifier
+     * @param error  failure description
+     * @return updated task
+     */
+    @SuppressWarnings("unused, UnusedReturnValue")
+    public McpTask failTask(String taskId, String error) {
+        return registry.failTask(taskId, error);
+    }
+
+    /**
      * Register a tool schema and handler.
      * Called by ToolManager.registerToolDefinitions() during initialization.
      */
     public void registerTool(String name, String description, Map<String, Object> inputSchema,
-                              List<String> required, McpToolHandler handler) {
+                             List<String> required, McpToolHandler handler) {
         registry.registerTool(name, description, inputSchema, required, handler);
     }
 
-    /** Register a resource schema and handler using the default JSON MIME type. */
+    @Override
+    public void registerTool(String name, String description, Map<String, Object> inputSchema,
+                             List<String> required, Map<String, Object> outputSchema,
+                             McpToolHandler handler) {
+        registry.registerTool(name, description, inputSchema, required, outputSchema, handler);
+    }
+
+    /**
+     * Register a resource schema and handler using the default JSON MIME type.
+     */
     @Override
     public void registerResource(String uri, String name, String description, McpResourceHandler handler) {
         registerResource(uri, name, description, "application/json", handler);
     }
 
-    /** Register a resource schema, MIME type, and handler. */
+    /**
+     * Register a resource schema, MIME type, and handler.
+     */
     @Override
     public void registerResource(String uri, String name, String description, String mimeType,
                                  McpResourceHandler handler) {
         registry.registerResource(uri, name, description, mimeType, handler);
     }
 
-    /** Register a URI template using the default JSON MIME type. */
+    /**
+     * Register a URI template using the default JSON MIME type.
+     */
     @Override
     public void registerResourceTemplate(String uriTemplate, String name, String description,
                                          McpResourceHandler handler) {
         registerResourceTemplate(uriTemplate, name, description, "application/json", handler);
     }
 
-    /** Register a URI template, MIME type, and dynamic resource handler. */
+    /**
+     * Register a URI template, MIME type, and dynamic resource handler.
+     */
     @Override
     public void registerResourceTemplate(String uriTemplate, String name, String description,
                                          String mimeType, McpResourceHandler handler) {
         registry.registerResourceTemplate(uriTemplate, name, description, mimeType, handler);
     }
 
-    /** Queue a resource update for every session subscribed to the URI. */
+    /**
+     * Queues a list-changed notification for every active session.
+     */
+    @Override
+    public void onRegistryChanged(String listType) {
+        String method = "notifications/" + listType + "/list_changed";
+        for (SessionState state : sessions.values()) {
+            state.enqueueEvent(mapper.toJson(mapAsRpcNotification(method, null)));
+        }
+    }
+
+    /**
+     * Queue a resource update for every session subscribed to the URI.
+     */
     public void notifyResourceUpdated(String uri) {
         if (uri == null) return;
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("uri", uri);
+        String body = mapper.toJson(mapAsRpcNotification("notifications/resources/updated", params));
         for (SessionState state : sessions.values()) {
             if (state.subscriptions.contains(uri)) {
-                state.pendingNotifications.offer(uri);
+                state.enqueueEvent(body);
             }
         }
     }
 
-    /** Return the next queued notification as a JSON-RPC message for SSE. */
+    /**
+     * Queues a server logging notification for every active session.
+     *
+     * @param level  protocol logging level
+     * @param logger optional logger name
+     * @param data   notification payload
+     */
+    public void notifyLogMessage(String level, String logger, Object data) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("level", level);
+        if (logger != null) params.put("logger", logger);
+        params.put("data", data);
+        String body = mapper.toJson(mapAsRpcNotification("notifications/message", params));
+        for (SessionState state : sessions.values()) state.enqueueEvent(body);
+    }
+
+    /**
+     * Returns next queued event as a formatted SSE line with event ID.
+     *
+     * @param sessionId session identifier
+     * @return formatted SSE line (e.g. {@code id:42<newline>data:{...}<newline><newline>}), or null when none is available
+     */
     public String pollPendingNotification(String sessionId) {
         SessionState state = sessions.get(sessionId);
         if (state == null) return null;
-        String uri = state.pendingNotifications.poll();
-        if (uri == null) return null;
-        try {
-            Map<String, Object> message = new LinkedHashMap<>();
-            message.put("jsonrpc", JSONRPC_VERSION);
-            message.put("method", "notifications/resources/updated");
-            Map<String, Object> params = new LinkedHashMap<>();
-            params.put("uri", uri);
-            message.put("params", params);
-            return mapper.toJson(message);
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Unable to serialize resource update notification", e);
-            return null;
+        SseEvent event = state.pendingEvents.poll();
+        if (event == null) return null;
+        return event.body;
+    }
+
+    /**
+     * Returns all queued events with IDs strictly greater than {@code afterEventId}.
+     * Used for SSE replay when a client reconnects with {@code Last-Event-ID}.
+     *
+     * @param sessionId    session identifier
+     * @param afterEventId return events with ID {@literal >} afterEventId
+     * @return concatenated SSE blocks for all missed events, or empty string if none
+     */
+    public String getMissedEvents(String sessionId, long afterEventId) {
+        SessionState state = sessions.get(sessionId);
+        if (state == null) return "";
+        StringBuilder sb = new StringBuilder();
+        for (SseEvent event : state.pendingEvents) {
+            if (event.id > afterEventId) {
+                sb.append("id: ").append(event.id)
+                        .append("\nevent: message\ndata: ")
+                        .append(escapeSseData(event.body))
+                        .append("\n\n");
+            }
         }
+        return sb.toString();
+    }
+
+    private static String escapeSseData(String value) {
+        return value.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r");
+    }
+
+    /**
+     * Registers a completion provider by reference type.
+     */
+    @Override
+    public void registerCompletionProvider(String referenceType, McpCompletionProvider provider) {
+        registry.registerCompletionProvider(referenceType, provider);
     }
 
     /**
@@ -649,17 +1107,25 @@ public class McpProtocolHandler implements McpRegistrar {
      * Called by PromptManager.registerPromptDefinitions() during initialization.
      */
     public void registerPrompt(String name, String description, List<Map<String, Object>> arguments,
-                                McpPromptHandler handler) {
+                               McpPromptHandler handler) {
         registry.registerPrompt(name, description, arguments, handler);
     }
 
     // ==================== JSON-RPC Response Helpers ====================
 
+    private Map<String, Object> mapAsRpcNotification(String method, Map<String, Object> params) {
+        Map<String, Object> message = new LinkedHashMap<>();
+        message.put("jsonrpc", JSONRPC_VERSION);
+        message.put("method", method);
+        if (params != null) message.put("params", params);
+        return message;
+    }
+
     private String capabilityError(Object id, String capability) {
         return errorResponse(id, -32601, "MCP capability is disabled: " + capability);
     }
 
-    private String successResponse(Object id, Object result) throws Exception {
+    private String successResponse(Object id, Object result) {
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("jsonrpc", JSONRPC_VERSION);
         resp.put("id", id);

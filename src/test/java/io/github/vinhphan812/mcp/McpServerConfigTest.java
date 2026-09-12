@@ -1,6 +1,6 @@
 package io.github.vinhphan812.mcp;
 
-import io.github.vinhphan812.mcp.api.McpServerConfig;
+import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;

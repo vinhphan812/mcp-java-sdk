@@ -1,48 +1,83 @@
 # MCP Java SDK — Project Guide
 
-## 1. Mục tiêu
+## 1. Purpose
 
-`mcp-java-sdk` là một MCP server SDK độc lập, portable, target Java 8. SDK được tách khỏi Android, Cruzr và các application service riêng của dự án gốc.
+`mcp-java-sdk` is an independent, portable MCP server SDK targeting Java 8. It is separated from Android, ROSA (Robot Operating System Android), and application-specific services.
 
-Implementation baseline là MCP `2025-11-25`. Tài liệu MCP `2026-07-28` chỉ được dùng làm tài liệu so sánh; SDK không tuyên bố hỗ trợ đầy đủ phiên bản này.
+The implementation baseline is MCP `2025-11-25`. MCP `2026-07-28` is used only as a comparison reference; the SDK does not claim full support for that version.
 
-SDK hiện cung cấp một subset thực dụng gồm:
+The SDK currently provides a practical subset:
 
-- JSON-RPC 2.0 request/notification dispatch;
-- MCP initialize và protocol-version validation;
-- tools, resources, resource templates và prompts;
-- Grizzly Streamable HTTP-style transport;
-- session header và lifecycle cơ bản;
-- reflection registration bằng annotations;
-- Java 8-compatible server bootstrap.
+- JSON-RPC 2.0 request and notification dispatch;
+- MCP initialisation and protocol-version validation;
+- tools, resources, resource templates, and prompts;
+- Grizzly Streamable HTTP transport;
+- session headers and basic lifecycle management;
+- annotation-based reflection registration;
+- a Java 8-compatible server bootstrap.
 
-SDK không phải full MCP implementation. Các tính năng chưa có được liệt kê ở mục 8.
+The SDK is not a full MCP implementation. Unsupported or unverified features are listed in section 8.
 
-## 2. Cấu trúc thư mục
+The package contains MCP core and Grizzly HTTP transport only. WebSocket is not a package capability; a robot or application may connect through an external WebSocket bridge or adapter when required.
+
+## 2. Directory structure
 
 ```text
 src/main/java/io/github/vinhphan812/mcp/
-├── annotations/       Annotation declarations
-├── api/                Public configuration, handlers, registrar interfaces
+├── annotations/       Runtime annotations for tools, resources, prompts, parameters
+├── api/                Public contracts and configuration
+│   ├── spi/            Registration SPI and lifecycle listeners
+│   │   ├── McpRegistrar, McpResourceUpdateListener, McpRegistryChangeListener
+│   ├── handler/        Tool, resource, prompt, completion handler interfaces
+│   │   ├── McpToolHandler, McpResourceHandler, McpBlobResourceHandler,
+│   │   ├── McpPromptHandler, McpCompletionProvider
+│   ├── dto/            Immutable value objects
+│   │   ├── McpTask, McpBlobContent
+│   ├── config/         Server and client configuration
+│   │   ├── McpServerConfig, McpClientCapabilities
+│   ├── logging/         Logging adapters
+│   │   ├── McpLogger, JulMcpLogger
+│   └── McpReflectionRegistrar.java   Annotation-based registration utility
 ├── core/               Registry, protocol dispatch, server facade
+│   ├── McpServer, McpRegistry, McpProtocolHandler
 └── transport/          Grizzly HTTP adapter and lifecycle provider
+    ├── GrizzlyStreamableServerTransportProvider, McpGrizzlyHandler
 
 src/test/java/io/github/vinhphan812/mcp/
-└── Behavior and live HTTP tests
+└── Behaviour and live HTTP tests
 
 examples/src/main/java/.../examples/
 └── GrizzlyExample.java
 
 docs/
 ├── PROJECT-GUIDE.md
+├── API-REFERENCE.md
 ├── GRIZZLY-EXAMPLE.md
-├── MCP-PORTING-PLAN.md
+├── IMPLEMENTATION-STATUS.md
 ├── MCP-COMPATIBILITY-2026.md
+├── MCP-PORTING-PLAN.md
+├── adr/                Architecture Decision Records
 └── audits/
     └── 2026-09-01-full-source-audit.md
 ```
 
-## 3. Runtime và dependency
+## 3. Package architecture
+
+The package split is intentionally small and clean:
+
+- `annotations/` contains runtime metadata only (`@McpTool`, `@McpParam`, `@McpResource`, `@McpResourceTemplate`, `@McpPrompt` and provider markers). It has no transport or registry policy.
+- `api/spi/` defines registration contracts (`McpRegistrar`) and listeners that the server fires when registrations or resources change.
+- `api/handler/` defines the interfaces applications implement to provide tool, resource, prompt, and completion behaviour.
+- `api/dto/` holds immutable value objects that flow through the protocol (tasks, blob content).
+- `api/config/` holds server and client configuration (`McpServerConfig`, `McpClientCapabilities`).
+- `api/logging/` provides a portable logger interface and a JDK-logging adapter.
+- `api/McpReflectionRegistrar.java` is a runtime utility that scans `@Tools`, `@Resources`, and `@Prompts` providers and registers their annotated methods.
+- `core/` contains protocol dispatch, registry state, and the server facade. It translates public registrations into MCP JSON-RPC behaviour but does not own HTTP-specific request handling.
+- `transport/` contains the Grizzly Streamable HTTP adapter and lifecycle provider. Keeping it isolated permits a future transport adapter without moving protocol or annotation code.
+
+This arrangement keeps dependency direction clear: annotations describe providers; API exposes extension points; core owns MCP semantics; transport adapts network I/O. Intentionally excluded are Android application services, robot/domain models, WebSocket and STDIO implementations, persistence, authentication backends, and broad framework abstractions. Those belong in consuming applications or separate adapters. The standalone example is under `examples/`, not a production package.
+
+## 4. Runtime and dependencies
 
 - Java source/target: 8
 - Build tool: Gradle Wrapper
@@ -52,9 +87,24 @@ docs/
 - Default port: `3011`
 - Default endpoint: `/mcp`
 
-Không đưa credentials, API keys, tokens, passwords hoặc connection strings vào source, test, example hay tài liệu. Khi cần mô tả giá trị nhạy cảm, dùng `[REDACTED]`.
+Do not put credentials, API keys, tokens, passwords, or connection strings in source, tests, examples, or documentation. Use `[REDACTED]` for sensitive example values.
 
-## 4. Luồng khởi động server
+## 4. Hosting an MCP server in an Android application
+
+An Android application can embed the SDK and host an MCP server in its own process. The consuming application is responsible for:
+
+1. creating `McpServer`;
+2. registering tools, resources, and prompts;
+3. selecting the bind address, port, and endpoint;
+4. starting the server within the appropriate application lifecycle;
+5. making the endpoint available to an MCP client on the same device or a permitted network;
+6. calling `stop()`/`close()` when the application or service stops.
+
+The bind configuration for a device or network must be assessed separately. The default `127.0.0.1` permits local access only. Binding to a network is not automatically safe and requires suitable authentication, an Origin allowlist, request-body limits, network policy, and lifecycle controls.
+
+This is an architectural integration path, not evidence that the bundled Grizzly transport runs on every Android API level. Before production use, verify dependency resolution, Java bytecode/desugaring, startup and shutdown, real HTTP requests, application lifecycle behaviour, and network security policy on the target API level and device. This repository has no Android device/emulator evidence and makes no Android API 21 compatibility claim. Grizzly is a JVM/server-oriented dependency; if it is unsuitable for the target Android runtime, the consumer must provide another transport through the public API.
+
+## 5. Server startup flow
 
 ```text
 McpServerConfig
@@ -69,7 +119,7 @@ McpServer
       McpGrizzlyHandler
 ```
 
-Các provider được đăng ký trước `start()`:
+Providers are registered before `start()`:
 
 ```java
 McpServer server = McpServer.builder()
@@ -93,41 +143,58 @@ System.out.println(server.getUrl());
 // shutdown: server.close()
 ```
 
-Có thể dùng `port(0)` trong test để yêu cầu hệ điều hành cấp ephemeral port. Sau khi start, lấy port thực tế qua `server.getTransport().getActualPort()`.
+Use `port(0)` in tests to request an ephemeral port from the operating system. After startup, retrieve the actual port with `server.getTransport().getActualPort()`.
 
-Lifecycle:
+Lifecycle methods:
 
-- `register(...)`: đăng ký provider trước khi start;
-- `registerAll(...)`: đăng ký nhiều provider theo thứ tự;
-- `start()`: khởi động Grizzly;
-- `isRunning()`: kiểm tra trạng thái;
-- `getUrl()`: lấy endpoint khi server đang chạy;
-- `stop()`/`close()`: dừng server và đóng sessions.
+- `register(...)`: register a provider before startup;
+- `registerAll(...)`: register multiple providers in order;
+- `start()`: start Grizzly;
+- `isRunning()`: inspect the running state;
+- `getUrl()`: obtain the endpoint while the server is running;
+- `stop()`/`close()`: stop the server and close sessions.
 
-## 5. Đăng ký capability
+## 6. Capability registration
 
-Reflection registrar đọc các class annotations:
+The reflection registrar reads these annotations:
 
 - `@Tools` + `@McpTool`;
 - `@Resources` + `@McpResource`;
 - `@Resources` + `@McpResourceTemplate`;
 - `@Prompts` + `@McpPrompt`;
-- `@McpParam` cho metadata argument/schema.
+- `@McpParam` for argument metadata, schemas, and direct parameter binding.
 
-Contract hiện tại:
+The complete runnable catalogue, request payloads, capability settings, run commands, and limitations are documented in `docs/GRIZZLY-EXAMPLE.md`. It registers three tools, two exact resources, two resource templates, and two prompts.
 
-- tool method trả `Map<String, Object>`;
-- prompt method trả `Map<String, Object>`;
-- resource/resource-template method trả `String`;
-- method nhận zero hoặc một compatible argument;
-- tool/prompt argument thường là `Map<String, Object>`;
-- resource argument thường là URI `String`.
+When a tool or prompt method has one `Map<String, Object>` parameter, the map is passed through unchanged. When parameters are individually annotated with `@McpParam`, JSON argument values are bound by name and converted to supported Java 8 scalar types (`String`, boolean, and numeric primitives/wrappers). Required values and types are checked before invocation.
 
-Registrar kiểm tra return type và ném `IllegalArgumentException` nếu method vi phạm contract. Với production lớn, nên cân nhắc generated registrar thay cho reflection để giảm startup cost và tăng tính deterministic.
+Current contracts:
 
-## 6. Protocol flow
+- tool methods return `Map<String, Object>`;
+- prompt methods return `Map<String, Object>`;
+- resource and resource-template methods return `String`;
+- tool and prompt methods accept zero arguments, one compatible `Map<String, Object>` argument, or individually annotated direct parameters;
+- direct `@McpParam` parameters are bound by name and support String, boolean, numeric primitive/wrapper, Object, and Map values;
+- resource arguments are normally URI `String` values.
 
-Client gửi `initialize` với JSON-RPC 2.0:
+The registrar checks return types and throws `IllegalArgumentException` when a method violates the contract. For large production deployments, consider a generated registrar instead of reflection to reduce startup cost and improve determinism.
+
+## 7. Package architecture assessment
+
+The package layout under `io.github.vinhphan812.mcp` is appropriate for the current SDK boundary and should not be flattened or split further without a new capability requiring it:
+
+- `annotations`: public annotation declarations only; no protocol or transport dependency.
+- `api`: public extension contracts, configuration, handlers, logger, completion provider, and task/client metadata types.
+- `core`: registry, JSON-RPC dispatch, session state, capability advertisement, and server facade; it is transport-neutral.
+- `transport`: Grizzly HTTP lifecycle, headers, authentication, Origin policy, SSE, and request limits; HTTP-specific concerns remain isolated here.
+
+Keeping `core` independent of `transport` allows another transport to use the same protocol handler. Keeping `api` separate from `core` makes the public integration surface explicit. WebSocket, Android services, robot/application domain models, persistence, and generated registrars are intentionally outside these packages.
+
+The example application is kept under `examples/.../examples` and is not part of the SDK artifact.
+
+## 8. Protocol flow
+
+The client sends `initialize` using JSON-RPC 2.0:
 
 ```json
 {
@@ -142,15 +209,15 @@ Client gửi `initialize` với JSON-RPC 2.0:
 }
 ```
 
-Sau đó client gửi notification:
+The client then sends this notification:
 
 ```json
 {"jsonrpc":"2.0","method":"notifications/initialized"}
 ```
 
-Notification không có `id` và không nhận JSON-RPC response body. Các request thông thường có `id` và nhận response hoặc error.
+Notifications have no `id` and receive no JSON-RPC response body. Ordinary requests have an `id` and receive a response or error.
 
-Các method chính:
+Main methods:
 
 - `initialize`;
 - `tools/list`, `tools/call`;
@@ -158,92 +225,98 @@ Các method chính:
 - `resources/templates/list`;
 - `prompts/list`, `prompts/get`.
 
-Resource template không dùng route custom. Client resolve URI, ví dụ `demo://users/42`, rồi gọi `resources/read`.
+A resource template does not use a custom route. The client resolves a URI, such as `demo://users/42`, and then calls `resources/read`.
 
-Lỗi giao thức dùng JSON-RPC error, gồm invalid request/params và method hoặc resource không tồn tại. SDK không coi lỗi nghiệp vụ là success result chứa chuỗi lỗi.
+Protocol failures use JSON-RPC errors, including invalid requests or parameters and unknown methods or resources. The SDK does not treat an application error as a successful result containing an error string.
 
-## 7. HTTP transport
+## 9. HTTP transport
 
-Endpoint xử lý:
+The endpoint handles:
 
-- `POST /mcp`: JSON-RPC request hoặc notification;
-- `GET /mcp`: session-bound event stream cơ bản;
-- `DELETE /mcp`: kết thúc session.
+- `POST /mcp`: JSON-RPC request or notification;
+- `GET /mcp`: basic session-bound event stream;
+- `DELETE /mcp`: session termination.
 
-Header liên quan:
+Relevant headers:
 
-- POST cần `Content-Type: application/json`;
-- `Accept` cần phù hợp với `application/json` và/hoặc `text/event-stream`;
+- POST requires `Content-Type: application/json`;
+- `Accept` must allow `application/json` and/or `text/event-stream`;
 - protocol header: `Mcp-Protocol-Version: 2025-11-25`;
-- session header: `Mcp-Session-Id` sau khi session được cấp;
+- session header: `Mcp-Session-Id` after a session is issued;
 - optional authentication: `Authorization: Bearer [REDACTED]`.
 
 Security defaults:
 
-- example bind loopback;
-- Origin không xác định/không được allow sẽ bị từ chối;
-- Bearer token được so sánh constant-time;
-- secret do `Supplier<String>` cung cấp và không được ghi ra log/source.
+- examples bind to loopback;
+- an unknown or disallowed Origin is rejected;
+- Bearer tokens are compared in constant time;
+- the secret is supplied by `Supplier<String>` and must not be written to logs or source.
 
-Production deployment phải bổ sung reverse proxy/request limit, TLS, origin allowlist phù hợp và secret provider ngoài source control.
+Production deployment should add a reverse proxy, request limits, TLS, an appropriate Origin allowlist, and a secret provider outside source control.
 
-## 8. Phạm vi chưa hỗ trợ
+## 9. Unsupported or unverified scope
 
-Các phần sau chưa được implement hoặc chưa được chứng minh đầy đủ:
+The following features are not implemented or have not been fully demonstrated:
 
-- pagination;
-- `Last-Event-ID` và replay/resumable SSE;
-- binary resource `blob`;
-- completion;
-- logging;
-- progress/cancellation;
-- sampling;
-- elicitation;
-- tasks;
+- progress/cancellation notifications (implemented: `notifyToolProgress`, `notifications/cancelled`, `isCancelled` — P2);
+- sampling (not implemented);
+- elicitation request/response flow (not implemented);
+- async task orchestration and `tasks/create` (implemented — P2);
+- async server API (not implemented);
 - STDIO transport;
-- richer tool annotations/output schemas;
-- asynchronous API;
-- full event-stream response semantics cho mọi POST negotiation.
+- typed schema model beyond `@McpTool(outputSchema)`;
+- POST event-stream response mode (results returned as JSON);
+- complete CORS policy beyond Origin rejection;
+- external MCP client interoperability;
+- Android/ROSA device or emulator startup evidence.
 
-Không mô tả SDK là full MCP parity khi các giới hạn này còn tồn tại.
+Do not describe the SDK as having full MCP parity while these limitations remain.
 
-## 9. Build, test và example
+## 10. Build, tests, and example
 
-Từ project root:
+The build creates one Maven publication with artifact `io.github.vinhphan812.mcp:mcp-java-sdk` and main, sources, and Javadoc JARs. CI and release workflows are configured, but no tagged release or publication has been executed.
+
+From the project root:
 
 ```bash
 ./gradlew clean test build --console=plain
 ```
 
-Test hiện bao phủ:
+Current tests cover:
 
-- configuration defaults/validation;
-- JSON-RPC dispatch và error/notification behavior;
-- annotation registration;
-- in-process Grizzly HTTP smoke path.
+- configuration defaults and validation;
+- JSON-RPC dispatch and error/notification behaviour;
+- annotation registration and direct binding;
+- tasks (get, result, cancel, progress, notFound);
+- pagination (cursor-based);
+- list-changed notifications;
+- in-process Grizzly HTTP smoke, security matrix, and resumability paths;
+- Bearer token authentication matrix.
 
-Example hiện chưa được khai báo thành Gradle source set/application task riêng. Chạy example cần compile/run với classpath Gradle phù hợp hoặc bổ sung task build riêng trong phạm vi khác.
+The example is not declared as a separate Gradle source set or application task. Run it with a suitable Gradle classpath or add a separate build task in a different change.
 
-Hướng dẫn request chi tiết nằm trong `docs/GRIZZLY-EXAMPLE.md`.
+Detailed request guidance is in `docs/GRIZZLY-EXAMPLE.md`.
 
-## 10. Audit và release checklist
+## 11. Audit and release checklist
 
-Trước khi phát hành:
+Before release:
 
-1. chạy `./gradlew clean test build --console=plain`;
-2. kiểm tra test reports và exit code;
-3. chạy static search loại Android/application imports;
-4. kiểm tra không có secret/credential thật;
-5. review `docs/audits/2026-09-01-full-source-audit.md` và cập nhật ngày/phạm vi;
-6. thêm project license và dependency notices/SBOM — hiện là gap đã ghi nhận;
-7. kiểm tra origin, TLS, body-size limit, authentication và reverse proxy;
-8. xác nhận client interoperability bằng runtime HTTP probes.
+1. run `./gradlew clean test build --console=plain`;
+2. inspect test reports and the exit code;
+3. run a static search for Android/application imports;
+4. check for real secrets or credentials;
+5. review the existing audit documentation and update its date and scope;
+6. review dependency notices or an SBOM as required for the release;
+7. check Origin, TLS, body-size limits, authentication, and reverse-proxy configuration;
+8. confirm client interoperability with runtime HTTP probes.
 
-## 11. Tài liệu tham chiếu
+## 12. Reference documentation
 
 - `README.md`: quick overview;
-- `docs/GRIZZLY-EXAMPLE.md`: transport/example walkthrough;
-- `docs/MCP-COMPATIBILITY-2026.md`: compatibility matrix và remediation history;
+- `docs/API-REFERENCE.md`: complete public API surface with all annotations, handlers, and methods;
+- `docs/GRIZZLY-EXAMPLE.md`: transport and example walkthrough;
+- `docs/MCP-COMPATIBILITY-2026.md`: compatibility matrix and remediation history;
 - `docs/MCP-PORTING-PLAN.md`: portable extraction plan;
-- `docs/IMPLEMENTATION-STATUS.md`: current completed, incomplete, and unverified areas.
+- `docs/IMPLEMENTATION-STATUS.md`: completed, incomplete, and unverified areas with test evidence;
+- `docs/adr/`: architecture decision records (ADRs) documenting key design choices.
 - `docs/audits/2026-09-01-full-source-audit.md`: full source audit.

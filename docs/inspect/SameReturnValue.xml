@@ -1,0 +1,30 @@
+<problems>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpExampleRegistrationTest.java</file>
+  <line>24</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpExampleRegistrationTest.ResourcesProvider java.lang.String readme(java.lang.String uri)" />
+  <problem_class id="SameReturnValue" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Method always returns the same value</problem_class>
+  <hints />
+  <description>Method &lt;code&gt;readme()&lt;/code&gt; always returns &lt;code&gt;readme&lt;/code&gt;</description>
+  <highlighted_element>readme</highlighted_element>
+  <language>JAVA</language>
+  <offset>22</offset>
+  <length>6</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpGrizzlySecurityMatrixTest.java</file>
+  <line>106</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpGrizzlySecurityMatrixTest java.lang.String initialize()" />
+  <problem_class id="SameReturnValue" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Method always returns the same value</problem_class>
+  <hints />
+  <description>Method &lt;code&gt;initialize()&lt;/code&gt; always returns &lt;code&gt;{&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;id&quot;:1,&quot;method&quot;:&quot;initialize&quot;,&quot;params&quot;:{&quot;protocolVersion&quot;:&quot;2025-11-25&quot;,&quot;capabilities&quot;:{},&quot;clientInfo&quot;:{&quot;name&quot;:&quot;test&quot;,&quot;version&quot;:&quot;1&quot;}}}&lt;/code&gt;</description>
+  <highlighted_element>initialize</highlighted_element>
+  <language>JAVA</language>
+  <offset>19</offset>
+  <length>10</length>
+</problem>
+</problems>

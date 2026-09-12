@@ -9,8 +9,15 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 public @interface McpResource {
+    /** @return exact resource URI */
     String uri();
+
+    /** @return resource name, or empty string for default handling */
     String name() default "";
+
+    /** @return resource description, or empty string for default handling */
     String description() default "";
+
+    /** @return resource MIME type */
     String mimeType() default "application/json";
 }

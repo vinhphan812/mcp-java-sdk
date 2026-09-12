@@ -9,6 +9,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 public @interface McpPrompt {
+    /** @return prompt name, or empty string for default handling */
     String name() default "";
+
+    /** @return prompt description, or empty string for default handling */
     String description() default "";
 }

@@ -1,0 +1,1022 @@
+<problems>
+<problem>
+  <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/transport/McpGrizzlyHandler.java</file>
+  <line>20</line>
+  <module>mcp-java-sdk.main</module>
+  <package>io.github.vinhphan812.mcp.transport</package>
+  <entry_point TYPE="class" FQNAME="io.github.vinhphan812.mcp.transport.McpGrizzlyHandler" />
+  <language>JAVA</language>
+  <offset>19</offset>
+  <length>17</length>
+  <highlighted_element>McpGrizzlyHandler</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Class has 3 instantiations, but the instantiations are not reachable from the entry points.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/transport/McpGrizzlyHandler.java</file>
+  <line>63</line>
+  <module>mcp-java-sdk.main</module>
+  <package>io.github.vinhphan812.mcp.transport</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.transport.McpGrizzlyHandler McpGrizzlyHandler(io.github.vinhphan812.mcp.core.McpProtocolHandler handler)" />
+  <language>JAVA</language>
+  <offset>11</offset>
+  <length>17</length>
+  <highlighted_element>McpGrizzlyHandler</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Constructor is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/transport/McpGrizzlyHandler.java</file>
+  <line>72</line>
+  <module>mcp-java-sdk.main</module>
+  <package>io.github.vinhphan812.mcp.transport</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.transport.McpGrizzlyHandler McpGrizzlyHandler(io.github.vinhphan812.mcp.core.McpProtocolHandler handler, java.lang.String endpoint, java.util.function.Supplier&lt;java.lang.String&gt; apiKeySupplier)" />
+  <language>JAVA</language>
+  <offset>11</offset>
+  <length>17</length>
+  <highlighted_element>McpGrizzlyHandler</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Constructor is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/transport/McpGrizzlyHandler.java</file>
+  <line>84</line>
+  <module>mcp-java-sdk.main</module>
+  <package>io.github.vinhphan812.mcp.transport</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.transport.McpGrizzlyHandler McpGrizzlyHandler(io.github.vinhphan812.mcp.core.McpProtocolHandler handler, java.lang.String endpoint, java.util.function.Supplier&lt;java.lang.String&gt; apiKeySupplier, java.util.Set&lt;java.lang.String&gt; allowedOrigins, int maxRequestBodyBytes)" />
+  <language>JAVA</language>
+  <offset>11</offset>
+  <length>17</length>
+  <highlighted_element>McpGrizzlyHandler</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Constructor has 3 usages, but the usages are not reachable from the entry points.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpClientCapabilitiesTest.java</file>
+  <line>12</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="class" FQNAME="io.github.vinhphan812.mcp.McpClientCapabilitiesTest" />
+  <language>JAVA</language>
+  <offset>6</offset>
+  <length>25</length>
+  <highlighted_element>McpClientCapabilitiesTest</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Class is not instantiated.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpClientCapabilitiesTest.java</file>
+  <line>14</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpClientCapabilitiesTest void serializesElicitationAndExperimentalCapabilities()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>48</length>
+  <highlighted_element>serializesElicitationAndExperimentalCapabilities</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpClientCapabilitiesTest.java</file>
+  <line>29</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpClientCapabilitiesTest void doesNotAdvertiseEmptyOptionalCapabilities()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>41</length>
+  <highlighted_element>doesNotAdvertiseEmptyOptionalCapabilities</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpClientCapabilitiesTest.java</file>
+  <line>34</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpClientCapabilitiesTest void capabilityMetadataDoesNotClaimOutboundClientSupport()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>51</length>
+  <highlighted_element>capabilityMetadataDoesNotClaimOutboundClientSupport</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpClientCapabilitiesTest.java</file>
+  <line>49</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpClientCapabilitiesTest void clientCapabilityMapsAreImmutableSnapshots()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>41</length>
+  <highlighted_element>clientCapabilityMapsAreImmutableSnapshots</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpClientCapabilitiesTest.java</file>
+  <line>65</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpClientCapabilitiesTest void nestedValuesAreCopiedAndReturnedStructuresAreUnmodifiable()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>57</length>
+  <highlighted_element>nestedValuesAreCopiedAndReturnedStructuresAreUnmodifiable</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpClientCapabilitiesTest.java</file>
+  <line>95</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpClientCapabilitiesTest void serverExperimentalMetadataIsImmutableAndConfigured()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>50</length>
+  <highlighted_element>serverExperimentalMetadataIsImmutableAndConfigured</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpExampleRegistrationTest.java</file>
+  <line>12</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="class" FQNAME="io.github.vinhphan812.mcp.McpExampleRegistrationTest" />
+  <language>JAVA</language>
+  <offset>6</offset>
+  <length>26</length>
+  <highlighted_element>McpExampleRegistrationTest</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Class is not instantiated.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpExampleRegistrationTest.java</file>
+  <line>43</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpExampleRegistrationTest void annotatedProvidersRegisterToolResourceTemplateAndPrompt()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>55</length>
+  <highlighted_element>annotatedProvidersRegisterToolResourceTemplateAndPrompt</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpGrizzlyLiveTest.java</file>
+  <line>17</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="class" FQNAME="io.github.vinhphan812.mcp.McpGrizzlyLiveTest" />
+  <language>JAVA</language>
+  <offset>6</offset>
+  <length>18</length>
+  <highlighted_element>McpGrizzlyLiveTest</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Class is not instantiated.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpGrizzlyLiveTest.java</file>
+  <line>19</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpGrizzlyLiveTest void initializeAndNotificationWorkOverHttp()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>37</length>
+  <highlighted_element>initializeAndNotificationWorkOverHttp</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpGrizzlySecurityMatrixTest.java</file>
+  <line>21</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="class" FQNAME="io.github.vinhphan812.mcp.McpGrizzlySecurityMatrixTest" />
+  <language>JAVA</language>
+  <offset>6</offset>
+  <length>28</length>
+  <highlighted_element>McpGrizzlySecurityMatrixTest</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Class is not instantiated.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpGrizzlySecurityMatrixTest.java</file>
+  <line>30</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpGrizzlySecurityMatrixTest void startServer()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>11</length>
+  <highlighted_element>startServer</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpGrizzlySecurityMatrixTest.java</file>
+  <line>39</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpGrizzlySecurityMatrixTest void stopServer()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>10</length>
+  <highlighted_element>stopServer</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpGrizzlySecurityMatrixTest.java</file>
+  <line>44</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpGrizzlySecurityMatrixTest void rejectsMalformedJson()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>20</length>
+  <highlighted_element>rejectsMalformedJson</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpGrizzlySecurityMatrixTest.java</file>
+  <line>49</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpGrizzlySecurityMatrixTest void rejectsUnsupportedMethod()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>24</length>
+  <highlighted_element>rejectsUnsupportedMethod</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpGrizzlySecurityMatrixTest.java</file>
+  <line>54</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpGrizzlySecurityMatrixTest void rejectsMissingAndInvalidSession()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>31</length>
+  <highlighted_element>rejectsMissingAndInvalidSession</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpGrizzlySecurityMatrixTest.java</file>
+  <line>61</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpGrizzlySecurityMatrixTest void rejectsWrongOrigin()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>18</length>
+  <highlighted_element>rejectsWrongOrigin</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpGrizzlySecurityMatrixTest.java</file>
+  <line>66</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpGrizzlySecurityMatrixTest void rejectsUnsupportedProtocolVersion()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>33</length>
+  <highlighted_element>rejectsUnsupportedProtocolVersion</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpGrizzlySecurityMatrixTest.java</file>
+  <line>71</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpGrizzlySecurityMatrixTest void rejectsWrongContentType()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>23</length>
+  <highlighted_element>rejectsWrongContentType</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpGrizzlySecurityMatrixTest.java</file>
+  <line>76</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpGrizzlySecurityMatrixTest void rejectsUnacceptableAccept()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>25</length>
+  <highlighted_element>rejectsUnacceptableAccept</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpGrizzlySecurityMatrixTest.java</file>
+  <line>81</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpGrizzlySecurityMatrixTest void rejectsBodyOverConfiguredLimit()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>30</length>
+  <highlighted_element>rejectsBodyOverConfiguredLimit</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpGrizzlySecurityMatrixTest.java</file>
+  <line>91</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpGrizzlySecurityMatrixTest void deletesSessionAndRejectsItAfterward()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>35</length>
+  <highlighted_element>deletesSessionAndRejectsItAfterward</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpGrizzlySecurityMatrixTest.java</file>
+  <line>101</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpGrizzlySecurityMatrixTest void acceptsValidBearerAuthentication()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>32</length>
+  <highlighted_element>acceptsValidBearerAuthentication</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpListChangedNotificationTest.java</file>
+  <line>11</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="class" FQNAME="io.github.vinhphan812.mcp.McpListChangedNotificationTest" />
+  <language>JAVA</language>
+  <offset>6</offset>
+  <length>30</length>
+  <highlighted_element>McpListChangedNotificationTest</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Class is not instantiated.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpListChangedNotificationTest.java</file>
+  <line>13</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpListChangedNotificationTest void successfulRegistrationsNotifyExistingSessionByListType()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>54</length>
+  <highlighted_element>successfulRegistrationsNotifyExistingSessionByListType</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpListChangedNotificationTest.java</file>
+  <line>38</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpListChangedNotificationTest void failedDuplicateRegistrationDoesNotNotify()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>40</length>
+  <highlighted_element>failedDuplicateRegistrationDoesNotNotify</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpPaginationTest.java</file>
+  <line>14</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="class" FQNAME="io.github.vinhphan812.mcp.McpPaginationTest" />
+  <language>JAVA</language>
+  <offset>6</offset>
+  <length>17</length>
+  <highlighted_element>McpPaginationTest</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Class is not instantiated.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpPaginationTest.java</file>
+  <line>16</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpPaginationTest void toolsListReturnsFirstAndNextPage()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>32</length>
+  <highlighted_element>toolsListReturnsFirstAndNextPage</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpPaginationTest.java</file>
+  <line>32</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpPaginationTest void resourcesListRejectsInvalidCursor()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>33</length>
+  <highlighted_element>resourcesListRejectsInvalidCursor</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpProtocolHandlerTest.java</file>
+  <line>13</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="class" FQNAME="io.github.vinhphan812.mcp.McpProtocolHandlerTest" />
+  <language>JAVA</language>
+  <offset>6</offset>
+  <length>22</length>
+  <highlighted_element>McpProtocolHandlerTest</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Class is not instantiated.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpProtocolHandlerTest.java</file>
+  <line>15</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpProtocolHandlerTest void initializeCreatesSessionAndAdvertisesConfig()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>43</length>
+  <highlighted_element>initializeCreatesSessionAndAdvertisesConfig</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpProtocolHandlerTest.java</file>
+  <line>35</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpProtocolHandlerTest void initializeAdvertisesEnabledServerCapabilities()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>45</length>
+  <highlighted_element>initializeAdvertisesEnabledServerCapabilities</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpProtocolHandlerTest.java</file>
+  <line>59</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpProtocolHandlerTest void invalidJsonRpcEnvelopeReturnsInvalidRequest()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>43</length>
+  <highlighted_element>invalidJsonRpcEnvelopeReturnsInvalidRequest</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpProtocolHandlerTest.java</file>
+  <line>66</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpProtocolHandlerTest void unknownToolReturnsJsonRpcInvalidParamsError()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>43</length>
+  <highlighted_element>unknownToolReturnsJsonRpcInvalidParamsError</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpProtocolHandlerTest.java</file>
+  <line>75</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpProtocolHandlerTest void rejectsProtectedRequestWithoutSession()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>37</length>
+  <highlighted_element>rejectsProtectedRequestWithoutSession</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpProtocolHandlerTest.java</file>
+  <line>82</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpProtocolHandlerTest void completionCompleteUsesRegisteredProvider()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>40</length>
+  <highlighted_element>completionCompleteUsesRegisteredProvider</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpProtocolHandlerTest.java</file>
+  <line>102</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpProtocolHandlerTest void loggingSetLevelAcceptsValidLevel()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>32</length>
+  <highlighted_element>loggingSetLevelAcceptsValidLevel</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpProtocolHandlerTest.java</file>
+  <line>116</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpProtocolHandlerTest void notificationsMessageProducesNoResponse()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>38</length>
+  <highlighted_element>notificationsMessageProducesNoResponse</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpServerConfigTest.java</file>
+  <line>8</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="class" FQNAME="io.github.vinhphan812.mcp.McpServerConfigTest" />
+  <language>JAVA</language>
+  <offset>6</offset>
+  <length>19</length>
+  <highlighted_element>McpServerConfigTest</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Class is not instantiated.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpServerConfigTest.java</file>
+  <line>10</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpServerConfigTest void defaultsArePortableAndConsistent()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>32</length>
+  <highlighted_element>defaultsArePortableAndConsistent</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpServerConfigTest.java</file>
+  <line>20</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpServerConfigTest void subscriptionsDisableWithResources()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>33</length>
+  <highlighted_element>subscriptionsDisableWithResources</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpServerConfigTest.java</file>
+  <line>29</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpServerConfigTest void rejectsBlankMetadata()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>20</length>
+  <highlighted_element>rejectsBlankMetadata</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpTasksTest.java</file>
+  <line>13</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="class" FQNAME="io.github.vinhphan812.mcp.McpTasksTest" />
+  <language>JAVA</language>
+  <offset>6</offset>
+  <length>12</length>
+  <highlighted_element>McpTasksTest</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Class is not instantiated.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpTasksTest.java</file>
+  <line>45</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpTasksTest void rejectsInvalidTaskConstruction()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>30</length>
+  <highlighted_element>rejectsInvalidTaskConstruction</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpTasksTest.java</file>
+  <line>65</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpTasksTest void rejectsInvalidTaskRegistrationAndFailureErrors()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>46</length>
+  <highlighted_element>rejectsInvalidTaskRegistrationAndFailureErrors</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpTasksTest.java</file>
+  <line>75</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpTasksTest void initializeAdvertisesTasksCapability()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>35</length>
+  <highlighted_element>initializeAdvertisesTasksCapability</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpTasksTest.java</file>
+  <line>83</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpTasksTest void disabledTasksReturnCapabilityErrorsForAllTaskMethods()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>52</length>
+  <highlighted_element>disabledTasksReturnCapabilityErrorsForAllTaskMethods</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpTasksTest.java</file>
+  <line>95</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpTasksTest void malformedTaskParamsReturnDeterministicInvalidParamsErrors()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>57</length>
+  <highlighted_element>malformedTaskParamsReturnDeterministicInvalidParamsErrors</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpTasksTest.java</file>
+  <line>111</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpTasksTest void createGetCancelAndResultExposeBoundedLifecycle()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>46</length>
+  <highlighted_element>createGetCancelAndResultExposeBoundedLifecycle</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpTasksTest.java</file>
+  <line>127</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpTasksTest void completedAndFailedTasksReturnResultAndError()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>43</length>
+  <highlighted_element>completedAndFailedTasksReturnResultAndError</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/McpTasksTest.java</file>
+  <line>142</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.McpTasksTest void workingResultAndRepeatedCancelReturnProtocolErrors()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>50</length>
+  <highlighted_element>workingResultAndRepeatedCancelReturnProtocolErrors</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/transport/McpGrizzlyResumabilityTest.java</file>
+  <line>7</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp.transport</package>
+  <entry_point TYPE="class" FQNAME="io.github.vinhphan812.mcp.transport.McpGrizzlyResumabilityTest" />
+  <language>JAVA</language>
+  <offset>6</offset>
+  <length>26</length>
+  <highlighted_element>McpGrizzlyResumabilityTest</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Class is not instantiated.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/transport/McpGrizzlyResumabilityTest.java</file>
+  <line>9</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp.transport</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.transport.McpGrizzlyResumabilityTest void parsesAbsentAndNonNegativeLastEventId()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>37</length>
+  <highlighted_element>parsesAbsentAndNonNegativeLastEventId</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/transport/McpGrizzlyResumabilityTest.java</file>
+  <line>16</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp.transport</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.transport.McpGrizzlyResumabilityTest void rejectsMalformedLastEventId()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>27</length>
+  <highlighted_element>rejectsMalformedLastEventId</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/src/test/java/io/github/vinhphan812/mcp/transport/McpGrizzlyResumabilityTest.java</file>
+  <line>25</line>
+  <module>mcp-java-sdk.test</module>
+  <package>io.github.vinhphan812.mcp.transport</package>
+  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.transport.McpGrizzlyResumabilityTest void emitsSseEventIdBeforeEventAndData()" />
+  <language>JAVA</language>
+  <offset>9</offset>
+  <length>33</length>
+  <highlighted_element>emitsSseEventIdBeforeEventAndData</highlighted_element>
+  <problem_class id="" severity="WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">unused declaration</problem_class>
+  <hints>
+    <hint value="comment" />
+    <hint value="delete" />
+  </hints>
+  <description>Method is never used.</description>
+</problem>
+</problems>
