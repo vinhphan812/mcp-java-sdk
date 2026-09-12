@@ -197,14 +197,14 @@ The README example uses `@McpParam(description = "...")` without a `name`, which
 
 ## Priority fix order
 
-1. **H-B** — `registerBlobResource` calls wrong method (breaks blob resources)
-2. **H-A** — `McpBlobContent uri` discarded (data loss)
-3. **H-E** — catches Exception, not Error (JVM crash risk)
-4. **H-C** — Integer overflow in paginate
-5. **H-D** — orphaned `handleResourceTemplatesGet`
-6. **M-A/B** — `McpBlobContent` equals/hashCode/mimeType
-7. **M-D** — `@McpParams @Target` Java annotation rule violation
-8. **M-C** — `parameterMetadata` silent skip of unannotated params
+1. ~~H-B~~ ~~FIXED~~ **H-B** — `registerBlobResource` called wrong method (breaks blob resources)
+2. ~~H-A~~ **FIXED** **H-A** — `McpBlobContent uri` discarded (data loss)
+3. ~~H-E~~ **FIXED** **H-E** — catches Exception, not Error (JVM crash risk)
+4. ~~H-C~~ **FIXED** **H-C** — Integer overflow in paginate
+5. ~~H-D~~ Acknowledged **H-D** — orphaned `handleResourceTemplatesGet` (returns explicit 501)
+6. ~~M-A/B~~ **FIXED** **M-A/B** — `McpBlobContent` equals/hashCode/mimeType
+7. ~~M-D~~ Acknowledged **M-D** — `@McpParams @Target` violation (METHOD usage is future-use intent)
+8. ~~M-C~~ **FIXED** **M-C** — `parameterMetadata` now fails fast on mixed annotated/unannotated
 9. Remaining LOW items
 
 ---

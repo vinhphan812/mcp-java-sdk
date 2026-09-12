@@ -376,8 +376,10 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             return new McpResponse(successResponse(id, result), responseSessionId);
         } catch (McpErrorException e) {
             return new McpResponse(errorResponse(id, e.getCode(), e.getMessage()), sessionId);
-        } catch (Exception e) {
-            applicationLogger.error("Error handling MCP request: " + e.getMessage());
+        } catch (Throwable t) {
+            applicationLogger.error("Error handling MCP request: " + t.getMessage());
+            if (t instanceof Error) throw (Error) t;
+            Exception e = (Exception) t;
             try {
                 Map<String, Object> req = mapper.fromJson(requestBody, new TypeToken<Map<String, Object>>() {
                 }.getType());
@@ -511,7 +513,10 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         Map<String, Object> notifyParams = new LinkedHashMap<>();
         notifyParams.put("requestId", requestId);
         notifyParams.put("reason", "Task cancelled by server");
-        sessions.get(sessionId).enqueueEvent(mapper.toJson(mapAsRpcNotification("notifications/cancelled", notifyParams)));
+        SessionState state = sessions.get(sessionId);
+        if (state != null) {
+            state.enqueueEvent(mapper.toJson(mapAsRpcNotification("notifications/cancelled", notifyParams)));
+        }
         return result;
     }
 
@@ -599,7 +604,9 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private Map<String, Object> paginate(String key, List<Map<String, Object>> definitions,
                                          Map<String, Object> params) {
         int offset = decodeCursor(params == null ? null : params.get("cursor"), definitions.size());
-        int end = Math.min(offset + config.pageSize, definitions.size());
+        if (offset > definitions.size()) offset = definitions.size();
+        long rawEnd = (long) offset + (long) config.pageSize;
+        int end = (int) Math.min(rawEnd, (long) definitions.size());
         Map<String, Object> result = new LinkedHashMap<>();
         result.put(key, new ArrayList<>(definitions.subList(offset, end)));
         if (end < definitions.size()) result.put("nextCursor", encodeCursor(end));
@@ -651,8 +658,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             return result;
         } catch (McpErrorException e) {
             throw e;
-        } catch (Exception e) {
-            return handleHandlerException("Tool", name, e);
+        } catch (Throwable t) {
+            return handleHandlerException("Tool", name, t);
         }
     }
 
@@ -704,8 +711,14 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
      * @param e the caught exception
      * @return error result for tool handlers; throws McpErrorException for resources
      */
-    private Map<String, Object> handleHandlerException(String kind, String identifier, Exception e) {
-        LOGGER.log(Level.SEVERE, kind + " error (" + identifier + "): " + e.getMessage(), e);
+    private Map<String, Object> handleHandlerException(String kind, String identifier, Throwable t) {
+        LOGGER.log(Level.SEVERE, kind + " error (" + identifier + "): " + t.getMessage(), t);
+        if (t instanceof Error) {
+            // JVM errors (OutOfMemoryError, StackOverflowError) are fatal.
+            // Re-throw to prevent swallowing a fatal condition.
+            throw (Error) t;
+        }
+        Exception e = (Exception) t;
         if ("Tool".equals(kind)) {
             return errorToolResult("Error calling " + identifier + ": " + e.getMessage());
         }
@@ -780,8 +793,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             return resourceContents(uri, handler.read(uri));
         } catch (McpErrorException e) {
             throw e;
-        } catch (Exception e) {
-            return handleHandlerException("Resource", uri, e);
+        } catch (Throwable t) {
+            return handleHandlerException("Resource", uri, t);
         }
     }
 
@@ -805,8 +818,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 return blobContents(uri, ((McpBlobResourceHandler) handler).readBlob(uri));
             }
             return resourceContents(uri, handler.read(uri));
-        } catch (Exception e) {
-            return handleHandlerException("Resource", uri, e);
+        } catch (Throwable t) {
+            return handleHandlerException("Resource", uri, t);
         }
     }
 
@@ -910,9 +923,10 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
         try {
             return handler.get(arguments);
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Prompt get error: " + name, e);
-            return errorPromptResult("Error getting prompt " + name + ": " + e.getMessage());
+        } catch (Throwable t) {
+            LOGGER.log(Level.SEVERE, "Prompt get error: " + name, t);
+            if (t instanceof Error) throw (Error) t;
+            return errorPromptResult("Error getting prompt " + name + ": " + t.getMessage());
         }
     }
 

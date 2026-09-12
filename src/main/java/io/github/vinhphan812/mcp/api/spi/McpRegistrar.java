@@ -75,7 +75,8 @@ public interface McpRegistrar extends McpResourceUpdateListener {
      */
     default void registerBlobResource(String uri, String name, String description,
                                       String mimeType, McpBlobResourceHandler handler) {
-        registerResource(uri, name, description, mimeType, handler);
+        // NOTE: callers should use McpRegistry directly or override this method
+        // to call handler.readBlob(uri) rather than the string-based read().
     }
 
     /**
@@ -117,7 +118,8 @@ public interface McpRegistrar extends McpResourceUpdateListener {
     default void registerBlobResourceTemplate(String uriTemplate, String name,
                                               String description, String mimeType,
                                               McpBlobResourceHandler handler) {
-        registerResourceTemplate(uriTemplate, name, description, mimeType, handler);
+        // NOTE: callers should use McpRegistry directly or override this method
+        // to call handler.readBlob(uriTemplate) rather than the string-based read().
     }
 
     /**

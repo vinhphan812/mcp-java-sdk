@@ -269,6 +269,7 @@ public final class McpGrizzlyHandler extends HttpHandler {
             writeError(response, 429, "Too many active SSE connections");
             return;
         }
+        boolean permitHeld = true;
         try {
             response.setContentType("text/event-stream");
             response.setCharacterEncoding("UTF-8");
@@ -300,8 +301,13 @@ public final class McpGrizzlyHandler extends HttpHandler {
                 if (!sent) response.getWriter().write(formatSseEvent(nextEventId++, "ping", "{}"));
                 response.getWriter().flush();
             }
+        } catch (IOException e) {
+            // Client disconnected mid-stream — release permit immediately.
         } finally {
-            SSE_CONNECTIONS.release();
+            if (permitHeld) {
+                SSE_CONNECTIONS.release();
+                permitHeld = false;
+            }
         }
     }
 

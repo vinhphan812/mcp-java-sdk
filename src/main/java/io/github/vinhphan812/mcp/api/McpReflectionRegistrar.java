@@ -126,14 +126,30 @@ public final class McpReflectionRegistrar {
 
     private static void parameterMetadata(Method method, Map<String, Object> properties,
                                           List<String> required) {
-        for (Annotation[] annotations : method.getParameterAnnotations()) {
+        Annotation[][] allParamAnnotations = method.getParameterAnnotations();
+        int paramCount = allParamAnnotations.length;
+        int documentedCount = 0;
+        for (Annotation[] annotations : allParamAnnotations) {
             for (McpParam meta : findParams(annotations)) {
                 Map<String, Object> schema = new LinkedHashMap<>();
                 schema.put("type", meta.type());
                 schema.put("description", meta.description());
                 properties.put(meta.name(), schema);
                 if (meta.required()) required.add(meta.name());
+                documentedCount++;
             }
+        }
+        // Reject mixed: some params annotated, some not.
+        // This creates a schema mismatch (annotated params appear in schema but
+        // non-annotated params don't, yet both are positional method parameters).
+        // A method with zero annotated params (e.g. a single Map<String,Object>
+        // param passed through as-is) is valid — parameterMetadata skips it cleanly.
+        if (documentedCount > 0 && documentedCount != paramCount) {
+            throw new IllegalArgumentException(
+                    "Method " + method + " has " + paramCount
+                    + " parameters but only " + documentedCount
+                    + " are annotated with @McpParam. "
+                    + "Either annotate all parameters or use a single Map<String,Object> argument.");
         }
     }
 
@@ -265,6 +281,19 @@ public final class McpReflectionRegistrar {
             // float/double: no range check needed
             if (target == Float.class || target == Float.TYPE) return n.floatValue();
             if (target == Double.class || target == Double.TYPE) return n.doubleValue();
+        }
+        // List support: JSON array or Collection -> typed List
+        if (List.class.isAssignableFrom(target) && raw instanceof Iterable) {
+            @SuppressWarnings("unchecked")
+            List<Object> list = new java.util.ArrayList<Object>();
+            for (Object item : (Iterable<?>) raw) { list.add(item); }
+            return list;
+        }
+        // Array support: JSON array -> typed array (serialise to JSON then parse to target element type)
+        if (target.isArray()) {
+            // Convert to JSON and let Gson deserialise
+            String json = GSON.toJson(raw);
+            return GSON.fromJson(json, target);  // target is an array class
         }
         throw invalidType(name, target, raw, method);
     }

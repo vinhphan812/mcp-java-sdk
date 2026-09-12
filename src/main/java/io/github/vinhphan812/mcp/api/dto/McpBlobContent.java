@@ -74,12 +74,12 @@ public final class McpBlobContent implements Map<String, Object> {
 
     @Override
     public int size() {
-        return 3;
+        return 4;
     }
 
     @Override
     public boolean containsKey(Object key) {
-        return "type".equals(key) || "blob".equals(key) || "mimeType".equals(key);
+        return "type".equals(key) || "blob".equals(key) || "mimeType".equals(key) || "uri".equals(key);
     }
 
     /** Always returns {@code false} (no support for value-based operations). */
@@ -93,6 +93,7 @@ public final class McpBlobContent implements Map<String, Object> {
         if ("type".equals(key)) return "blob";
         if ("blob".equals(key)) return base64Data;
         if ("mimeType".equals(key)) return mimeType;
+        if ("uri".equals(key)) return uri;
         return null;
     }
 
@@ -123,6 +124,7 @@ public final class McpBlobContent implements Map<String, Object> {
         snap.add("type");
         snap.add("blob");
         snap.add("mimeType");
+        snap.add("uri");
         return snap;
     }
 
@@ -132,6 +134,7 @@ public final class McpBlobContent implements Map<String, Object> {
         snap.add("blob");
         snap.add(base64Data);
         snap.add(mimeType);
+        snap.add(uri);
         return snap;
     }
 
@@ -141,6 +144,7 @@ public final class McpBlobContent implements Map<String, Object> {
         snap.add(new SimpleEntry<>("type", "blob"));
         snap.add(new SimpleEntry<>("blob", base64Data));
         snap.add(new SimpleEntry<>("mimeType", mimeType));
+        snap.add(new SimpleEntry<>("uri", uri));
         return snap;
     }
 
@@ -151,12 +155,13 @@ public final class McpBlobContent implements Map<String, Object> {
         if (this == o) return true;
         if (!(o instanceof McpBlobContent)) return false;
         McpBlobContent that = (McpBlobContent) o;
-        return base64Data.equals(that.base64Data);
+        return base64Data.equals(that.base64Data)
+                && Objects.equals(this.mimeType, that.mimeType);
     }
 
     @Override
     public int hashCode() {
-        return base64Data.hashCode();
+        return Objects.hash(base64Data, mimeType);
     }
 
     @Override
@@ -167,10 +172,12 @@ public final class McpBlobContent implements Map<String, Object> {
 
     // ── private ──────────────────────────────────────────────────────────────────
 
+    private final String uri;
     private final String base64Data;
     private final String mimeType;
 
     private McpBlobContent(String uri, String mimeType, String base64Data) {
+        this.uri = uri;
         this.base64Data = base64Data;
         this.mimeType = mimeType;
     }
