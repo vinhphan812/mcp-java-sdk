@@ -1,6 +1,64 @@
 # MCP Java SDK — Implementation Status
 
-Date: 2026-09-10
+Date: 2026-09-12
+
+```mermaid
+flowchart TB
+    subgraph Annot["annotations/"]
+        TA[@McpTool] --> TP[@McpParam]
+        RA[@McpResource] --> RT[@McpResourceTemplate]
+        PA[@McpPrompt]
+    end
+
+    subgraph API["api/"]
+        SPI["api/spi/
+McpRegistrar, Listeners"]
+        H["api/handler/
+Tool, Resource,
+Prompt, Completion"]
+        D["api/dto/
+McpTask, McpBlobContent"]
+        C["api/config/
+McpServerConfig,
+McpClientCapabilities"]
+        L["api/logging/
+McpLogger, JulMcpLogger"]
+        R["McpReflectionRegistrar"]
+    end
+
+    subgraph Core["core/"]
+        Server["McpServer"]
+        PH["McpProtocolHandler"]
+        Reg["McpRegistry"]
+        Sess["ConcurrentHashMap&lt;SessionState&gt;"]
+    end
+
+    subgraph Trans["transport/"]
+        T["GrizzlyStreamableServerTransportProvider"]
+        H2["McpGrizzlyHandler"]
+    end
+
+    Annot -->|"@Tools/@Resources/@Prompts"| R
+    R --> SPI
+    SPI --> Reg
+    Reg --> H
+    Reg --> Sess
+    PH --> Reg
+    PH --> Sess
+    PH --> C
+    PH --> L
+    Server --> Reg
+    Server --> PH
+    Server --> T
+    T --> H2
+    H2 --> PH
+
+    style Server fill:#f3e5f5
+    style PH fill:#e8f5e9
+    style T fill:#fff3e0
+```
+
+## Repository inventory
 
 ## Repository inventory
 
@@ -190,18 +248,23 @@ Current tests cover baseline configuration, registration, protocol dispatch, ini
 
 | File                                             | Role                                                                                      |
 | ------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `README.md`                                      | Project entry point and scope warning                                                     |
-| `docs/PROJECT-GUIDE.md`                          | Architecture, API overview, protocol flow, transport, and release guide                  |
-| `docs/GRIZZLY-EXAMPLE.md`                        | Standalone Grizzly example with HTTP request samples                                       |
-| `docs/MCP-COMPATIBILITY-2026.md`                 | MCP baseline, P0/P1/P2 compatibility work, and validation checklist                     |
-| `docs/IMPLEMENTATION-STATUS.md`                  | This file: completed, incomplete, and unverified areas with test evidence               |
-| `docs/MCP-PORTING-PLAN.md`                       | Portable extraction rationale and acceptance criteria                                       |
-| `docs/adr/README.md`                                    | ADR index and format guide                                       |
-| `docs/adr/ADR-0001-portable-java8-core.md`           | ADR-0001: Portable Java 8 core without Android SDK               |
-| `docs/adr/ADR-0002-grizzly-transport-isolation.md`   | ADR-0002: Grizzly transport isolation from core                   |
-| `docs/adr/ADR-0003-json-rpc-envelope-protocol-versioning.md` | ADR-0003: JSON-RPC envelope and protocol versioning          |
-| `docs/adr/ADR-0004-session-management.md`              | ADR-0004: Session management and lifecycle                       |
-| `docs/adr/ADR-0005-sse-notifications-event-queue.md`  | ADR-0005: SSE event queue for server-initiated notifications    |
-| `docs/adr/ADR-0006-security-model.md`                  | ADR-0006: Security model (Origin, Bearer, body limit, CRLF)    |
-| `docs/adr/ADR-0007-annotation-registration.md`        | ADR-0007: Annotation-based reflection registration               |
-| `docs/adr/ADR-0008-protocol-baseline-compatibility.md`  | ADR-0008: Protocol baseline and compatibility scope             |
+| Document | Description |
+|---|---|
+| [README.md](../README.md) | Project entry point, badges, quick start, scope |
+| [PROJECT-GUIDE.md](PROJECT-GUIDE.md) | Architecture, API overview, protocol flow, transport, and release guide |
+| [API-REFERENCE.md](API-REFERENCE.md) | Complete public API surface |
+| [GRIZZLY-EXAMPLE.md](GRIZZLY-EXAMPLE.md) | Standalone Grizzly example with HTTP request samples |
+| [MCP-COMPATIBILITY-2026.md](MCP-COMPATIBILITY-2026.md) | MCP baseline, P0/P1/P2 compatibility work, and validation checklist |
+| [IMPLEMENTATION-STATUS.md](IMPLEMENTATION-STATUS.md) | This file: completed, incomplete, and unverified areas with test evidence |
+| [MCP-PORTING-PLAN.md](MCP-PORTING-PLAN.md) | Portable extraction rationale and acceptance criteria |
+| [docs/adr/README.md](adr/README.md) | ADR index and format guide |
+| [ADR-0001](adr/ADR-0001-portable-java8-core.md) | Portable Java 8 core without Android SDK |
+| [ADR-0002](adr/ADR-0002-grizzly-transport-isolation.md) | Grizzly transport isolation from core |
+| [ADR-0003](adr/ADR-0003-json-rpc-envelope-protocol-versioning.md) | JSON-RPC envelope and protocol versioning |
+| [ADR-0004](adr/ADR-0004-session-management.md) | Session management and lifecycle |
+| [ADR-0005](adr/ADR-0005-sse-notifications-event-queue.md) | SSE event queue for server-initiated notifications |
+| [ADR-0006](adr/ADR-0006-security-model.md) | Security model (Origin, Bearer, body limit, CRLF) |
+| [ADR-0007](adr/ADR-0007-annotation-registration.md) | Annotation-based reflection registration |
+| [ADR-0008](adr/ADR-0008-protocol-baseline-compatibility.md) | Protocol baseline and compatibility scope |
+| [ADR-0009](adr/ADR-0009-code-audit-2026-09-11.md) | Source audit results 2026-09-11 |
+| [ADR-0010](adr/ADR-0010-api-package-restructure.md) | API package restructure into 5 subpackages |

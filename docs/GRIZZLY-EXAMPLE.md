@@ -1,8 +1,64 @@
-# Grizzly MCP example
+# Grizzly MCP Example
 
-`examples/src/main/java/io/github/vinhphan812/mcp/examples/GrizzlyExample.java` is a standalone Java 8 server using the
-SDK's Grizzly Streamable HTTP transport. It binds to `http://127.0.0.1:3011/mcp` and demonstrates a coherent small
-catalogue domain.
+`examples/src/main/java/io/github/vinhphan812/mcp/examples/GrizzlyExample.java` is a standalone Java 8 server using the SDK's Grizzly Streamable HTTP transport. It binds to `http://127.0.0.1:3011/mcp` and demonstrates a coherent small catalogue domain.
+
+See also: [PROJECT-GUIDE.md](PROJECT-GUIDE.md) | [API-REFERENCE.md](API-REFERENCE.md) | [MCP-COMPATIBILITY-2026.md](MCP-COMPATIBILITY-2026.md)
+
+```mermaid
+sequenceDiagram
+    participant C as HTTP Client
+    participant G as Grizzly
+    participant H as McpGrizzlyHandler
+    participant P as McpProtocolHandler
+    participant R as McpRegistry
+
+    Note over C,G: POST /mcp — JSON-RPC request
+    C->>G: POST /mcp {"method":"initialize",...}
+    G->>H: handleRequestResponse(body, null)
+    H->>P: dispatch
+    P->>R: lookup registrations
+    R-->>P: result
+    P-->>H: McpResponse{sessionId}
+    H-->>G: HTTP 200
+    G-->>C: JSON body + Mcp-Session-Id header
+
+    Note over C,G: GET /mcp — SSE polling
+    C->>G: GET /mcp?sessionId=abc
+    G->>H: pollPendingNotification(sessionId)
+    H->>P: poll
+    P-->>H: JSON / 204
+    H-->>G: 200 text/event-stream
+    G-->>C: text/event-stream
+```
+
+```mermaid
+flowchart TB
+    subgraph Example["GrizzlyExample.java"]
+        T["@Tools
+@greet, @calculate-total, @user-summary"]
+        Res["@Resources
+@McpResource, @McpResourceTemplate"]
+        P["@Prompts
+@explain-user, @review-order"]
+    end
+
+    subgraph SDK["SDK — McpServer"]
+        Reg["McpRegistry"]
+        PH["McpProtocolHandler"]
+        T2["GrizzlyStreamableServerTransportProvider"]
+    end
+
+    T --> Reg
+    Res --> Reg
+    P --> Reg
+    Reg --> PH
+    PH --> T2
+
+    style T fill:#e3f2fd
+    style Res fill:#f3e5f5
+    style P fill:#e8f5e9
+    style SDK fill:#fff3e0
+```
 
 ## Registered items
 

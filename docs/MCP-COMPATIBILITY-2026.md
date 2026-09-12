@@ -4,12 +4,12 @@ Status: P0 and P1 work complete; P2 follow-up remains. This is a compatibility p
 
 Reference documentation:
 
-- `docs/PROJECT-GUIDE.md`: architecture and usage guide.
-- `docs/API-REFERENCE.md`: complete public API surface.
-- `docs/IMPLEMENTATION-STATUS.md`: completed, incomplete, and unverified areas.
-- `docs/GRIZZLY-EXAMPLE.md`: standalone Grizzly example.
-- `docs/audits/2026-09-01-full-source-audit.md`: full source audit.
-- `docs/adr/`: architecture decision records documenting key design choices.
+- [PROJECT-GUIDE.md](../PROJECT-GUIDE.md) — architecture and usage guide.
+- [API-REFERENCE.md](../API-REFERENCE.md) — complete public API surface.
+- [IMPLEMENTATION-STATUS.md](../IMPLEMENTATION-STATUS.md) — completed, incomplete, and unverified areas.
+- [GRIZZLY-EXAMPLE.md](../GRIZZLY-EXAMPLE.md) — standalone Grizzly example.
+- [MCP-PORTING-PLAN.md](../MCP-PORTING-PLAN.md) — package inventory and porting notes.
+- [docs/adr/](../adr/) — architecture decision records documenting key design choices.
 
 ## Scope
 

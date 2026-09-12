@@ -106,18 +106,29 @@ This is an architectural integration path, not evidence that the bundled Grizzly
 
 ## 5. Server startup flow
 
-```text
-McpServerConfig
-      ↓
-McpServer.Builder
-      ↓
-McpServer
-  ├── McpRegistry
-  ├── McpProtocolHandler
-  └── GrizzlyStreamableServerTransportProvider
-          ↓
-      McpGrizzlyHandler
+```mermaid
+flowchart TB
+    Config["McpServerConfig"]
+    Builder["McpServer.Builder"]
+    Server["McpServer"]
+    Registry["McpRegistry"]
+    Protocol["McpProtocolHandler"]
+    Transport["GrizzlyStreamableServerTransportProvider"]
+    Handler["McpGrizzlyHandler"]
+
+    Config --> Builder
+    Builder --> Server
+    Server --> Registry
+    Server --> Protocol
+    Server --> Transport
+    Transport --> Handler
+
+    style Config fill:#e1f5fe
+    style Server fill:#f3e5f5
+    style Transport fill:#fff3e0
 ```
+
+Providers are registered before `start()`:
 
 Providers are registered before `start()`:
 

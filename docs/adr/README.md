@@ -2,8 +2,36 @@
 
 This directory contains Architecture Decision Records (ADRs) for the MCP Java SDK project.
 
-ADRs document significant design decisions, the context that motivated them, and their consequences. They serve as a
-permanent record of why the system is built the way it is.
+ADRs document significant design decisions, the context that motivated them, and their consequences. They serve as a permanent record of why the system is built the way it is.
+
+See also: [PROJECT-GUIDE.md](../PROJECT-GUIDE.md) | [API-REFERENCE.md](../API-REFERENCE.md) | [IMPLEMENTATION-STATUS.md](../IMPLEMENTATION-STATUS.md)
+
+## ADR relationship
+
+```mermaid
+flowchart LR
+    Core1["ADR-0001: Java 8 core"]
+    Core2["ADR-0002: Grizzly isolation"]
+    Core3["ADR-0003: JSON-RPC/versioning"]
+    Core4["ADR-0004: Sessions"]
+    Core5["ADR-0005: SSE notifications"]
+    Core6["ADR-0006: Security"]
+    Core7["ADR-0007: Annotations"]
+    Core8["ADR-0008: Protocol baseline"]
+    Core9["ADR-0009: Code audit"]
+    Core10["ADR-0010: Package restructure"]
+
+    Core1 --> Core2
+    Core1 --> Core3
+    Core2 --> Core6
+    Core3 --> Core4
+    Core4 --> Core5
+    Core5 --> Core6
+    Core7 --> Core3
+    Core8 --> Core3
+    Core9 --> Core1
+    Core10 --> Core7
+```
 
 ## Index
 
