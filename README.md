@@ -1,6 +1,6 @@
 # MCP Java SDK
 
-Single portable Java 8 artifact containing MCP protocol core plus optional Grizzly Streamable HTTP transport and server bootstrap. An Android application can use this SDK to host an MCP server inside the phone app process, provided the selected transport and all runtime dependencies work on the target Android version.
+Single portable Java 8 artifact containing MCP protocol core plus optional Grizzly Streamable HTTP transport and server bootstrap. An Android application can host an MCP server inside the app process, provided the target runtime supports Grizzly.
 
 [![CI](https://github.com/vinhphan812/mcp-java-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/vinhphan812/mcp-java-sdk/actions)
 [![Release](https://img.shields.io/github/v/release/vinhphan812/mcp-java-sdk?label=latest)](https://github.com/vinhphan812/mcp-java-sdk/releases/latest)
@@ -11,35 +11,110 @@ Single portable Java 8 artifact containing MCP protocol core plus optional Grizz
 
 ## Table of contents
 
+- [Installation](#installation)
 - [Quick start](#quick-start)
 - [Architecture](#architecture)
 - [Package structure](#package-structure)
 - [Session lifecycle](#session-lifecycle)
 - [Documentation](#documentation)
 - [Build](#build)
+- [Contributing](#contributing)
 - [Release](#release)
 - [Scope and licensing](#scope-and-licensing)
 
 ---
 
-## Quick start
+## Installation
+
+### Gradle (GitHub Packages)
+
+The SDK is published to [GitHub Packages](https://github.com/vinhphan812/mcp-java-sdk/packages). You need a GitHub token with `read:packages` scope.
 
 ```groovy
-// settings.gradle or build.gradle
-repositories {
-    maven {
-        url = uri('https://maven.pkg.github.com/vinhphan812/mcp-java-sdk')
-        credentials {
-            username = System.getenv('GITHUB_ACTOR')
-            password = System.getenv('GITHUB_TOKEN')
+// settings.gradle.kts  (or settings.gradle)
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        maven {
+            url = uri("https://maven.pkg.github.com/vinhphan812/mcp-java-sdk")
+            content {
+                includeGroup("io.github.vinhphan812.mcp")
+            }
+        }
+    }
+}
+
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+        maven {
+            url = uri("https://maven.pkg.github.com/vinhphan812/mcp-java-sdk")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR") ?: project.findProperty("gpr.user")
+                password = System.getenv("GITHUB_TOKEN") ?: project.findProperty("gpr.token")
+            }
         }
     }
 }
 
 dependencies {
-    implementation 'io.github.vinhphan812.mcp:mcp-java-sdk:1.0.0'
+    implementation("io.github.vinhphan812.mcp:mcp-java-sdk:1.0.0")
 }
 ```
+
+#### Generate a GitHub token
+
+1. Go to https://github.com/settings/tokens
+2. Click **Generate new token (classic)**
+3. Select scopes: `read:packages`
+4. Copy the token and set it as an environment variable:
+
+```bash
+# Linux / macOS
+export GITHUB_TOKEN=ghp_your_token_here
+
+# Windows (Git Bash)
+export GITHUB_TOKEN=ghp_your_token_here
+
+# Windows (CMD)
+set GITHUB_TOKEN=ghp_your_token_here
+```
+
+Or add to `~/.gradle/gradle.properties`:
+
+```properties
+gpr.user=your-github-username
+gpr.token=ghp_your_token_here
+```
+
+### Local JAR (no authentication)
+
+If you only need the JAR file without GitHub Packages:
+
+1. Download from the [latest release](https://github.com/vinhphan812/mcp-java-sdk/releases/latest)
+2. Or build locally (see [Build](#build)):
+
+```bash
+./gradlew clean build
+# JARs are in: build/libs/
+```
+
+```groovy
+dependencies {
+    implementation(files("path/to/mcp-java-sdk-1.0.0.jar"))
+}
+```
+
+### Clone the repository
+
+```bash
+git clone https://github.com/vinhphan812/mcp-java-sdk.git
+cd mcp-java-sdk
+```
+
+---
+
+## Quick start
 
 ```java
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
@@ -48,6 +123,7 @@ import io.github.vinhphan812.mcp.annotations.*;
 
 public class Main {
     public static void main(String[] args) throws Exception {
+        // 1. Build server with configuration
         McpServer server = McpServer.builder()
                 .config(McpServerConfig.builder()
                         .serverName("my-server")
@@ -60,21 +136,44 @@ public class Main {
                 .host("127.0.0.1")
                 .port(3011)
                 .endpoint("/mcp")
+                // Optional: protect with Bearer token
+                // .apiKeySupplier(() -> System.getenv("MCP_API_KEY"))
                 .build()
-                .register(new MyTools())
-                .register(new MyResources());
 
+                // 2. Register provider classes
+                .register(new MyTools())
+                .register(new MyResources())
+                .register(new MyPrompts());
+
+        // 3. Start server
         server.start();
         System.out.println("MCP server: " + server.getUrl());
-        // shutdown: server.close();
+
+        // 4. Shutdown on exit
+        Runtime.getRuntime().addShutdownHook(new Thread(server::close));
     }
 
     @Tools
     public static class MyTools {
-        @McpTool(name = "hello", description = "Says hello")
-        public java.util.Map<String, Object> hello(@McpParam(description = "Your name") String name) {
+        @McpTool(name = "hello", description = "Says hello to the user")
+        public java.util.Map<String, Object> hello(
+                @McpParam(description = "Your name") String name) {
             java.util.Map<String, Object> r = new java.util.LinkedHashMap<>();
             r.put("content", "Hello, " + name + "!");
+            return r;
+        }
+
+        @McpTool(name = "calculate-total", description = "Calculates total price")
+        public java.util.Map<String, Object> calculateTotal(
+                @McpParam(description = "Item name") String item,
+                @McpParam(description = "Quantity", required = true) int quantity,
+                @McpParam(description = "Unit price", required = true) double unitPrice) {
+            double total = quantity * unitPrice;
+            java.util.Map<String, Object> r = new java.util.LinkedHashMap<>();
+            r.put("item", item);
+            r.put("quantity", quantity);
+            r.put("unitPrice", unitPrice);
+            r.put("total", total);
             return r;
         }
     }
@@ -85,8 +184,44 @@ public class Main {
         public String readme() {
             return "# Hello\n\nThis is a resource.";
         }
+
+        @McpResourceTemplate(uri = "demo://users/{userId}")
+        public String getUser(@McpParam(description = "User ID") String userId) {
+            return "{\"userId\":\"" + userId + "\",\"name\":\"User " + userId + "\"}";
+        }
+    }
+
+    @Prompts
+    public static class MyPrompts {
+        @McpPrompt(name = "explain-user", description = "Explains a user profile")
+        public java.util.Map<String, Object> explainUser(
+                @McpParam(description = "User ID", required = true) String userId) {
+            java.util.Map<String, Object> r = new java.util.LinkedHashMap<>();
+            r.put("role", "user");
+            r.put("content",
+                "Please provide a detailed summary of the user with ID: " + userId);
+            return r;
+        }
     }
 }
+```
+
+### Testing the server
+
+```bash
+# Start the server, then in another terminal:
+
+# 1. Initialize session
+curl -s -X POST http://127.0.0.1:3011/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}'
+
+# 2. Call a tool
+curl -s -X POST http://127.0.0.1:3011/mcp \
+  -H "Content-Type: application/json" \
+  -H "Mcp-Session-Id: <session-id-from-step-1>" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"hello","arguments":{"name":"World"}}}'
 ```
 
 ---
@@ -95,43 +230,44 @@ public class Main {
 
 ```mermaid
 flowchart TB
-    subgraph Client["MCP Client"]
-        HTTP["HTTP client"]
-        SSE["SSE / Event Stream"]
+    subgraph Client["MCP Client (HTTP)"]
+        Req["POST /mcp\nJSON-RPC request"]
+        SSE["GET /mcp\nSSE event stream"]
     end
 
-    subgraph Device["Host Device (Android / JVM)"]
-        subgraph Transport["transport/"]
-            Grizzly["GrizzlyStreamableServerTransportProvider"]
-            Handler["McpGrizzlyHandler"]
-        end
-
-        subgraph Core["core/"]
-            Protocol["McpProtocolHandler"]
-            Registry["McpRegistry"]
-            Sessions["ConcurrentHashMap&lt;SessionState&gt;"]
-        end
-
-        subgraph API["api/"]
-            SPI["api/spi/"]
-            Handlers["api/handler/"]
-            DTO["api/dto/"]
-            Config["api/config/"]
-            Logging["api/logging/"]
-        end
+    subgraph Transport["transport/"]
+        Grizzly["GrizzlyStreamableServerTransportProvider"]
+        Handler["McpGrizzlyHandler"]
     end
 
-    HTTP -->|"POST /mcp"| Handler
-    HTTP -->|"GET /mcp?sessionId=X"| Handler
-    Handler -->|"request/response"| Protocol
-    Handler -->|"SSE notification"| SSE
-    SSE -->|"SSE stream"| HTTP
+    subgraph Core["core/"]
+        Protocol["McpProtocolHandler"]
+        Registry["McpRegistry"]
+        Sessions["ConcurrentHashMap&lt;SessionState&gt;"]
+    end
+
+    subgraph API["api/"]
+        SPI["api/spi/\nMcpRegistrar, Listeners"]
+        Handlers["api/handler/\nTool, Resource, Prompt"]
+        DTO["api/dto/\nMcpTask, McpBlobContent"]
+        Config["api/config/\nMcpServerConfig"]
+        Logging["api/logging/\nMcpLogger"]
+    end
+
+    Req --> Handler
+    SSE --> Handler
+    Handler --> Protocol
     Protocol --> Registry
     Protocol --> Sessions
-    Registry --> SPI
-    Registry --> Handlers
     Protocol --> Config
     Protocol --> Logging
+    Registry --> SPI
+    Registry --> Handlers
+    Grizzly --> Handler
+
+    style Req fill:#e3f2fd
+    style Protocol fill:#e8f5e9
+    style Grizzly fill:#fff3e0
 ```
 
 ```mermaid
@@ -142,31 +278,30 @@ sequenceDiagram
     participant R as McpRegistry
     participant S as SessionState
 
-    Note over C,S: Session initialisation
+    Note over C,S: 1. Initialize — new session
     C->>T: POST /mcp {initialize}
     T->>P: handleRequestResponse(body, null)
-    P->>R: getToolHandler / getResourceHandler / ...
-    P->>S: create new session
+    P->>R: lookup registrations
+    P->>S: createSession()
     S-->>P: sessionId
-    P-->>T: McpResponse{serverInfo, capabilities, sessionId}
+    P-->>T: McpResponse{serverInfo, sessionId}
     T-->>C: 200 + Mcp-Session-Id header
 
-    Note over C,S: Established session
+    Note over C,S: 2. Tool call
     C->>T: POST /mcp {tools/call} + Mcp-Session-Id
     T->>P: handleRequestResponse(body, sessionId)
     P->>R: registry.getToolHandler(name)
     R-->>P: McpToolHandler
     P-->>T: McpResponse{result}
-    T-->>C: 200 + body
+    T-->>C: 200 JSON
 
-    Note over C,S: Server-initiated notification
+    Note over C,S: 3. Server-initiated notification
     R-->>S: onRegistryChanged()
     S->>S: enqueueEvent(JSON)
     C->>T: GET /mcp + Mcp-Session-Id
     T->>P: pollPendingNotification(sessionId)
-    P->>S: poll()
     S-->>P: JSON body
-    P-->>T: raw JSON body
+    P-->>T: raw JSON
     T-->>C: 200 text/event-stream
 ```
 
@@ -183,42 +318,21 @@ graph TD
     Root --> Core["core/"]
     Root --> Trans["transport/"]
 
-    Annot -->|@McpTool| Annot1["@McpParam, @McpResource, @McpPrompt, ..."]
+    Annot --> A1["@McpTool, @McpParam\n@McpResource, @McpPrompt, ..."]
     API --> SPI["api/spi/"]
     API --> H["api/handler/"]
     API --> D["api/dto/"]
     API --> CF["api/config/"]
     API --> L["api/logging/"]
-    API --> Reg["McpReflectionRegistrar"]
+    API --> R["McpReflectionRegistrar"]
 
-    SPI -->|McpRegistrar| SPI1["McpResourceUpdateListener, McpRegistryChangeListener"]
-    H -->|handler interfaces| H1["McpToolHandler, McpResourceHandler,\nMcpBlobResourceHandler, McpPromptHandler,\nMcpCompletionProvider"]
-    D -->|value objects| D1["McpTask, McpBlobContent"]
-    CF -->|configuration| CF1["McpServerConfig, McpClientCapabilities"]
-    L -->|logging| L1["McpLogger, JulMcpLogger"]
-    Core -->|McpServer| Core1["McpProtocolHandler, McpRegistry"]
-    Trans -->|Grizzly| Trans1["GrizzlyStreamableServerTransportProvider,\nMcpGrizzlyHandler"]
-```
-
-```mermaid
-flowchart LR
-    subgraph Registration
-        Scan["@McpReflectionRegistrar\nscans @Tools/@Resources/@Prompts"]
-        Reg["McpRegistry\nConcurrentHashMap stores"]
-    end
-
-    subgraph Protocol
-        Init["initialize() → session"]
-        Tool["tools/call → handler.call()"]
-        Res["resources/read → handler.read()"]
-        Notif["notifications → SSE queue"]
-    end
-
-    Scan --> Reg
-    Init --> Reg
-    Tool --> Reg
-    Res --> Reg
-    Notif -->|"SSE"| Client
+    SPI --> S1["McpRegistrar, Listeners"]
+    H --> H1["Tool, Resource,\nPrompt, Completion"]
+    D --> D1["McpTask, McpBlobContent"]
+    CF --> C1["McpServerConfig,\nMcpClientCapabilities"]
+    L --> L1["McpLogger, JulMcpLogger"]
+    Core --> C2["McpServer,\nMcpProtocolHandler,\nMcpRegistry"]
+    Trans --> T1["GrizzlyStreamableServerTransportProvider,\nMcpGrizzlyHandler"]
 ```
 
 ---
@@ -232,27 +346,9 @@ stateDiagram-v2
     Active --> Active: POST /mcp {method}
     Active --> Active: GET /mcp {SSE polling}
     Active --> Active: Server emits notification
-    Active --> Closed: client disconnect / timeout
+    Active --> Closed: disconnect / timeout
     Closed --> [*]: session removed
-    New --> [*]: invalid request / version
-```
-
-```mermaid
-flowchart TB
-    subgraph Request["SSE polling cycle"]
-        Poll["GET /mcp\nMcp-Session-Id"]
-        Check["pollPendingNotification()"]
-        Ev1["Event in queue?"]
-        Ev2["Timeout (5 min)"]
-        Ret1["Return SSE event"]
-        Ret2["204 No Content"]
-    end
-
-    Poll --> Check
-    Check --> Ev1
-    Ev1 -->|yes| Ret1
-    Ev1 -->|no| Ev2
-    Ev2 --> Ret2
+    New --> [*]: invalid request
 ```
 
 ---
@@ -263,11 +359,11 @@ flowchart TB
 
 | Document | Description |
 |---|---|
-| [PROJECT-GUIDE.md](docs/PROJECT-GUIDE.md) | Architecture, API surface, protocol reference, transport, and usage guide |
-| [API-REFERENCE.md](docs/API-REFERENCE.md) | Complete public API surface: annotations, SPI, handlers, DTO, config, logging |
+| [PROJECT-GUIDE.md](docs/PROJECT-GUIDE.md) | Architecture, API, protocol, transport, and usage guide |
+| [API-REFERENCE.md](docs/API-REFERENCE.md) | Complete public API surface |
 | [IMPLEMENTATION-STATUS.md](docs/IMPLEMENTATION-STATUS.md) | Completed, incomplete, and unverified areas |
-| [GRIZZLY-EXAMPLE.md](docs/GRIZZLY-EXAMPLE.md) | Standalone Grizzly example and HTTP request/response samples |
-| [MCP-COMPATIBILITY-2026.md](docs/MCP-COMPATIBILITY-2026.md) | MCP baseline, P0/P1/P2 compatibility status |
+| [GRIZZLY-EXAMPLE.md](docs/GRIZZLY-EXAMPLE.md) | Standalone example and HTTP request samples |
+| [MCP-COMPATIBILITY-2026.md](docs/MCP-COMPATIBILITY-2026.md) | MCP baseline and P0/P1/P2 compatibility |
 | [MCP-PORTING-PLAN.md](docs/MCP-PORTING-PLAN.md) | Package inventory and porting notes |
 
 ### Architecture Decision Records
@@ -276,14 +372,14 @@ flowchart TB
 |---|---|---|
 | [ADR-0001](docs/adr/ADR-0001-portable-java8-core.md) | Portable Java 8 core without Android SDK | Accepted |
 | [ADR-0002](docs/adr/ADR-0002-grizzly-transport-isolation.md) | Grizzly isolated in transport layer | Accepted |
-| [ADR-0003](docs/adr/ADR-0003-json-rpc-envelope-protocol-versioning.md) | JSON-RPC 2.0 envelope and versioning strategy | Accepted |
-| [ADR-0004](docs/adr/ADR-0004-session-management.md) | Session management with ConcurrentHashMap | Accepted |
-| [ADR-0005](docs/adr/ADR-0005-sse-notifications-event-queue.md) | SSE notifications with bounded event queue | Accepted |
-| [ADR-0006](docs/adr/ADR-0006-security-model.md) | Origin whitelist, Bearer API key, CRLF sanitisation | Accepted |
-| [ADR-0007](docs/adr/ADR-0007-annotation-registration.md) | Annotation-based provider registration | Accepted |
-| [ADR-0008](docs/adr/ADR-0008-protocol-baseline-compatibility.md) | Protocol baseline 2025-11-25 compatibility matrix | Accepted |
-| [ADR-0009](docs/adr/ADR-0009-code-audit-2026-09-11.md) | Source audit results 2026-09-11 | Accepted |
-| [ADR-0010](docs/adr/ADR-0010-api-package-restructure.md) | API package restructure into 5 subpackages | Accepted |
+| [ADR-0003](docs/adr/ADR-0003-json-rpc-envelope-protocol-versioning.md) | JSON-RPC 2.0 and versioning | Accepted |
+| [ADR-0004](docs/adr/ADR-0004-session-management.md) | Session management | Accepted |
+| [ADR-0005](docs/adr/ADR-0005-sse-notifications-event-queue.md) | SSE event queue | Accepted |
+| [ADR-0006](docs/adr/ADR-0006-security-model.md) | Security: Origin, Bearer, CRLF | Accepted |
+| [ADR-0007](docs/adr/ADR-0007-annotation-registration.md) | Annotation-based registration | Accepted |
+| [ADR-0008](docs/adr/ADR-0008-protocol-baseline-compatibility.md) | Protocol baseline 2025-11-25 | Accepted |
+| [ADR-0009](docs/adr/ADR-0009-code-audit-2026-09-11.md) | Source audit 2026-09-11 | Accepted |
+| [ADR-0010](docs/adr/ADR-0010-api-package-restructure.md) | API package restructure | Accepted |
 
 See [docs/adr/README.md](docs/adr/README.md) for the ADR index.
 
@@ -297,9 +393,11 @@ See [docs/adr/README.md](docs/adr/README.md) for the ADR index.
 
 Outputs:
 
-- `build/libs/mcp-java-sdk-1.0.0.jar` — main artifact
-- `build/libs/mcp-java-sdk-1.0.0-sources.jar`
-- `build/libs/mcp-java-sdk-1.0.0-javadoc.jar`
+| File | Description |
+|---|---|
+| `build/libs/mcp-java-sdk-1.0.0.jar` | Main artifact |
+| `build/libs/mcp-java-sdk-1.0.0-sources.jar` | Source code |
+| `build/libs/mcp-java-sdk-1.0.0-javadoc.jar` | API documentation |
 
 Override version for local build:
 
@@ -309,29 +407,41 @@ Override version for local build:
 
 Build validation:
 
-- **Tests**: 49 tests pass (`./gradlew test`)
-- **Java compatibility**: source/target Java 8
+- **Tests**: 49 tests pass
+- **Java compatibility**: source/target Java 8 (bytecode 52)
 - **Javadoc**: 0 warnings
-- **CI**: see [ci.yml](.github/workflows/ci.yml)
+- **CI**: [.github/workflows/ci.yml](.github/workflows/ci.yml)
+
+---
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feat/my-feature`
+3. Make changes and add tests
+4. Run the test suite: `./gradlew test`
+5. Commit with a clear message: `git commit -m "feat: add my feature"`
+6. Push: `git push origin feat/my-feature`
+7. Open a Pull Request against `master`
 
 ---
 
 ## Release
 
-Publish a tagged release to create a GitHub Release with JAR artifacts:
+Tag a version to trigger the release workflow:
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.0.1
+git push origin v1.0.1
 ```
 
-This triggers the [Release workflow](.github/workflows/release.yml) which:
+The [Release workflow](.github/workflows/release.yml) automatically:
 
 1. Runs `./gradlew clean test build`
 2. Publishes JAR to GitHub Packages
-3. Creates a GitHub Release with main, sources, and javadoc JARs
+3. Creates a GitHub Release with all artifacts
 
-Releases are available at: https://github.com/vinhphan812/mcp-java-sdk/releases
+Releases: https://github.com/vinhphan812/mcp-java-sdk/releases
 
 ---
 
@@ -340,14 +450,14 @@ Releases are available at: https://github.com/vinhphan812/mcp-java-sdk/releases
 ### Included
 
 - Annotations (`@McpTool`, `@McpResource`, `@McpPrompt`, ...)
-- Registration SPI and reflection registrar
+- Reflection registrar (`McpReflectionRegistrar`)
 - Handler interfaces (tool, resource, prompt, completion)
 - DTOs (`McpTask`, `McpBlobContent`)
 - Configuration (`McpServerConfig`, `McpClientCapabilities`)
 - Logging (`McpLogger`, `JulMcpLogger`)
 - Protocol core (`McpProtocolHandler`, `McpRegistry`)
 - Grizzly Streamable HTTP transport
-- SSE notifications, session management, progress/cancellation, `tasks/create`
+- SSE notifications, progress/cancellation, `tasks/create`
 - JSON-RPC 2.0, protocol versioning, Origin/CORS security
 
 ### Excluded
@@ -358,12 +468,14 @@ Releases are available at: https://github.com/vinhphan812/mcp-java-sdk/releases
 - Robot/ROSA domain models
 - Authentication backends
 - Persistence
-- Sampling / elicitation (future protocol versions)
+- Sampling / elicitation
 
 ### Dependencies
 
-- [Gson 2.11.0](https://github.com/google/gson) — Apache 2.0
-- [Grizzly HTTP Server 4.0.2](https://github.com/eclipse-ee4j/grizzly) — CDDL/GPL dual-license
+| Library | Version | License |
+|---|---|---|
+| [Gson](https://github.com/google/gson) | 2.11.0 | Apache 2.0 |
+| [Grizzly HTTP Server](https://github.com/eclipse-ee4j/grizzly) | 4.0.2 | CDDL/GPL |
 
 Review upstream notices before redistribution.
 

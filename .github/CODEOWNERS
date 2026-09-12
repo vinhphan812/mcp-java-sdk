@@ -1,0 +1,16 @@
+# CODEOWNERS — MCP Java SDK
+
+# Default owner for all files
+*       @vinhphan812
+
+# Core library maintainer
+src/main/java/io/github/vinhphan812/mcp/core/   @vinhphan812
+src/main/java/io/github/vinhphan812/mcp/api/    @vinhphan812
+src/main/java/io/github/vinhphan812/mcp/transport/ @vinhphan812
+src/main/java/io/github/vinhphan812/mcp/annotations/ @vinhphan812
+
+# Documentation
+docs/          @vinhphan812
+
+# CI/CD
+.github/      @vinhphan812
