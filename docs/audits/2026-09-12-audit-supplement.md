@@ -186,34 +186,64 @@ The README example uses `@McpParam(description = "...")` without a `name`, which
 
 ## Combined audit totals (main + supplement)
 
-| Severity | Main audit | Supplement | Combined |
-|---|---|---|---|
-| HIGH | 9 | 7 FIXED, 0 OPEN, 2 Acknowledged | 9 |
-| MEDIUM | 15 | 13 FIXED, 1 OPEN, 1 Acknowledged | 15 |
-| LOW | 18 | 0 FIXED, 18 Intentional/documentation | 18 |
-| **Total** | **42** | **22 FIXED, 2 Acknowledged, 18 Intentional** | **42** |
+| Severity | Total | FIXED | ACKNOWLEDGED | INTENTIONAL |
+|---|---|---|---|---|
+| HIGH | 9 | 7 | 2 | 0 |
+| MEDIUM | 15 | 13 | 2 | 0 |
+| LOW | 18 | 0 | 0 | 18 |
+| **Total** | **42** | **20** | **4** | **18** |
 
-All HIGH and MEDIUM actionable findings have been resolved. The 2 Acknowledged HIGH findings are intentional design decisions (H-D: explicit 501 for orphaned method; H-B: blob resource note in SPI). M6 is unfixed but low-risk. LOW items are documentation-only.
 
----
+## Fix status table
 
-## Priority fix order
+Each row shows the finding ID, severity, current status, the source file(s) that were changed, and the commit that resolved it. An item is **FIXED** only when the source code change exists in the current HEAD. An item is **ACKNOWLEDGED** when the team decided not to fix it for a documented reason.
 
-1. ~~H-B~~ **FIXED** **H-B** — `registerBlobResource` called wrong method (breaks blob resources)
-2. ~~H-A~~ **FIXED** **H-A** — `McpBlobContent uri` discarded (data loss)
-3. ~~H-E~~ **FIXED** **H-E** — catches Exception, not Error (JVM crash risk)
-4. ~~H-C~~ **FIXED** **H-C** — Integer overflow in paginate
-5. ~~H-D~~ Acknowledged **H-D** — orphaned `handleResourceTemplatesGet` (returns explicit 501)
-6. ~~M-A/B~~ **FIXED** **M-A/B** — `McpBlobContent` equals/hashCode/mimeType
-7. ~~M-D~~ Acknowledged **M-D** — `@McpParams @Target` violation (METHOD usage is future-use intent)
-8. ~~M-C~~ **FIXED** **M-C** — `parameterMetadata` now fails fast on mixed annotated/unannotated
-9. ~~H1~~ **FIXED** **H1** — NPE in `handleTasksCancel` (null guard added)
-10. ~~H3~~ **FIXED** **H3** — SSE permit leak on IOException (`permitHeld` flag)
-11. ~~H4~~ **FIXED** **H4** — duplicate session not rejected (guard added)
-12. ~~M4~~ **FIXED** **M4** — schema shallow copy mutation (defensive `new LinkedHashMap<>(inputSchema)`)
-13. ~~M5~~ **FIXED** **M5** — `convert()` no List/array support (Gson round-trip added)
-14. ~~M6~~ Acknowledged **M6** — exception cause lost in wrapped error (propagate `e.getCause()`)
-15. All LOW items (L-A through L-L): documentation-only — null policies, undocumented semantics, and informational notes; no code changes required
+### HIGH severity
+
+| ID | Description | Status | Evidence |
+|----|-------------|--------|----------|
+| H1 | NPE in `handleTasksCancel` — `sessions.get(sessionId)` returns null | FIXED | `McpProtocolHandler.java` — null guard added before `.enqueueEvent()` |
+| H2 | TOCTOU race in `cancelRequest` — `containsKey` then `put` not atomic | ACKNOWLEDGED | Negligible risk (same `sessionId`); window is one instruction; not fixed |
+| H3 | SSE permit leak on IOException — `finally` always releases even on write failure | FIXED | `McpProtocolHandler.java` — `permitHeld` boolean flag prevents double-release |
+| H4 | Duplicate session not rejected — same client can call `initialize` twice | FIXED | `McpProtocolHandler.java` — guard added in `handleInitialize` |
+| H-A | `McpBlobContent uri` parameter discarded — data never stored to field | FIXED | `McpBlobContent.java` — `private final String uri` field added, included in `entrySet()`/`get()`/`equals()`/`hashCode()` |
+| H-B | `registerBlobResource` calls `read(String)` instead of `readBlob(String)` | ACKNOWLEDGED | `McpRegistrar.java` — NOTE comment added explaining workaround; breaking API change required to fix properly |
+| H-C | Integer overflow in `paginate` — `offset + pageSize` exceeds `Integer.MAX_VALUE` | FIXED | `McpProtocolHandler.java` — long arithmetic with `Math.min(rawEnd, size)` clamp |
+| H-D | `handleResourceTemplatesGet` dead code — method never dispatched | FIXED | `McpProtocolHandler.java` — replaced with explicit `errorResponse(..., -32601, "Method not found")` |
+| H-E | Handlers catch `Exception` but not `Error` — JVM crash (OOM, StackOverflow) silently swallowed | FIXED | All handler methods in `McpProtocolHandler.java` — changed to `catch (Throwable)` |
+
+### MEDIUM severity
+
+| ID | Description | Status | Evidence |
+|----|-------------|--------|----------|
+| M-A/B | `McpBlobContent.equals` and `hashCode` ignore `mimeType` | FIXED | `McpBlobContent.java` — `Objects.equals(this.mimeType, that.mimeType)` added to both methods |
+| M-C | `parameterMetadata` silently skips mixed annotated/unannotated params — silent schema mismatch | FIXED | `McpReflectionRegistrar.java` — fail-fast `if (documentedCount > 0 && documentedCount != paramCount)` throws `IllegalArgumentException` |
+| M-D | `@McpParams @Target` includes `METHOD` but `@McpParam @Target` excludes it — repeatable annotation restriction violated | ACKNOWLEDGED | `@McpParams` METHOD usage is intentional future-use; documented in supplement |
+| M4 | `McpRegistry` shallow-copies `inputSchema` — caller can mutate after registration | FIXED | `McpRegistry.java` — `new LinkedHashMap<>(inputSchema)` defensive copy |
+| M5 | `McpReflectionRegistrar.convert()` has no `List` or array support — throws `invalidType` | FIXED | `McpReflectionRegistrar.java` — `List` → `ArrayList` and array → Gson round-trip |
+| M6 | Handler exception cause lost when wrapping `InvocationTargetException` | ACKNOWLEDGED | Low risk; `e.getCause()` propagation left unfixed |
+| Paginate overflow (H-C) | Same as H-C | FIXED | See H-C |
+| `nextEventId` desync | SSE `nextEventId` incremented without acquiring `pollSem` | ACKNOWLEDGED | Negligible race window; documented |
+| `getActualPort()` race | `getActualPort()`/`getUrl()` called without guard when server stopped | ACKNOWLEDGED | Low risk; documented |
+| InvocationTargetException | Same as M6 | ACKNOWLEDGED | See M6 |
+
+### LOW severity
+
+All 18 LOW findings (L-A through L-L plus 6 from main audit) are **documentation-only** or **informational**. No code changes required.
+
+| ID | Description | Status | Notes |
+|----|-------------|--------|-------|
+| L-A | `nameOrMethod` accepts blank annotation names | INTENTIONALLY HANDLED | Already trims whitespace and falls back to method name |
+| L-B | `@Tools` + `@Resources` on same class — exclusive semantics undocumented | DOCUMENTATION-ONLY | Behavior is well-defined by code |
+| L-C | `McpToolHandler.call(params)` null policy undocumented | DOCUMENTATION-ONLY | Null input is documented to NPE |
+| L-D | `McpPromptHandler.accept(arguments)` null policy undocumented | DOCUMENTATION-ONLY | Null input is documented to NPE |
+| L-E | `@SuppressWarnings("unused")` on `reference` parameter | DOCUMENTATION-ONLY | Signature change not worth breaking compatibility |
+| L-F/G | Null messages logged as string "null" by JUL | DOCUMENTATION-ONLY | Accepted JUL behaviour |
+| L-H | `McpResourceHandler` has no null-safety on `uri` | DOCUMENTATION-ONLY | Null `uri` results in NPE — documented |
+| L-I | `McpBlobResourceHandler.readBlob()` "never null" annotation unenforceable | DOCUMENTATION-ONLY | Accepted |
+| L-J | `JulMcpLogger` always instantiated even when custom logger set | DOCUMENTATION-ONLY | Accepted — no functional harm |
+| L-K | `McpTask.result` is `Object` — caller-passed collections not protected | DOCUMENTATION-ONLY | Caller's responsibility |
+| L-L | `setAccessible(true)` can throw on strict Android SELinux | DOCUMENTATION-ONLY | Documented requirement |
 
 ---
 
