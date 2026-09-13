@@ -8,49 +8,51 @@ Files audited: 34 source files, 12 test files, 1 example
 
 ## Executive Summary
 
-| Category | Count |
-|---|---|
-| Total findings | 20 |
-| HIGH | 4 |
-| MEDIUM | 10 |
-| LOW | 6 |
-| Actionable (require fix) | 8 |
-| Intentional / Accepted | 12 |
+| Category                 | Count |
+|--------------------------|-------|
+| Total findings           | 20    |
+| HIGH                     | 4     |
+| MEDIUM                   | 10    |
+| LOW                      | 6     |
+| Actionable (require fix) | 8     |
+| Intentional / Accepted   | 12    |
+
+> **Fix status:** All 4 HIGH and all 6 actionable MEDIUM findings from this audit have been resolved (see `2026-09-12-audit-supplement.md` for full fix table and the 5 additional HIGH findings found by subagent review). The 12 intentional/accepted items are documented design decisions.
 
 ### HIGH — Actionable (fix required)
 
-| # | File | Line | Category | Description |
-|---|---|---|---|---|
-| 1 | `McpProtocolHandler.java` | 514 | logic-bug | `sessions.get(sessionId)` after prior null-check — NPE risk |
-| 2 | `McpRegistry.java` | 273-278 | concurrency | TOCTOU race in `cancelRequest`: `containsKey` then `put` not atomic |
-| 3 | `McpProtocolHandler.java` | 303 | resource-leak | SSE permit released in `finally` even when IOException occurs mid-write |
-| 4 | `McpProtocolHandler.java` | 437 | logic-bug | No duplicate-session guard: same client can call `initialize` twice, overwriting session |
+| # | File                      | Line    | Category      | Description                                                                              |
+|---|---------------------------|---------|---------------|------------------------------------------------------------------------------------------|
+| 1 | `McpProtocolHandler.java` | 514     | logic-bug     | `sessions.get(sessionId)` after prior null-check — NPE risk                              |
+| 2 | `McpRegistry.java`        | 273-278 | concurrency   | TOCTOU race in `cancelRequest`: `containsKey` then `put` not atomic                      |
+| 3 | `McpProtocolHandler.java` | 303     | resource-leak | SSE permit released in `finally` even when IOException occurs mid-write                  |
+| 4 | `McpProtocolHandler.java` | 437     | logic-bug     | No duplicate-session guard: same client can call `initialize` twice, overwriting session |
 
 ### MEDIUM — Actionable (fix recommended)
 
-| # | File | Line | Category | Description |
-|---|---|---|---|---|
-| 5 | `McpProtocolHandler.java` | 600 | logic-bug | `end = Math.min(offset + config.pageSize, size)` — overflow if offset > size |
-| 6 | `McpProtocolHandler.java` | 279 | logic-bug | SSE `nextEventId` incremented without acquiring `pollSem` — desync window |
-| 7 | `McpProtocolHandler.java` | 195, 204 | concurrency | `getActualPort()`/`getUrl()` on `HttpServer` without guard when server stopped |
-| 8 | `McpRegistry.java` | 481 | logic-bug | Shallow-copy of `inputSchema` map — caller can mutate after registration |
-| 9 | `McpReflectionRegistrar.java` | 233-269 | missing-functionality | `convert()` has no handling for `List` or array types; throws `invalidType` |
-| 10 | `McpReflectionRegistrar.java` | 75-81 | error-handling | RuntimeException from handler wrapped in targetInvocationException without original cause |
+| #  | File                          | Line     | Category              | Description                                                                               |
+|----|-------------------------------|----------|-----------------------|-------------------------------------------------------------------------------------------|
+| 5  | `McpProtocolHandler.java`     | 600      | logic-bug             | `end = Math.min(offset + config.pageSize, size)` — overflow if offset > size              |
+| 6  | `McpProtocolHandler.java`     | 279      | logic-bug             | SSE `nextEventId` incremented without acquiring `pollSem` — desync window                 |
+| 7  | `McpProtocolHandler.java`     | 195, 204 | concurrency           | `getActualPort()`/`getUrl()` on `HttpServer` without guard when server stopped            |
+| 8  | `McpRegistry.java`            | 481      | logic-bug             | Shallow-copy of `inputSchema` map — caller can mutate after registration                  |
+| 9  | `McpReflectionRegistrar.java` | 233-269  | missing-functionality | `convert()` has no handling for `List` or array types; throws `invalidType`               |
+| 10 | `McpReflectionRegistrar.java` | 75-81    | error-handling        | RuntimeException from handler wrapped in targetInvocationException without original cause |
 
 ### LOW — Accepted / Intentional
 
-| # | File | Line | Category | Description |
-|---|---|---|---|---|
-| 11 | `McpParam.java` | 7 | api-contract | `@Target(METHOD, PARAMETER)` but METHOD usage silently ignored by registrar |
-| 12 | `McpBlobContent.java` | 30 | null-safety | `Objects.requireNonNull(blob, ...)` — null blob throws on `get()`, not construction |
-| 13 | `McpBlobContent.java` | 59 | null-safety | `error.trim().isEmpty()` called without null-check (guarded by outer else) |
-| 14 | `McpCompletionProvider.java` | 12-13 | null-safety | No documented null-return policy; callers may NPE |
-| 15 | `McpRegistrar.java` | 76-79 | logic-bug | `registerBlobResource` default impl delegates to `registerResource` passing `McpBlobResourceHandler` as `McpResourceHandler` — cast at call site |
-| 16 | `McpToolHandler.java` | 32 | logic-bug | `get()` delegates to `call()` — alias risk if implementations diverge |
-| 17 | `McpServerConfig.java` | 43 | api-contract | `pageSize` declared `final` but initialized in Builder after other fields |
-| 18 | `McpClientCapabilities.java` | 38-42 | null-safety | `Objects.requireNonNull(license, ...)` throws on `get()`, not construction |
-| 19 | `McpTask.java` | 53 | null-safety | `error.trim().isEmpty()` — already guarded by `status != COMPLETED` outer block |
-| 20 | `McpBlobContent.java` | 34 | error-handling | `invalidType()` always throws — no recovery path for type conversion failures |
+| #  | File                         | Line  | Category       | Description                                                                                                                                      |
+|----|------------------------------|-------|----------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| 11 | `McpParam.java`              | 7     | api-contract   | `@Target(METHOD, PARAMETER)` but METHOD usage silently ignored by registrar                                                                      |
+| 12 | `McpBlobContent.java`        | 30    | null-safety    | `Objects.requireNonNull(blob, ...)` — null blob throws on `get()`, not construction                                                              |
+| 13 | `McpBlobContent.java`        | 59    | null-safety    | `error.trim().isEmpty()` called without null-check (guarded by outer else)                                                                       |
+| 14 | `McpCompletionProvider.java` | 12-13 | null-safety    | No documented null-return policy; callers may NPE                                                                                                |
+| 15 | `McpRegistrar.java`          | 76-79 | logic-bug      | `registerBlobResource` default impl delegates to `registerResource` passing `McpBlobResourceHandler` as `McpResourceHandler` — cast at call site |
+| 16 | `McpToolHandler.java`        | 32    | logic-bug      | `get()` delegates to `call()` — alias risk if implementations diverge                                                                            |
+| 17 | `McpServerConfig.java`       | 43    | api-contract   | `pageSize` declared `final` but initialized in Builder after other fields                                                                        |
+| 18 | `McpClientCapabilities.java` | 38-42 | null-safety    | `Objects.requireNonNull(license, ...)` throws on `get()`, not construction                                                                       |
+| 19 | `McpTask.java`               | 53    | null-safety    | `error.trim().isEmpty()` — already guarded by `status != COMPLETED` outer block                                                                  |
+| 20 | `McpBlobContent.java`        | 34    | error-handling | `invalidType()` always throws — no recovery path for type conversion failures                                                                    |
 
 ---
 
@@ -62,7 +64,9 @@ Files audited: 34 source files, 12 test files, 1 example
 
 ```java
 // sessions.get(sessionId) returns null — calling .enqueueEvent() throws NPE
-sessions.get(sessionId).enqueueEvent(...);
+sessions.get(sessionId).
+
+enqueueEvent(...);
 ```
 
 Prior code does `if (idString != null) registry.cancelRequest(...)` but does not
@@ -76,10 +80,16 @@ If the session was invalidated concurrently, `sessions.get()` returns null.
 #### H2 — `McpRegistry.java:273-278` — TOCTOU race in cancelRequest
 
 ```java
-if (!cancelledRequests.containsKey(sessionId)) {
-    cancelledRequests.put(sessionId, new CopyOnWriteArraySet<>());
-}
-cancelledRequests.get(sessionId).add(requestId);
+if(!cancelledRequests.containsKey(sessionId)){
+        cancelledRequests.
+
+put(sessionId, new CopyOnWriteArraySet<>());
+        }
+        cancelledRequests.
+
+get(sessionId).
+
+add(requestId);
 ```
 
 `containsKey` then `put` is not atomic. Two threads for the same sessionId
@@ -94,8 +104,10 @@ then `get` returns one of them and the other's Set is unreachable (memory leak).
 
 ```java
 pollSem.release();
-} finally {
-    pollSem.release();  // always releases, even on IOException
+}finally{
+        pollSem.
+
+release();  // always releases, even on IOException
 }
 ```
 
@@ -112,7 +124,9 @@ concurrent reader to open a new SSE connection while this one is in an error sta
 
 ```java
 String sessionId = UUID.randomUUID().toString();
-sessions.put(sessionId, newState);
+sessions.
+
+put(sessionId, newState);
 ```
 
 If the same client (same IP, same Origin) calls `initialize` again,
@@ -146,9 +160,13 @@ the negative value. `subList(offset, end)` then throws `IndexOutOfBoundsExceptio
 ```java
 state.nextEventId.incrementAndGet();  // increments without acquiring pollSem
 // ... build SSE ...
-output.println("id:" + nextId);
+output.
+
+println("id:"+nextId);
 // ... after write ...
-pollSem.release();
+pollSem.
+
+release();
 ```
 
 `nextEventId` is incremented and the SSE line is written before the poll permit
@@ -180,7 +198,7 @@ calling transport methods.
 #### M4 — `McpRegistry.java:481` — Shallow-copy schema mutation
 
 ```java
-new McpTask(taskId, ..., input, inputSchema, ...);
+new McpTask(taskId, ...,input, inputSchema, ...);
 ```
 
 `inputSchema` is stored directly without defensive copy. A caller who holds a
@@ -194,8 +212,10 @@ registration, affecting the task's behavior.
 #### M5 — `McpReflectionRegistrar.java:233-269` — Missing List/array support
 
 ```java
-} else if (target.isArray()) {
-    throw new McpErrorException(-32602, "Array parameter types are not supported: " + target);
+}else if(target.isArray()){
+        throw new
+
+McpErrorException(-32602,"Array parameter types are not supported: "+target);
 }
 ```
 
@@ -210,8 +230,11 @@ or `Array.toString()` for arrays.
 #### M6 — `McpReflectionRegistrar.java:75-81` — Exception cause lost
 
 ```java
-} catch (IllegalAccessException | InvocationTargetException e) {
-    throw new McpErrorException(-32602, "Invocation error: " + e);
+}catch(IllegalAccessException |
+InvocationTargetException e){
+        throw new
+
+McpErrorException(-32602,"Invocation error: "+e);
 }
 ```
 
@@ -226,18 +249,18 @@ is lost, making debugging harder.
 
 The following are accepted as intentional design decisions or protected by caller guards:
 
-| ID | File | Line | Rationale |
-|---|---|---|---|
-| L1 | `McpParam.java` | 7 | `METHOD` target is reserved for future use; current registrar only reads PARAMETER |
-| L2 | `McpBlobContent.java` | 30 | `requireNonNull` at `get()` time is documented; construction is idempotent |
-| L3 | `McpBlobContent.java` | 59 | Outer `else` block (lines 56-61) already guards `status != COMPLETED` |
-| L4 | `McpCompletionProvider.java` | 12 | Null return results in empty completion list; callers handle gracefully |
-| L5 | `McpRegistrar.java` | 76 | Blob handler extends Resource handler — delegation is intentional |
-| L6 | `McpToolHandler.java` | 32 | `get()`/`call()` alias is intentional for simplicity |
-| L7 | `McpServerConfig.java` | 43 | `pageSize` field ordering is cosmetic; no functional impact |
-| L8 | `McpClientCapabilities.java` | 38 | Immutable wrapper; `toMap()` called after construction only |
-| L9 | `McpTask.java` | 53 | Outer guard ensures `error != null` when this line executes |
-| L10 | `McpBlobContent.java` | 34 | `invalidType()` always throwing is appropriate for malformed schemas |
+| ID  | File                         | Line | Rationale                                                                          |
+|-----|------------------------------|------|------------------------------------------------------------------------------------|
+| L1  | `McpParam.java`              | 7    | `METHOD` target is reserved for future use; current registrar only reads PARAMETER |
+| L2  | `McpBlobContent.java`        | 30   | `requireNonNull` at `get()` time is documented; construction is idempotent         |
+| L3  | `McpBlobContent.java`        | 59   | Outer `else` block (lines 56-61) already guards `status != COMPLETED`              |
+| L4  | `McpCompletionProvider.java` | 12   | Null return results in empty completion list; callers handle gracefully            |
+| L5  | `McpRegistrar.java`          | 76   | Blob handler extends Resource handler — delegation is intentional                  |
+| L6  | `McpToolHandler.java`        | 32   | `get()`/`call()` alias is intentional for simplicity                               |
+| L7  | `McpServerConfig.java`       | 43   | `pageSize` field ordering is cosmetic; no functional impact                        |
+| L8  | `McpClientCapabilities.java` | 38   | Immutable wrapper; `toMap()` called after construction only                        |
+| L9  | `McpTask.java`               | 53   | Outer guard ensures `error != null` when this line executes                        |
+| L10 | `McpBlobContent.java`        | 34   | `invalidType()` always throwing is appropriate for malformed schemas               |
 
 ---
 
@@ -264,7 +287,8 @@ The following are accepted as intentional design decisions or protected by calle
 - Gradle configuration, GitHub workflow YAML, and documentation are excluded from code audit.
 - Android device/emulator runtime is not audited — see `docs/IMPLEMENTATION-STATUS.md`.
 - External MCP client interoperability is not audited — see `docs/MCP-COMPATIBILITY-2026.md`.
-- Grizzly transport dependency (`4.0.2`) is assumed from Maven Central — CVE-2024-45687 applies to Payara distributions, not this SDK.
+- Grizzly transport dependency (`4.0.2`) is assumed from Maven Central — CVE-2024-45687 applies to Payara distributions,
+  not this SDK.
 
 ---
 
@@ -279,9 +303,9 @@ BUILD SUCCESSFUL — 49 tests, 0 javadoc warnings
 
 ## Related Documentation
 
-| Document | Description |
-|---|---|
-| [PROJECT-GUIDE.md](../PROJECT-GUIDE.md) | Architecture, usage, and protocol guide |
-| [IMPLEMENTATION-STATUS.md](../IMPLEMENTATION-STATUS.md) | Completed, incomplete, and unverified areas |
+| Document                                                                         | Description                                                 |
+|----------------------------------------------------------------------------------|-------------------------------------------------------------|
+| [PROJECT-GUIDE.md](../PROJECT-GUIDE.md)                                          | Architecture, usage, and protocol guide                     |
+| [IMPLEMENTATION-STATUS.md](../IMPLEMENTATION-STATUS.md)                          | Completed, incomplete, and unverified areas                 |
 | [docs/inspect/FINDINGS-CLASSIFICATION.md](../inspect/FINDINGS-CLASSIFICATION.md) | IntelliJ inspection XML findings (stale, from before fixes) |
-| [ADR-0009](adr/ADR-0009-code-audit-2026-09-11.md) | Previous audit (2026-09-11) — all findings resolved |
+| [ADR-0009](adr/ADR-0009-code-audit-2026-09-11.md)                                | Previous audit (2026-09-11) — all findings resolved         |

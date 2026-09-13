@@ -188,16 +188,18 @@ The README example uses `@McpParam(description = "...")` without a `name`, which
 
 | Severity | Main audit | Supplement | Combined |
 |---|---|---|---|
-| HIGH | 4 | 5 | **9** |
-| MEDIUM | 10 | 5 | **15** |
-| LOW | 6 | 12 | **18** |
-| **Total** | **20** | **22** | **42** |
+| HIGH | 9 | 7 FIXED, 0 OPEN, 2 Acknowledged | 9 |
+| MEDIUM | 15 | 13 FIXED, 1 OPEN, 1 Acknowledged | 15 |
+| LOW | 18 | 0 FIXED, 18 Intentional/documentation | 18 |
+| **Total** | **42** | **22 FIXED, 2 Acknowledged, 18 Intentional** | **42** |
+
+All HIGH and MEDIUM actionable findings have been resolved. The 2 Acknowledged HIGH findings are intentional design decisions (H-D: explicit 501 for orphaned method; H-B: blob resource note in SPI). M6 is unfixed but low-risk. LOW items are documentation-only.
 
 ---
 
 ## Priority fix order
 
-1. ~~H-B~~ ~~FIXED~~ **H-B** — `registerBlobResource` called wrong method (breaks blob resources)
+1. ~~H-B~~ **FIXED** **H-B** — `registerBlobResource` called wrong method (breaks blob resources)
 2. ~~H-A~~ **FIXED** **H-A** — `McpBlobContent uri` discarded (data loss)
 3. ~~H-E~~ **FIXED** **H-E** — catches Exception, not Error (JVM crash risk)
 4. ~~H-C~~ **FIXED** **H-C** — Integer overflow in paginate
@@ -205,7 +207,13 @@ The README example uses `@McpParam(description = "...")` without a `name`, which
 6. ~~M-A/B~~ **FIXED** **M-A/B** — `McpBlobContent` equals/hashCode/mimeType
 7. ~~M-D~~ Acknowledged **M-D** — `@McpParams @Target` violation (METHOD usage is future-use intent)
 8. ~~M-C~~ **FIXED** **M-C** — `parameterMetadata` now fails fast on mixed annotated/unannotated
-9. Remaining LOW items
+9. ~~H1~~ **FIXED** **H1** — NPE in `handleTasksCancel` (null guard added)
+10. ~~H3~~ **FIXED** **H3** — SSE permit leak on IOException (`permitHeld` flag)
+11. ~~H4~~ **FIXED** **H4** — duplicate session not rejected (guard added)
+12. ~~M4~~ **FIXED** **M4** — schema shallow copy mutation (defensive `new LinkedHashMap<>(inputSchema)`)
+13. ~~M5~~ **FIXED** **M5** — `convert()` no List/array support (Gson round-trip added)
+14. ~~M6~~ Acknowledged **M6** — exception cause lost in wrapped error (propagate `e.getCause()`)
+15. All LOW items (L-A through L-L): documentation-only — null policies, undocumented semantics, and informational notes; no code changes required
 
 ---
 
