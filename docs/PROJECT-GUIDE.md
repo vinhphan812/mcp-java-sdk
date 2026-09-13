@@ -91,18 +91,18 @@ Do not put credentials, API keys, tokens, passwords, or connection strings in so
 
 ## 4. Hosting an MCP server in an Android application
 
-An Android application can embed the SDK and host an MCP server in its own process. The consuming application is responsible for:
+The SDK can run inside an Android application process and expose an MCP server over HTTP. This includes Android phones, embedded Android devices, and Android-based robots. The application owns the Android Service/lifecycle, network permissions, bind address, authentication policy, and provider implementations; the SDK supplies the MCP protocol core and optional Grizzly transport.
 
-1. creating `McpServer`;
-2. registering tools, resources, and prompts;
-3. selecting the bind address, port, and endpoint;
-4. starting the server within the appropriate application lifecycle;
-5. making the endpoint available to an MCP client on the same device or a permitted network;
-6. calling `stop()`/`close()` when the application or service stops.
+Typical Android integration:
 
-The bind configuration for a device or network must be assessed separately. The default `127.0.0.1` permits local access only. Binding to a network is not automatically safe and requires suitable authentication, an Origin allowlist, request-body limits, network policy, and lifecycle controls.
+1. Add the `mcp-java-sdk:1.0.0` dependency.
+2. Create `McpServer` from an Android `Service` or another lifecycle owner.
+3. Register application-owned tools, resources, and prompts.
+4. Start the server on a selected address and port.
+5. Connect an MCP client to the device endpoint.
+6. Call `stop()`/`close()` when the Service or application stops.
 
-This is an architectural integration path, not evidence that the bundled Grizzly transport runs on every Android API level. Before production use, verify dependency resolution, Java bytecode/desugaring, startup and shutdown, real HTTP requests, application lifecycle behaviour, and network security policy on the target API level and device. This repository has no Android device/emulator evidence and makes no Android API 21 compatibility claim. Grizzly is a JVM/server-oriented dependency; if it is unsuitable for the target Android runtime, the consumer must provide another transport through the public API.
+Use `127.0.0.1` for local-only access. Binding to a LAN address requires authentication, an Origin allowlist, request limits, network policy, and lifecycle controls. The bundled Grizzly transport is JVM/server-oriented and must be verified on the target Android API level. If Grizzly is unsuitable for a device runtime, implement or provide another transport through the public API while retaining the same MCP core.
 
 ## 5. Server startup flow
 

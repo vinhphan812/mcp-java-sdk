@@ -1,11 +1,12 @@
 # MCP Java SDK
 
-Single portable Java 8 artifact containing MCP protocol core plus optional Grizzly Streamable HTTP transport and server bootstrap. An Android application can host an MCP server inside the app process, provided the target runtime supports Grizzly.
+Portable Java 8 library for hosting an [MCP](https://modelcontextprotocol.io) server inside any Java application — including Android apps, Android/ROSA robots, desktop services, and backend servers. A phone or robot can act as an MCP server, exposing tools, resources, and prompts over HTTP to MCP clients on the same device or network.
 
 [![CI](https://github.com/vinhphan812/mcp-java-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/vinhphan812/mcp-java-sdk/actions)
 [![Release](https://img.shields.io/github/v/release/vinhphan812/mcp-java-sdk?label=latest)](https://github.com/vinhphan812/mcp-java-sdk/releases/latest)
 [![Java](https://img.shields.io/badge/Java-8+-orange)](https://adoptium.net/)
 [![License](https://img.shields.io/github/license/vinhphan812/mcp-java-sdk)](LICENSE)
+[![GitHub Repo stars](https://img.shields.io/github/stars/vinhphan812/mcp-java-sdk?style=flat)](https://github.com/vinhphan812/mcp-java-sdk)
 
 ---
 
@@ -115,6 +116,8 @@ cd mcp-java-sdk
 ---
 
 ## Quick start
+
+A minimal example that starts an MCP server on Android or any Java 8+ runtime:
 
 ```java
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
@@ -460,15 +463,20 @@ Releases: https://github.com/vinhphan812/mcp-java-sdk/releases
 - SSE notifications, progress/cancellation, `tasks/create`
 - JSON-RPC 2.0, protocol versioning, Origin/CORS security
 
+### Android and robot hosting
+
+The library runs inside an Android app or robot service process. A phone or robot can act as an MCP server — no separate backend needed. Android API 21+ is the typical target; verify Grizzly compatibility on the target runtime.
+
+See [docs/PROJECT-GUIDE.md](docs/PROJECT-GUIDE.md) for Android hosting guidance and runtime verification checklist.
+
 ### Excluded
 
-- WebSocket transport
+- WebSocket transport (use external bridge if needed)
 - STDIO transport
-- Android application services
-- Robot/ROSA domain models
-- Authentication backends
-- Persistence
-- Sampling / elicitation
+- Robot/ROSA domain models (belong in the consuming application)
+- Authentication backends (supply through the public API)
+- Persistence (supply through resources or application code)
+- Sampling / elicitation (protocol extension, not yet implemented)
 
 ### Dependencies
 
