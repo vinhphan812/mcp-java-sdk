@@ -98,13 +98,10 @@ public final class GrizzlyExample {
 
         @McpTool(name = "format-address", description = "Format an address for display")
         public Map<String, Object> formatAddress(
-                @McpParam(name = "street", description = "Street address", required = true)
-                String street,
-                @McpParam(name = "city", description = "City", required = true)
-                String city,
-                @McpParam(name = "country", description = "Country", required = true)
-                String country) {
-            String formatted = street + ", " + city + ", " + country;
+                @McpParam(name = "address", description = "Full address object", required = true)
+                Address address) {
+            String formatted = address.getStreet() + ", " + address.getCity() + ", "
+                    + address.getCountry();
             return textResult(formatted);
         }
 
@@ -275,5 +272,30 @@ public final class GrizzlyExample {
         LOGGER.info("Registered templates: " + server.getRegistry().getRegisteredResourceTemplates());
         LOGGER.info("Registered prompts: " + server.getRegistry().getRegisteredPrompts());
         Thread.currentThread().join();
+    }
+
+    /** Standalone POJO demonstrating Gson deserialisation for @McpParam complex types. */
+    public static class Address {
+        private final String street;
+        private final String city;
+        private final String country;
+
+        public Address(String street, String city, String country) {
+            this.street = street;
+            this.city = city;
+            this.country = country;
+        }
+
+        public String getStreet() {
+            return street;
+        }
+
+        public String getCity() {
+            return city;
+        }
+
+        public String getCountry() {
+            return country;
+        }
     }
 }

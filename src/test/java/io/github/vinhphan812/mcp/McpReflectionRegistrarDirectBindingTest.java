@@ -30,6 +30,18 @@ class McpReflectionRegistrarDirectBindingTest {
         arguments.put("enabled", true);
         assertEquals("Ada:3:true", registrar.tools.get("direct").call(arguments).get("result"));
 
+        // Address POJO: Gson round-trip from JSON Map to typed parameter
+        Map<String, Object> addressJson = new LinkedHashMap<>();
+        addressJson.put("street", "123 Main St");
+        addressJson.put("city", "Hanoi");
+        addressJson.put("country", "Vietnam");
+        Map<String, Object> addrResult = registrar.tools.get("format-address").call(
+                Map.of("address", addressJson));
+        assertEquals("123 Main St, Hanoi, Vietnam", addrResult.get("formatted"));
+        assertEquals("123 Main St", addrResult.get("street"));
+        assertEquals("Hanoi", addrResult.get("city"));
+        assertEquals("Vietnam", addrResult.get("country"));
+
         Map<String, Object> mapArguments = new LinkedHashMap<>();
         mapArguments.put("value", "kept");
         assertEquals(mapArguments, registrar.tools.get("map").call(mapArguments).get("result"));
@@ -74,6 +86,33 @@ class McpReflectionRegistrarDirectBindingTest {
             result.put("result", arguments);
             return result;
         }
+
+        @McpTool(name = "format-address")
+        public Map<String, Object> formatAddress(
+                @McpParam(name = "address", required = true) Address address) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("formatted", address.getStreet() + ", " + address.getCity() + ", " + address.getCountry());
+            result.put("street", address.getStreet());
+            result.put("city", address.getCity());
+            result.put("country", address.getCountry());
+            return result;
+        }
+    }
+
+    static class Address {
+        private final String street;
+        private final String city;
+        private final String country;
+
+        Address(String street, String city, String country) {
+            this.street = street;
+            this.city = city;
+            this.country = country;
+        }
+
+        String getStreet() { return street; }
+        String getCity() { return city; }
+        String getCountry() { return country; }
     }
 
     private static final class CapturingRegistrar implements McpRegistrar {

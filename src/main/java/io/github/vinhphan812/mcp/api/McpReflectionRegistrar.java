@@ -291,9 +291,17 @@ public final class McpReflectionRegistrar {
         }
         // Array support: JSON array -> typed array (serialise to JSON then parse to target element type)
         if (target.isArray()) {
-            // Convert to JSON and let Gson deserialise
             String json = GSON.toJson(raw);
-            return GSON.fromJson(json, target);  // target is an array class
+            return GSON.fromJson(json, target);
+        }
+        // Complex type support: deserialise any remaining JSON value to a POJO via Gson.
+        // This handles @McpParam on user-defined classes (e.g. Address, Order, Config).
+        // The raw value must be a Map or JSON-primitive; otherwise Gson throws which we let surface.
+        try {
+            String json = GSON.toJson(raw);
+            return GSON.fromJson(json, target);
+        } catch (Exception e) {
+            // Gson failed — fall through to the typed error below.
         }
         throw invalidType(name, target, raw, method);
     }
