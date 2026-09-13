@@ -35,11 +35,11 @@ sequenceDiagram
 flowchart TB
     subgraph Example["GrizzlyExample.java"]
         T["@Tools
-@greet, @calculate-total, @user-summary"]
+@greet, @calculate-total, @user-summary, @search-catalog, @validate-order, @format-address"]
         Res["@Resources
 @McpResource, @McpResourceTemplate"]
         P["@Prompts
-@explain-user, @review-order"]
+@explain-user, @review-order, @summarise-catalog, @troubleshoot-service"]
     end
 
     subgraph SDK["SDK — McpServer"]
@@ -67,12 +67,20 @@ flowchart TB
 | Tool              | `greet`                   | Directly binds required `String name`; returns text content.                                                          |
 | Tool              | `calculate-total`         | Directly binds `String item`, required `int quantity`, and required `double unitPrice`; returns the calculated total. |
 | Tool              | `user-summary`            | Directly binds `String userId`; returns a profile URI and summary.                                                    |
+| Tool              | `search-catalog`          | Searches demo items by name and returns structured matches.                                                          |
+| Tool              | `validate-order`          | Validates required quantity and unit-price values.                                                                    |
+| Tool              | `format-address`          | Formats street, city, and country values.                                                                             |
 | Exact resource    | `demo://readme`           | Static plain-text SDK overview.                                                                                       |
 | Exact resource    | `demo://catalog`          | Static JSON catalogue.                                                                                                |
+| Exact resource    | `demo://policies`         | Static Markdown service policies.                                                                                     |
 | Resource template | `demo://users/{userId}`   | `resources/read` resolves a user URI and returns JSON.                                                                |
 | Resource template | `demo://orders/{orderId}` | `resources/read` resolves an order URI and returns JSON.                                                              |
+| Resource template | `demo://products/{productId}` | Resolves a product detail URI.                                                                                    |
+| Resource template | `demo://users/{userId}/preferences` | Resolves user preferences.                                                                                 |
 | Prompt            | `explain-user`            | Required `userId`; creates a user-profile explanation message.                                                        |
 | Prompt            | `review-order`            | Required `orderId` and optional `focus`; creates an order-review message.                                             |
+| Prompt            | `summarise-catalog`       | Optional audience; creates a catalogue-summary instruction.                                                           |
+| Prompt            | `troubleshoot-service`    | Required symptom; creates a troubleshooting instruction.                                                              |
 
 The provider classes are marked `@Tools`, `@Resources`, and `@Prompts`. Every annotated method uses the corresponding
 `@McpTool`, `@McpResource`, `@McpResourceTemplate`, or `@McpPrompt` annotation.

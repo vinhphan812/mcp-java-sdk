@@ -175,7 +175,7 @@ The reflection registrar reads these annotations:
 - `@Prompts` + `@McpPrompt`;
 - `@McpParam` for argument metadata, schemas, and direct parameter binding.
 
-The complete runnable catalogue, request payloads, capability settings, run commands, and limitations are documented in `docs/GRIZZLY-EXAMPLE.md`. It registers three tools, two exact resources, two resource templates, and two prompts.
+The complete runnable catalogue, request payloads, capability settings, run commands, and limitations are documented in `docs/GRIZZLY-EXAMPLE.md`. It registers six tools, three exact resources, four resource templates, and four prompts.
 
 When a tool or prompt method has one `Map<String, Object>` parameter, the map is passed through unchanged. When parameters are individually annotated with `@McpParam`, JSON argument values are bound by name and converted to supported Java 8 scalar types (`String`, boolean, and numeric primitives/wrappers). Required values and types are checked before invocation.
 

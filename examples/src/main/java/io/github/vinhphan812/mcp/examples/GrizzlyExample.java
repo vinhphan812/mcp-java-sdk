@@ -65,6 +65,56 @@ public final class GrizzlyExample {
             return structuredTextResult("User " + userId + " profile: demo://users/" + userId
                     + ". Demo User " + userId + " is an example profile.", structured);
         }
+
+        @McpTool(name = "search-catalog", description = "Search the demo catalogue by item name")
+        public Map<String, Object> searchCatalog(
+                @McpParam(name = "query", description = "Search text", required = true)
+                String query) {
+            String term = query.toLowerCase();
+            List<Map<String, Object>> matches = new ArrayList<>();
+            if ("coffee".contains(term)) matches.add(catalogItem("coffee", 3.5, "beverage"));
+            if ("tea".contains(term)) matches.add(catalogItem("tea", 2.5, "beverage"));
+            if ("sandwich".contains(term)) matches.add(catalogItem("sandwich", 6.0, "food"));
+            Map<String, Object> structured = new LinkedHashMap<>();
+            structured.put("query", query);
+            structured.put("matches", matches);
+            return structuredTextResult("Found " + matches.size() + " catalogue item(s) for '" + query + "'.", structured);
+        }
+
+        @McpTool(name = "validate-order", description = "Validate a demo order quantity and unit price")
+        public Map<String, Object> validateOrder(
+                @McpParam(name = "quantity", description = "Number of items", type = "integer", required = true)
+                int quantity,
+                @McpParam(name = "unitPrice", description = "Price of one item", type = "number", required = true)
+                double unitPrice) {
+            boolean valid = quantity > 0 && unitPrice >= 0;
+            Map<String, Object> structured = new LinkedHashMap<>();
+            structured.put("valid", valid);
+            structured.put("quantity", quantity);
+            structured.put("unitPrice", unitPrice);
+            structured.put("message", valid ? "Order values are valid." : "Quantity must be positive and unit price must not be negative.");
+            return structuredTextResult(valid ? "Order is valid." : "Order is invalid.", structured);
+        }
+
+        @McpTool(name = "format-address", description = "Format an address for display")
+        public Map<String, Object> formatAddress(
+                @McpParam(name = "street", description = "Street address", required = true)
+                String street,
+                @McpParam(name = "city", description = "City", required = true)
+                String city,
+                @McpParam(name = "country", description = "Country", required = true)
+                String country) {
+            String formatted = street + ", " + city + ", " + country;
+            return textResult(formatted);
+        }
+
+        private static Map<String, Object> catalogItem(String id, double unitPrice, String category) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", id);
+            item.put("unitPrice", unitPrice);
+            item.put("category", category);
+            return item;
+        }
     }
 
     @Resources
@@ -94,6 +144,27 @@ public final class GrizzlyExample {
             String orderId = uri.substring(uri.lastIndexOf('/') + 1);
             return "{\"orderId\":\"" + orderId + "\",\"status\":\"ready\",\"currency\":\"GBP\"}";
         }
+
+        @McpResource(uri = "demo://policies", name = "Demo policies",
+                description = "Example service policies", mimeType = "text/markdown")
+        public String policies(String ignoredUri) {
+            return "# Demo policies\n\n- Orders are validated before submission.\n- Prices are expressed in GBP.\n- This resource is static example data.";
+        }
+
+        @McpResourceTemplate(uriTemplate = "demo://products/{productId}", name = "Product detail",
+                description = "Loads a demo product", mimeType = "application/json")
+        public String productDetail(String uri) {
+            String productId = uri.substring(uri.lastIndexOf('/') + 1);
+            return "{\"productId\":\"" + productId + "\",\"name\":\"Demo " + productId + "\",\"available\":true}";
+        }
+
+        @McpResourceTemplate(uriTemplate = "demo://users/{userId}/preferences", name = "User preferences",
+                description = "Loads preferences for a demo user", mimeType = "application/json")
+        public String userPreferences(String uri) {
+            String path = uri.substring(uri.indexOf("users/") + 6);
+            String userId = path.substring(0, path.indexOf('/'));
+            return "{\"userId\":\"" + userId + "\",\"language\":\"en-GB\",\"notifications\":true}";
+        }
     }
 
     @Prompts
@@ -113,6 +184,22 @@ public final class GrizzlyExample {
                 String focus) {
             String requestedFocus = focus == null || focus.trim().isEmpty() ? "items and status" : focus;
             return promptResult("Review demo://orders/" + orderId + " with focus on " + requestedFocus + ".");
+        }
+
+        @McpPrompt(name = "summarise-catalog", description = "Ask a model to summarise the catalogue")
+        public Map<String, Object> summariseCatalog(
+                @McpParam(name = "audience", description = "Intended audience", required = false)
+                String audience) {
+            String target = audience == null || audience.trim().isEmpty() ? "a general audience" : audience;
+            return promptResult("Summarise demo://catalog for " + target + ". Include prices and item categories.");
+        }
+
+        @McpPrompt(name = "troubleshoot-service", description = "Ask a model to troubleshoot a service issue")
+        public Map<String, Object> troubleshootService(
+                @McpParam(name = "symptom", description = "Observed symptom", required = true)
+                String symptom) {
+            return promptResult("Help troubleshoot this service symptom: " + symptom
+                    + ". Check demo://policies and suggest safe next steps.");
         }
     }
 
