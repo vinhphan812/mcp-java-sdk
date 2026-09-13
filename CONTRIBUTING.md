@@ -28,7 +28,7 @@ Verify the build is green before making changes.
 - Java 8 source/target compatibility
 - No new `@SuppressWarnings` for IntelliJ-specific inspection IDs (use `//noinspection` comments instead)
 - New public API methods require Javadoc
-- No `System.out.println` or `e.printStackTrace` in source
+- No direct console writes or stack-trace printing in production source
 - Sensitive values (credentials, tokens) must never appear in source or tests
 
 ## Test standards

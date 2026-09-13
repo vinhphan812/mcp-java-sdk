@@ -150,7 +150,7 @@ McpServer server = McpServer.builder()
         .register(new MyResources());
 
 server.start();
-System.out.println(server.getUrl());
+Logger.getLogger("mcp-server").info(server.getUrl());
 // shutdown: server.close()
 ```
 

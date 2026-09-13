@@ -197,7 +197,7 @@ McpServer server = McpServer.builder()
         .register(new MyPrompts());
 
 server.start();
-System.out.println(server.getUrl());  // http://127.0.0.1:3011/mcp
+Logger.getLogger("mcp-server").info(server.getUrl());  // http://127.0.0.1:3011/mcp
 
 // shutdown
 server.close();
@@ -793,7 +793,7 @@ McpServer server = McpServer.builder()
         .register(new MyPrompts());
 
 server.start();
-System.out.println(server.getUrl());  // http://127.0.0.1:3011/mcp
+Logger.getLogger("mcp-server").info(server.getUrl());  // http://127.0.0.1:3011/mcp
 
 // shutdown
 server.close();

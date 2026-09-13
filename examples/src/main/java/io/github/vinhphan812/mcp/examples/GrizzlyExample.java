@@ -18,9 +18,12 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 
 /** Standalone Java 8 MCP server demonstrating the SDK's main registrations. */
 public final class GrizzlyExample {
+    private static final Logger LOGGER = Logger.getLogger(GrizzlyExample.class.getName());
+
     private GrizzlyExample() { }
 
     @Tools
@@ -179,11 +182,11 @@ public final class GrizzlyExample {
 
         Runtime.getRuntime().addShutdownHook(new Thread(server::close));
         server.start();
-        System.out.println("MCP server listening at " + server.getUrl());
-        System.out.println("Registered tools: " + server.getRegistry().getRegisteredTools());
-        System.out.println("Registered resources: " + server.getRegistry().getRegisteredResources());
-        System.out.println("Registered templates: " + server.getRegistry().getRegisteredResourceTemplates());
-        System.out.println("Registered prompts: " + server.getRegistry().getRegisteredPrompts());
+        LOGGER.info("MCP server listening at " + server.getUrl());
+        LOGGER.info("Registered tools: " + server.getRegistry().getRegisteredTools());
+        LOGGER.info("Registered resources: " + server.getRegistry().getRegisteredResources());
+        LOGGER.info("Registered templates: " + server.getRegistry().getRegisteredResourceTemplates());
+        LOGGER.info("Registered prompts: " + server.getRegistry().getRegisteredPrompts());
         Thread.currentThread().join();
     }
 }

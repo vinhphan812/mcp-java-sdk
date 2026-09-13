@@ -150,7 +150,7 @@ public class Main {
 
         // 3. Start server
         server.start();
-        System.out.println("MCP server: " + server.getUrl());
+        Logger.getLogger("mcp-server").info("MCP server: " + server.getUrl());
 
         // 4. Shutdown on exit
         Runtime.getRuntime().addShutdownHook(new Thread(server::close));
