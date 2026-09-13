@@ -177,7 +177,7 @@ The reflection registrar reads these annotations:
 
 The complete runnable catalogue, request payloads, capability settings, run commands, and limitations are documented in `docs/GRIZZLY-EXAMPLE.md`. It registers six tools, three exact resources, four resource templates, and four prompts.
 
-When a tool or prompt method has one `Map<String, Object>` parameter, the map is passed through unchanged. When parameters are individually annotated with `@McpParam`, JSON argument values are bound by name and converted to supported Java 8 scalar types (`String`, boolean, and numeric primitives/wrappers). Required values and types are checked before invocation.
+When a tool or prompt method has one `Map<String, Object>` parameter, the map is passed through unchanged. When parameters are individually annotated with `@McpParam`, JSON argument values are bound by name and converted to supported Java 8 scalar types (`String`, boolean, and numeric primitives/wrappers). Required values and types are checked before invocation. Any remaining type (user-defined POJO, nested object, array, or generic `List`) is deserialised via Gson round-trip. See `docs/GRIZZLY-EXAMPLE.md` for a full POJO example (`Address`).
 
 Current contracts:
 

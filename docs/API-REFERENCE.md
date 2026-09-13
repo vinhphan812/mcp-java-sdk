@@ -89,6 +89,27 @@ public Map<String, Object> calculate(
 | `type`     | `String`  | no       | `"string"` | JSON type: `"string"`, `"boolean"`, `"integer"`, `"number"`, `"object"` |
 | `required` | `boolean` | no       | `false`  | Whether the argument must be present                          |
 
+**POJO complex types.** Any user-defined class can be used as a parameter type. The SDK serialises the incoming JSON value through Gson and deserialises it into the declared type. This handles nested objects, lists of objects, and arrays automatically.
+
+```java
+public static class Address {
+    private final String street;
+    private final String city;
+    private final String country;
+    public Address(String street, String city, String country) { ... }
+    public String getStreet()  { return street; }
+    public String getCity()    { return city; }
+    public String getCountry() { return country; }
+}
+
+@McpTool(name = "format-address")
+public Map<String, Object> formatAddress(
+        @McpParam(name = "address", required = true) Address address) {
+    String formatted = address.getStreet() + ", " + address.getCity() + ", " + address.getCountry();
+    return Map.of("formatted", formatted);
+}
+```
+
 ### `@McpResource`
 
 Marks a method as an exact-match resource. Applied to a method inside a class annotated `@Resources`.
@@ -684,6 +705,8 @@ public Map<String, Object> calculate(
 | `name`     | `String`  | yes      | —       | JSON argument name                                            |
 | `type`     | `String`  | no       | `"string"` | JSON type: `"string"`, `"boolean"`, `"integer"`, `"number"`, `"object"` |
 | `required` | `boolean` | no       | `false`  | Whether the argument must be present                          |
+
+The MCP client passes the nested object in `arguments.address`. See `docs/GRIZZLY-EXAMPLE.md` for the full working example with `Address`.
 
 ### `@McpResource`
 

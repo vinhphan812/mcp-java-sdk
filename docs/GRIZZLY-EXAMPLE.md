@@ -69,7 +69,7 @@ flowchart TB
 | Tool              | `user-summary`            | Directly binds `String userId`; returns a profile URI and summary.                                                    |
 | Tool              | `search-catalog`          | Searches demo items by name and returns structured matches.                                                          |
 | Tool              | `validate-order`          | Validates required quantity and unit-price values.                                                                    |
-| Tool              | `format-address`          | Formats street, city, and country values.                                                                             |
+| Tool              | `format-address`          | Accepts an `Address` POJO (`street`, `city`, `country`) and returns the formatted string; demonstrates Gson deserialisation for `@McpParam` complex types. |
 | Exact resource    | `demo://readme`           | Static plain-text SDK overview.                                                                                       |
 | Exact resource    | `demo://catalog`          | Static JSON catalogue.                                                                                                |
 | Exact resource    | `demo://policies`         | Static Markdown service policies.                                                                                     |
@@ -103,7 +103,61 @@ public Map<String, Object> calculateTotal(
 The reflection registrar builds the advertised input schema and maps JSON values by annotation name. Missing required
 values and incompatible JSON types produce an argument error. A method with one `Map<String,Object>` parameter remains
 supported for compatibility. Resource handlers still receive the resolved URI `String`; resource methods return`String`,
-while tools and prompts return `Map<String,Object>` MCP result shapes.
+While tools and prompts return `Map<String,Object>` MCP result shapes.
+
+## POJO complex types with Gson
+
+`@McpParam` supports any user-defined POJO. The registrar serialises the incoming JSON value through Gson and deserialises it into the declared parameter type. This works for nested objects, lists of objects, and arrays.
+
+```java
+// Define a POJO — no annotations needed on the class itself
+public static class Address {
+    private final String street;
+    private final String city;
+    private final String country;
+
+    public Address(String street, String city, String country) {
+        this.street = street;
+        this.city   = city;
+        this.country = country;
+    }
+
+    public String getStreet()  { return street; }
+    public String getCity()    { return city; }
+    public String getCountry() { return country; }
+}
+
+// Use it as a single @McpParam-annotated method parameter
+@McpTool(name = "format-address", description = "Format an address for display")
+public Map<String, Object> formatAddress(
+        @McpParam(name = "address", description = "Full address object", required = true)
+        Address address) {
+    String formatted = address.getStreet() + ", " + address.getCity() + ", " + address.getCountry();
+    return textResult(formatted);
+}
+```
+
+The MCP client sends a JSON object for `address`, and the SDK deserialises it into `Address` before invoking the method:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "format-address",
+    "arguments": {
+      "address": {
+        "street": "123 Main St",
+        "city": "Hanoi",
+        "country": "Vietnam"
+      }
+    }
+  }
+}
+```
+
+The same mechanism works for `List<Address>`, `Item[]`, or any nested structure Gson can deserialise. When a parameter is not a scalar or POJO (e.g. a plain `Map<String,Object>`), the raw map is passed through without conversion.
 
 ## Capabilities and bootstrap
 
