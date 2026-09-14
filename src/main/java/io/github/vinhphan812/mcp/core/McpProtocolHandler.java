@@ -1683,11 +1683,6 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
     /**
      * Returns next queued resource notification as formatted SSE line, or null when queue is empty.
-     */
-    /**
-     * Returns next queued resource notification as formatted SSE line, or null when queue is empty.
-     */
-    /**
      * @param sessionId session identifier
      * @return next resource notification as SSE-formatted string, or null
      */
