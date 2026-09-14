@@ -1,8 +1,11 @@
 # Grizzly MCP Example
 
-`examples/src/main/java/io/github/vinhphan812/mcp/examples/GrizzlyExample.java` is a standalone Java 8 server using the SDK's Grizzly Streamable HTTP transport. It binds to `http://127.0.0.1:3011/mcp` and demonstrates a coherent small catalogue domain.
+`examples/src/main/java/io/github/vinhphan812/mcp/examples/GrizzlyExample.java` is a standalone Java 8 server using the
+SDK's Grizzly Streamable HTTP transport. It binds to `http://127.0.0.1:3011/mcp` and demonstrates a coherent small
+catalogue domain.
 
-See also: [PROJECT-GUIDE.md](PROJECT-GUIDE.md) | [API-REFERENCE.md](API-REFERENCE.md) | [MCP-COMPATIBILITY-2026.md](MCP-COMPATIBILITY-2026.md)
+See
+also: [PROJECT-GUIDE.md](PROJECT-GUIDE.md) | [API-REFERENCE.md](API-REFERENCE.md) | [MCP-COMPATIBILITY-2026.md](MCP-COMPATIBILITY-2026.md)
 
 ```mermaid
 sequenceDiagram
@@ -62,25 +65,25 @@ flowchart TB
 
 ## Registered items
 
-| Kind              | Name or URI               | Behaviour                                                                                                             |
-|-------------------|---------------------------|-----------------------------------------------------------------------------------------------------------------------|
-| Tool              | `greet`                   | Directly binds required `String name`; returns text content.                                                          |
-| Tool              | `calculate-total`         | Directly binds `String item`, required `int quantity`, and required `double unitPrice`; returns the calculated total. |
-| Tool              | `user-summary`            | Directly binds `String userId`; returns a profile URI and summary.                                                    |
-| Tool              | `search-catalog`          | Searches demo items by name and returns structured matches.                                                          |
-| Tool              | `validate-order`          | Validates required quantity and unit-price values.                                                                    |
-| Tool              | `format-address`          | Accepts an `Address` POJO (`street`, `city`, `country`) and returns the formatted string; demonstrates Gson deserialisation for `@McpParam` complex types. |
-| Exact resource    | `demo://readme`           | Static plain-text SDK overview.                                                                                       |
-| Exact resource    | `demo://catalog`          | Static JSON catalogue.                                                                                                |
-| Exact resource    | `demo://policies`         | Static Markdown service policies.                                                                                     |
-| Resource template | `demo://users/{userId}`   | `resources/read` resolves a user URI and returns JSON.                                                                |
-| Resource template | `demo://orders/{orderId}` | `resources/read` resolves an order URI and returns JSON.                                                              |
-| Resource template | `demo://products/{productId}` | Resolves a product detail URI.                                                                                    |
-| Resource template | `demo://users/{userId}/preferences` | Resolves user preferences.                                                                                 |
-| Prompt            | `explain-user`            | Required `userId`; creates a user-profile explanation message.                                                        |
-| Prompt            | `review-order`            | Required `orderId` and optional `focus`; creates an order-review message.                                             |
-| Prompt            | `summarise-catalog`       | Optional audience; creates a catalogue-summary instruction.                                                           |
-| Prompt            | `troubleshoot-service`    | Required symptom; creates a troubleshooting instruction.                                                              |
+| Kind              | Name or URI                         | Behaviour                                                                                                                                                  |
+|-------------------|-------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Tool              | `greet`                             | Directly binds required `String name`; returns text content.                                                                                               |
+| Tool              | `calculate-total`                   | Directly binds `String item`, required `int quantity`, and required `double unitPrice`; returns the calculated total.                                      |
+| Tool              | `user-summary`                      | Directly binds `String userId`; returns a profile URI and summary.                                                                                         |
+| Tool              | `search-catalog`                    | Searches demo items by name and returns structured matches.                                                                                                |
+| Tool              | `validate-order`                    | Validates required quantity and unit-price values.                                                                                                         |
+| Tool              | `format-address`                    | Accepts an `Address` POJO (`street`, `city`, `country`) and returns the formatted string; demonstrates Gson deserialisation for `@McpParam` complex types. |
+| Exact resource    | `demo://readme`                     | Static plain-text SDK overview.                                                                                                                            |
+| Exact resource    | `demo://catalog`                    | Static JSON catalogue.                                                                                                                                     |
+| Exact resource    | `demo://policies`                   | Static Markdown service policies.                                                                                                                          |
+| Resource template | `demo://users/{userId}`             | `resources/read` resolves a user URI and returns JSON.                                                                                                     |
+| Resource template | `demo://orders/{orderId}`           | `resources/read` resolves an order URI and returns JSON.                                                                                                   |
+| Resource template | `demo://products/{productId}`       | Resolves a product detail URI.                                                                                                                             |
+| Resource template | `demo://users/{userId}/preferences` | Resolves user preferences.                                                                                                                                 |
+| Prompt            | `explain-user`                      | Required `userId`; creates a user-profile explanation message.                                                                                             |
+| Prompt            | `review-order`                      | Required `orderId` and optional `focus`; creates an order-review message.                                                                                  |
+| Prompt            | `summarise-catalog`                 | Optional audience; creates a catalogue-summary instruction.                                                                                                |
+| Prompt            | `troubleshoot-service`              | Required symptom; creates a troubleshooting instruction.                                                                                                   |
 
 The provider classes are marked `@Tools`, `@Resources`, and `@Prompts`. Every annotated method uses the corresponding
 `@McpTool`, `@McpResource`, `@McpResourceTemplate`, or `@McpPrompt` annotation.
@@ -107,18 +110,25 @@ While tools and prompts return `Map<String,Object>` MCP result shapes.
 
 ## POJO complex types with Gson
 
-`@McpParam` supports any user-defined POJO. The registrar serialises the incoming JSON value through Gson and deserialises it into the declared parameter type. This works for nested objects, lists of objects, and arrays.
+`@McpParam` supports any user-defined POJO. The registrar serialises the incoming JSON value through Gson and
+deserialises it into the declared parameter type. This works for nested objects, lists of objects, and arrays.
+
+Annotate each field with `@SerializedName` so the JSON key is explicit and survives field renaming:
 
 ```java
-// Define a POJO — no annotations needed on the class itself
+import com.google.gson.annotations.SerializedName;
+
 public static class Address {
+    @SerializedName("street")
     private final String street;
+    @SerializedName("city")
     private final String city;
+    @SerializedName("country")
     private final String country;
 
     public Address(String street, String city, String country) {
-        this.street = street;
-        this.city   = city;
+        this.street  = street;
+        this.city    = city;
         this.country = country;
     }
 
@@ -126,8 +136,11 @@ public static class Address {
     public String getCity()    { return city; }
     public String getCountry() { return country; }
 }
+```
 
-// Use it as a single @McpParam-annotated method parameter
+Use it as a single `@McpParam`-annotated method parameter:
+
+```java
 @McpTool(name = "format-address", description = "Format an address for display")
 public Map<String, Object> formatAddress(
         @McpParam(name = "address", description = "Full address object", required = true)
@@ -157,7 +170,14 @@ The MCP client sends a JSON object for `address`, and the SDK deserialises it in
 }
 ```
 
-The same mechanism works for `List<Address>`, `Item[]`, or any nested structure Gson can deserialise. When a parameter is not a scalar or POJO (e.g. a plain `Map<String,Object>`), the raw map is passed through without conversion.
+**How it works.** The `@McpParam(name = "address")` tells the registrar to extract the JSON value at key
+`"address"` and pass it to `Gson` for deserialisation. Gson maps each `@SerializedName("street")` field to the
+JSON key `"street"`, `"city"` to `"city"`, and so on. If a JSON key has a different name from the Java field
+(e.g. `"user_id"` → `userId`), add `@SerializedName("user_id")` to that field.
+
+The same mechanism works for `List<Address>`, `Item[]`, or any nested structure Gson can deserialise. When a
+parameter is not a scalar or POJO (e.g. a plain `Map<String,Object>`), the raw map is passed through without
+conversion.
 
 ## Capabilities and bootstrap
 

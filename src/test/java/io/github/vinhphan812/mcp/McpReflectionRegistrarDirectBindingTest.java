@@ -9,6 +9,7 @@ import io.github.vinhphan812.mcp.api.handler.McpPromptHandler;
 import io.github.vinhphan812.mcp.api.handler.McpResourceHandler;
 import io.github.vinhphan812.mcp.api.handler.McpToolHandler;
 import io.github.vinhphan812.mcp.api.spi.McpRegistrar;
+import com.google.gson.annotations.SerializedName;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
@@ -100,8 +101,11 @@ class McpReflectionRegistrarDirectBindingTest {
     }
 
     static class Address {
+        @SerializedName("street")
         private final String street;
+        @SerializedName("city")
         private final String city;
+        @SerializedName("country")
         private final String country;
 
         Address(String street, String city, String country) {

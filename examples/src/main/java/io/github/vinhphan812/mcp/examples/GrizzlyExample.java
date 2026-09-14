@@ -13,6 +13,8 @@ import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.core.McpRegistry;
 import io.github.vinhphan812.mcp.core.McpServer;
 
+import com.google.gson.annotations.SerializedName;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -274,10 +276,13 @@ public final class GrizzlyExample {
         Thread.currentThread().join();
     }
 
-    /** Standalone POJO demonstrating Gson deserialisation for @McpParam complex types. */
+    /** POJO demonstrating Gson deserialisation for @McpParam complex types. */
     public static class Address {
+        @SerializedName("street")
         private final String street;
+        @SerializedName("city")
         private final String city;
+        @SerializedName("country")
         private final String country;
 
         public Address(String street, String city, String country) {
