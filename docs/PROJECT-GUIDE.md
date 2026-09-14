@@ -2,9 +2,11 @@
 
 ## 1. Purpose
 
-`mcp-java-sdk` is an independent, portable MCP server SDK targeting Java 8. It is separated from Android, ROSA (Robot Operating System Android), and application-specific services.
+`mcp-java-sdk` is an independent, portable MCP server SDK targeting Java 8. It is separated from Android, ROSA (Robot
+Operating System Android), and application-specific services.
 
-The implementation baseline is MCP `2025-11-25`. MCP `2026-07-28` is used only as a comparison reference; the SDK does not claim full support for that version.
+The implementation baseline is MCP `2025-11-25`. MCP `2026-07-28` is used only as a comparison reference; the SDK does
+not claim full support for that version.
 
 The SDK currently provides a practical subset:
 
@@ -18,7 +20,8 @@ The SDK currently provides a practical subset:
 
 The SDK is not a full MCP implementation. Unsupported or unverified features are listed in section 8.
 
-The package contains MCP core and Grizzly HTTP transport only. WebSocket is not a package capability; a robot or application may connect through an external WebSocket bridge or adapter when required.
+The package contains MCP core and Grizzly HTTP transport only. WebSocket is not a package capability; a robot or
+application may connect through an external WebSocket bridge or adapter when required.
 
 ## 2. Directory structure
 
@@ -65,17 +68,27 @@ docs/
 
 The package split is intentionally small and clean:
 
-- `annotations/` contains runtime metadata only (`@McpTool`, `@McpParam`, `@McpResource`, `@McpResourceTemplate`, `@McpPrompt` and provider markers). It has no transport or registry policy.
-- `api/spi/` defines registration contracts (`McpRegistrar`) and listeners that the server fires when registrations or resources change.
-- `api/handler/` defines the interfaces applications implement to provide tool, resource, prompt, and completion behaviour.
+- `annotations/` contains runtime metadata only (`@McpTool`, `@McpParam`, `@McpResource`, `@McpResourceTemplate`,
+  `@McpPrompt` and provider markers). It has no transport or registry policy.
+- `api/spi/` defines registration contracts (`McpRegistrar`) and listeners that the server fires when registrations or
+  resources change.
+- `api/handler/` defines the interfaces applications implement to provide tool, resource, prompt, and completion
+  behaviour.
 - `api/dto/` holds immutable value objects that flow through the protocol (tasks, blob content).
 - `api/config/` holds server and client configuration (`McpServerConfig`, `McpClientCapabilities`).
 - `api/logging/` provides a portable logger interface and a JDK-logging adapter.
-- `api/McpReflectionRegistrar.java` is a runtime utility that scans `@Tools`, `@Resources`, and `@Prompts` providers and registers their annotated methods.
-- `core/` contains protocol dispatch, registry state, and the server facade. It translates public registrations into MCP JSON-RPC behaviour but does not own HTTP-specific request handling.
-- `transport/` contains the Grizzly Streamable HTTP adapter and lifecycle provider. Keeping it isolated permits a future transport adapter without moving protocol or annotation code.
+- `api/McpReflectionRegistrar.java` is a runtime utility that scans `@Tools`, `@Resources`, and `@Prompts` providers and
+  registers their annotated methods.
+- `core/` contains protocol dispatch, registry state, and the server facade. It translates public registrations into MCP
+  JSON-RPC behaviour but does not own HTTP-specific request handling.
+- `transport/` contains the Grizzly Streamable HTTP adapter and lifecycle provider. Keeping it isolated permits a future
+  transport adapter without moving protocol or annotation code.
 
-This arrangement keeps dependency direction clear: annotations describe providers; API exposes extension points; core owns MCP semantics; transport adapts network I/O. Intentionally excluded are Android application services, robot/domain models, WebSocket and STDIO implementations, persistence, authentication backends, and broad framework abstractions. Those belong in consuming applications or separate adapters. The standalone example is under `examples/`, not a production package.
+This arrangement keeps dependency direction clear: annotations describe providers; API exposes extension points; core
+owns MCP semantics; transport adapts network I/O. Intentionally excluded are Android application services, robot/domain
+models, WebSocket and STDIO implementations, persistence, authentication backends, and broad framework abstractions.
+Those belong in consuming applications or separate adapters. The standalone example is under `examples/`, not a
+production package.
 
 ## 4. Runtime and dependencies
 
@@ -87,11 +100,15 @@ This arrangement keeps dependency direction clear: annotations describe provider
 - Default port: `3011`
 - Default endpoint: `/mcp`
 
-Do not put credentials, API keys, tokens, passwords, or connection strings in source, tests, examples, or documentation. Use `[REDACTED]` for sensitive example values.
+Do not put credentials, API keys, tokens, passwords, or connection strings in source, tests, examples, or documentation.
+Use `[REDACTED]` for sensitive example values.
 
 ## 4. Hosting an MCP server in an Android application
 
-The SDK can run inside an Android application process and expose an MCP server over HTTP. This includes Android phones, embedded Android devices, and Android-based robots. The application owns the Android Service/lifecycle, network permissions, bind address, authentication policy, and provider implementations; the SDK supplies the MCP protocol core and optional Grizzly transport.
+The SDK can run inside an Android application process and expose an MCP server over HTTP. This includes Android phones,
+embedded Android devices, and Android-based robots. The application owns the Android Service/lifecycle, network
+permissions, bind address, authentication policy, and provider implementations; the SDK supplies the MCP protocol core
+and optional Grizzly transport.
 
 Typical Android integration:
 
@@ -102,31 +119,47 @@ Typical Android integration:
 5. Connect an MCP client to the device endpoint.
 6. Call `stop()`/`close()` when the Service or application stops.
 
-Use `127.0.0.1` for local-only access. Binding to a LAN address requires authentication, an Origin allowlist, request limits, network policy, and lifecycle controls. The bundled Grizzly transport is JVM/server-oriented and must be verified on the target Android API level. If Grizzly is unsuitable for a device runtime, implement or provide another transport through the public API while retaining the same MCP core.
+Use `127.0.0.1` for local-only access. Binding to a LAN address requires authentication, an Origin allowlist, request
+limits, network policy, and lifecycle controls. The bundled Grizzly transport is JVM/server-oriented and must be
+verified on the target Android API level. If Grizzly is unsuitable for a device runtime, implement or provide another
+transport through the public API while retaining the same MCP core.
 
 ## 5. Server startup flow
 
 ```mermaid
 flowchart TB
-    Config["McpServerConfig"]
-    Builder["McpServer.Builder"]
-    Server["McpServer"]
-    Registry["McpRegistry"]
-    Protocol["McpProtocolHandler"]
-    Transport["GrizzlyStreamableServerTransportProvider"]
-    Handler["McpGrizzlyHandler"]
+    subgraph application["Application"]
+        Config["McpServerConfig"]
+        Builder["McpServer.Builder"]
+        Server["McpServer"]
+        TransportProvider["GrizzlyStreamableServerTransportProvider"]
+    end
+
+    subgraph core["core/ (transport-neutral)"]
+        Registry["McpRegistry"]
+        Protocol["McpProtocolHandler"]
+    end
+
+    subgraph transport["transport/ (Grizzly-specific)"]
+        Handler["McpGrizzlyHandler"]
+        GrizzlyServer["Grizzly HTTP Server"]
+    end
 
     Config --> Builder
     Builder --> Server
     Server --> Registry
     Server --> Protocol
-    Server --> Transport
-    Transport --> Handler
+    Server --> TransportProvider
+    TransportProvider --> Handler
+    Handler --> Protocol
+    Handler --> GrizzlyServer
 
-    style Config fill:#e1f5fe
-    style Server fill:#f3e5f5
-    style Transport fill:#fff3e0
+    style application fill:#e3f2fd,stroke:#1565c0
+    style core fill:#e8f5e9,stroke:#2e7d32
+    style transport fill:#fff3e0,stroke:#e65100
 ```
+
+**Two-layer design.** `core/` holds MCP logic (JSON-RPC dispatch, registry, session state) and knows nothing about the network. `transport/` holds Grizzly-specific HTTP/SSE handling and calls into `core/` for protocol work. This separation allows the protocol layer to be tested in isolation and permits swapping the transport in the future.
 
 Providers are registered before `start()`:
 
@@ -154,7 +187,8 @@ Logger.getLogger("mcp-server").info(server.getUrl());
 // shutdown: server.close()
 ```
 
-Use `port(0)` in tests to request an ephemeral port from the operating system. After startup, retrieve the actual port with `server.getTransport().getActualPort()`.
+Use `port(0)` in tests to request an ephemeral port from the operating system. After startup, retrieve the actual port
+with `server.getTransport().getActualPort()`.
 
 Lifecycle methods:
 
@@ -175,31 +209,46 @@ The reflection registrar reads these annotations:
 - `@Prompts` + `@McpPrompt`;
 - `@McpParam` for argument metadata, schemas, and direct parameter binding.
 
-The complete runnable catalogue, request payloads, capability settings, run commands, and limitations are documented in `docs/GRIZZLY-EXAMPLE.md`. It registers six tools, three exact resources, four resource templates, and four prompts.
+The complete runnable catalogue, request payloads, capability settings, run commands, and limitations are documented in
+`docs/GRIZZLY-EXAMPLE.md`. It registers six tools, three exact resources, four resource templates, and four prompts.
 
-When a tool or prompt method has one `Map<String, Object>` parameter, the map is passed through unchanged. When parameters are individually annotated with `@McpParam`, JSON argument values are bound by name and converted to supported Java 8 scalar types (`String`, boolean, and numeric primitives/wrappers). Required values and types are checked before invocation. Any remaining type (user-defined POJO, nested object, array, or generic `List`) is deserialised via Gson round-trip. See `docs/GRIZZLY-EXAMPLE.md` for a full POJO example (`Address`).
+When a tool or prompt method has one `Map<String, Object>` parameter, the map is passed through unchanged. When
+parameters are individually annotated with `@McpParam`, JSON argument values are bound by name and converted to
+supported Java 8 scalar types (`String`, boolean, and numeric primitives/wrappers). Required values and types are
+checked before invocation. Any remaining type (user-defined POJO, nested object, array, or generic `List`) is
+deserialised via Gson round-trip. See `docs/GRIZZLY-EXAMPLE.md` for a full POJO example (`Address`).
 
 Current contracts:
 
 - tool methods return `Map<String, Object>`;
 - prompt methods return `Map<String, Object>`;
 - resource and resource-template methods return `String`;
-- tool and prompt methods accept zero arguments, one compatible `Map<String, Object>` argument, or individually annotated direct parameters;
-- direct `@McpParam` parameters are bound by name and support String, boolean, numeric primitive/wrapper, Object, and Map values;
+- tool and prompt methods accept zero arguments, one compatible `Map<String, Object>` argument, or individually
+  annotated direct parameters;
+- direct `@McpParam` parameters are bound by name and support String, boolean, numeric primitive/wrapper, Object, and
+  Map values;
 - resource arguments are normally URI `String` values.
 
-The registrar checks return types and throws `IllegalArgumentException` when a method violates the contract. For large production deployments, consider a generated registrar instead of reflection to reduce startup cost and improve determinism.
+The registrar checks return types and throws `IllegalArgumentException` when a method violates the contract. For large
+production deployments, consider a generated registrar instead of reflection to reduce startup cost and improve
+determinism.
 
 ## 7. Package architecture assessment
 
-The package layout under `io.github.vinhphan812.mcp` is appropriate for the current SDK boundary and should not be flattened or split further without a new capability requiring it:
+The package layout under `io.github.vinhphan812.mcp` is appropriate for the current SDK boundary and should not be
+flattened or split further without a new capability requiring it:
 
 - `annotations`: public annotation declarations only; no protocol or transport dependency.
-- `api`: public extension contracts, configuration, handlers, logger, completion provider, and task/client metadata types.
-- `core`: registry, JSON-RPC dispatch, session state, capability advertisement, and server facade; it is transport-neutral.
-- `transport`: Grizzly HTTP lifecycle, headers, authentication, Origin policy, SSE, and request limits; HTTP-specific concerns remain isolated here.
+- `api`: public extension contracts, configuration, handlers, logger, completion provider, and task/client metadata
+  types.
+- `core`: registry, JSON-RPC dispatch, session state, capability advertisement, and server facade; it is
+  transport-neutral.
+- `transport`: Grizzly HTTP lifecycle, headers, authentication, Origin policy, SSE, and request limits; HTTP-specific
+  concerns remain isolated here.
 
-Keeping `core` independent of `transport` allows another transport to use the same protocol handler. Keeping `api` separate from `core` makes the public integration surface explicit. WebSocket, Android services, robot/application domain models, persistence, and generated registrars are intentionally outside these packages.
+Keeping `core` independent of `transport` allows another transport to use the same protocol handler. Keeping `api`
+separate from `core` makes the public integration surface explicit. WebSocket, Android services, robot/application
+domain models, persistence, and generated registrars are intentionally outside these packages.
 
 The example application is kept under `examples/.../examples` and is not part of the SDK artifact.
 
@@ -226,7 +275,8 @@ The client then sends this notification:
 {"jsonrpc":"2.0","method":"notifications/initialized"}
 ```
 
-Notifications have no `id` and receive no JSON-RPC response body. Ordinary requests have an `id` and receive a response or error.
+Notifications have no `id` and receive no JSON-RPC response body. Ordinary requests have an `id` and receive a response
+or error.
 
 Main methods:
 
@@ -236,9 +286,11 @@ Main methods:
 - `resources/templates/list`;
 - `prompts/list`, `prompts/get`.
 
-A resource template does not use a custom route. The client resolves a URI, such as `demo://users/42`, and then calls `resources/read`.
+A resource template does not use a custom route. The client resolves a URI, such as `demo://users/42`, and then calls
+`resources/read`.
 
-Protocol failures use JSON-RPC errors, including invalid requests or parameters and unknown methods or resources. The SDK does not treat an application error as a successful result containing an error string.
+Protocol failures use JSON-RPC errors, including invalid requests or parameters and unknown methods or resources. The
+SDK does not treat an application error as a successful result containing an error string.
 
 ## 9. HTTP transport
 
@@ -263,13 +315,15 @@ Security defaults:
 - Bearer tokens are compared in constant time;
 - the secret is supplied by `Supplier<String>` and must not be written to logs or source.
 
-Production deployment should add a reverse proxy, request limits, TLS, an appropriate Origin allowlist, and a secret provider outside source control.
+Production deployment should add a reverse proxy, request limits, TLS, an appropriate Origin allowlist, and a secret
+provider outside source control.
 
 ## 9. Unsupported or unverified scope
 
 The following features are not implemented or have not been fully demonstrated:
 
-- progress/cancellation notifications (implemented: `notifyToolProgress`, `notifications/cancelled`, `isCancelled` — P2);
+- progress/cancellation notifications (implemented: `notifyToolProgress`, `notifications/cancelled`, `isCancelled` —
+  P2);
 - sampling (not implemented);
 - elicitation request/response flow (not implemented);
 - async task orchestration and `tasks/create` (implemented — P2);
@@ -285,7 +339,8 @@ Do not describe the SDK as having full MCP parity while these limitations remain
 
 ## 10. Build, tests, and example
 
-The build creates one Maven publication with artifact `io.github.vinhphan812.mcp:mcp-java-sdk` and main, sources, and Javadoc JARs. CI and release workflows are configured, but no tagged release or publication has been executed.
+The build creates one Maven publication with artifact `io.github.vinhphan812.mcp:mcp-java-sdk` and main, sources, and
+Javadoc JARs. CI and release workflows are configured, but no tagged release or publication has been executed.
 
 From the project root:
 
@@ -304,7 +359,8 @@ Current tests cover:
 - in-process Grizzly HTTP smoke, security matrix, and resumability paths;
 - Bearer token authentication matrix.
 
-The example is not declared as a separate Gradle source set or application task. Run it with a suitable Gradle classpath or add a separate build task in a different change.
+The example is not declared as a separate Gradle source set or application task. Run it with a suitable Gradle classpath
+or add a separate build task in a different change.
 
 Detailed request guidance is in `docs/GRIZZLY-EXAMPLE.md`.
 

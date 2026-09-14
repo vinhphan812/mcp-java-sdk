@@ -2,16 +2,18 @@
 
 This directory contains Architecture Decision Records (ADRs) for the MCP Java SDK project.
 
-ADRs document significant design decisions, the context that motivated them, and their consequences. They serve as a permanent record of why the system is built the way it is.
+ADRs document significant design decisions, the context that motivated them, and their consequences. They serve as a
+permanent record of why the system is built the way it is.
 
-See also: [PROJECT-GUIDE.md](../PROJECT-GUIDE.md) | [API-REFERENCE.md](../API-REFERENCE.md) | [IMPLEMENTATION-STATUS.md](../IMPLEMENTATION-STATUS.md)
+See
+also: [PROJECT-GUIDE.md](../PROJECT-GUIDE.md) | [API-REFERENCE.md](../API-REFERENCE.md) | [IMPLEMENTATION-STATUS.md](../IMPLEMENTATION-STATUS.md)
 
 ## ADR relationship
 
 ```mermaid
 flowchart LR
     Core1["ADR-0001: Java 8 core"]
-    Core2["ADR-0002: Grizzly isolation"]
+    Core2["ADR-0002: Grizzly isolation\n(transport/core separation)"]
     Core3["ADR-0003: JSON-RPC/versioning"]
     Core4["ADR-0004: Sessions"]
     Core5["ADR-0005: SSE notifications"]
@@ -24,6 +26,7 @@ flowchart LR
     Core1 --> Core2
     Core1 --> Core3
     Core2 --> Core6
+    Core2 --> Core5
     Core3 --> Core4
     Core4 --> Core5
     Core5 --> Core6
@@ -45,8 +48,8 @@ flowchart LR
 | [ADR-0006](ADR-0006-security-model.md)                        | Security Model: Origin, Authentication, and Input Validation             | Accepted | 2026-09-01 |
 | [ADR-0007](ADR-0007-annotation-registration.md)               | Annotation-Based Registration with Reflection Registrar                  | Accepted | 2026-09-01 |
 | [ADR-0008](ADR-0008-protocol-baseline-compatibility.md)       | Protocol Baseline and Compatibility Scope                                | Accepted | 2026-09-01 |
-| [ADR-0009](ADR-0009-code-audit-2026-09-11.md) | Code Audit Findings (2026-09-11) | Accepted | 2026-09-11 |
-| [ADR-0010](ADR-0010-api-package-restructure.md) | `api/` Package Restructure by Category | Accepted | 2026-09-11 |
+| [ADR-0009](ADR-0009-code-audit-2026-09-11.md)                 | Code Audit Findings (2026-09-11)                                         | Accepted | 2026-09-11 |
+| [ADR-0010](ADR-0010-api-package-restructure.md)               | `api/` Package Restructure by Category                                   | Accepted | 2026-09-11 |
 
 ## When to create an ADR
 
