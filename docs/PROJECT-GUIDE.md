@@ -337,7 +337,37 @@ The following features are not implemented or have not been fully demonstrated:
 
 Do not describe the SDK as having full MCP parity while these limitations remain.
 
-## 10. Build, tests, and example
+## 9a. Security
+
+The SDK provides built-in security controls (ADR-0011):
+
+- **Owner-based sessions:** `initialize` accepts an optional `ownerId`. One active session per owner.
+- **Per-category rate limiting:** read/write/admin burst + sustained + concurrent caps.
+- **Destructive tool caps:** lifetime limits + cooldown for `shutdown`, `delete_action`, `delete_prompt`, `upload_file`.
+- **Abuse scoring:** weighted signals accumulate; session blocked at threshold.
+- **Queue overflow handling:** bounded notification queue (100/session); throws `QueueOverflowException` or notifies `QueueOverflowListener`.
+- **IP-based rate limiting:** per-client-IP request limits.
+- **Max concurrent sessions:** default 10; returns `-32029` when exceeded.
+- **Authorization SPI:** implement `McpAuthorization` for scope-based tool access control.
+
+Configure via `McpServerConfig.Builder`:
+
+```java
+McpServerConfig.builder()
+    .serverName("my-server")
+    .overflowListener(sessionId -> log.warn("Queue overflow on session: " + sessionId))
+    .authorization((scopes, confirmationRequired, args) -> {
+        if (Arrays.asList(scopes).contains("admin") && !currentUser.isAdmin()) {
+            return "Admin scope required";
+        }
+        return null;
+    })
+    .build();
+```
+
+Annotate tools with `@McpTool(scopes = {"admin"}, confirmationRequired = true)` to opt in.
+
+## ## 10. Build, tests, and example
 
 The build creates one Maven publication with artifact `io.github.vinhphan812.mcp:mcp-java-sdk` and main, sources, and
 Javadoc JARs. CI and release workflows are configured, but no tagged release or publication has been executed.

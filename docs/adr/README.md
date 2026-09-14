@@ -53,7 +53,7 @@ flowchart LR
 | [ADR-0008](ADR-0008-protocol-baseline-compatibility.md)       | Protocol Baseline and Compatibility Scope                                | Accepted | 2026-09-01 |
 | [ADR-0009](ADR-0009-code-audit-2026-09-11.md)                 | Code Audit Findings (2026-09-11)                                         | Accepted | 2026-09-11 |
 | [ADR-0010](ADR-0010-api-package-restructure.md)               | `api/` Package Restructure by Category                                   | Accepted | 2026-09-11 |
-| [ADR-0011](ADR-0011-security-rate-limiting.md)               | Security and Rate Limiting (owner sessions, per-category limits, abuse scoring) | Proposed | 2026-09-14 |
+| [ADR-0011](ADR-0011-security-rate-limiting.md)               | Security and Rate Limiting (owner sessions, per-category limits, abuse scoring) | Accepted | 2026-09-14 |
 
 ## When to create an ADR
 

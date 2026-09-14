@@ -285,7 +285,7 @@ public final class McpReflectionRegistrar {
         // List support: JSON array or Collection -> typed List
         if (List.class.isAssignableFrom(target) && raw instanceof Iterable) {
             @SuppressWarnings("unchecked")
-            List<Object> list = new java.util.ArrayList<Object>();
+            List<Object> list = new ArrayList<>();
             for (Object item : (Iterable<?>) raw) { list.add(item); }
             return list;
         }

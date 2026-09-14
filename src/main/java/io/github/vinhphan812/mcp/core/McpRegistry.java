@@ -77,6 +77,39 @@ public class McpRegistry implements McpRegistrar {
         notifyRegistryChanged("tools");
     }
 
+    /**
+     * Registers an MCP tool definition with authorisation metadata.
+     * @param name tool name
+     * @param description tool description
+     * @param inputSchema tool input property definitions
+     * @param required required input names
+     * @param requiredScopes authorisation scopes for this tool (may be null)
+     * @param confirmationRequired whether this tool requires user confirmation
+     * @param handler tool handler
+     */
+    public synchronized void registerTool(String name, String description, Map<String, Object> inputSchema,
+                                         List<String> required, List<String> requiredScopes,
+                                         boolean confirmationRequired, McpToolHandler handler) {
+        requireUnique(name, toolHandlers, "tool");
+        Map<String, Object> tool = new LinkedHashMap<>();
+        tool.put("name", name);
+        tool.put("description", description);
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        schema.put("properties", inputSchema != null ? copyMap(inputSchema) : new LinkedHashMap<>());
+        schema.put("required", required != null ? new ArrayList<>(required) : new ArrayList<>());
+        tool.put("inputSchema", schema);
+        if (requiredScopes != null && !requiredScopes.isEmpty()) {
+            tool.put("requiredScopes", new ArrayList<>(requiredScopes));
+        }
+        if (confirmationRequired) {
+            tool.put("confirmationRequired", true);
+        }
+        registeredTools.add(tool);
+        toolHandlers.put(name, handler);
+        notifyRegistryChanged("tools");
+    }
+
     /** Registers an MCP resource definition and handler.
      * @param uri resource URI
      * @param name resource name
@@ -361,6 +394,19 @@ public class McpRegistry implements McpRegistrar {
      */
     public McpToolHandler getToolHandler(String name) {
         return toolHandlers.get(name);
+    }
+
+    /**
+     * Finds the full tool definition registered for a tool name.
+     * @param name tool name
+     * @return tool definition Map (with name, description, inputSchema, requiredScopes, confirmationRequired)
+     *         or {@code null} when absent
+     */
+    public Map<String, Object> getToolDefinition(String name) {
+        for (Map<String, Object> tool : registeredTools) {
+            if (name.equals(tool.get("name"))) return tool;
+        }
+        return null;
     }
 
     /** Finds handler registered for resource URI.

@@ -1,26 +1,33 @@
 package io.github.vinhphan812.mcp;
 
-import io.github.vinhphan812.mcp.annotations.*;
-import io.github.vinhphan812.mcp.api.McpReflectionRegistrar;
-import io.github.vinhphan812.mcp.core.McpRegistry;
-import org.junit.jupiter.api.Test;
-
 import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
+
+import io.github.vinhphan812.mcp.annotations.McpPrompt;
+import io.github.vinhphan812.mcp.annotations.McpResource;
+import io.github.vinhphan812.mcp.annotations.McpResourceTemplate;
+import io.github.vinhphan812.mcp.annotations.McpTool;
+import io.github.vinhphan812.mcp.annotations.Prompts;
+import io.github.vinhphan812.mcp.annotations.Resources;
+import io.github.vinhphan812.mcp.annotations.Tools;
+import io.github.vinhphan812.mcp.api.McpReflectionRegistrar;
+import io.github.vinhphan812.mcp.core.McpRegistry;
 
 class McpExampleRegistrationTest {
     @Tools
     static class ToolsProvider {
         @McpTool(name = "greet")
-        public java.util.Map<String, Object> greet() {
+        public Map<String, Object> greet() {
             return new LinkedHashMap<>();
         }
     }
 
     @Resources
     static class ResourcesProvider {
-        //noinspection SameReturnValue
+        // noinspection SameReturnValue
         @McpResource(uri = "demo://readme")
         public String readme(String uri) {
             return "readme";
@@ -35,8 +42,8 @@ class McpExampleRegistrationTest {
     @Prompts
     static class PromptsProvider {
         @McpPrompt(name = "explain")
-        public java.util.Map<String, Object> explain() {
-            return new java.util.LinkedHashMap<>();
+        public Map<String, Object> explain() {
+            return new LinkedHashMap<>();
         }
     }
 

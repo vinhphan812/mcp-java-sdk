@@ -1,7 +1,8 @@
 # ADR-0011 — Security and Rate Limiting
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-14
+**Accepted:** 2026-09-14 — all 10 phases implemented.
 **Authors:** MCP Java SDK team
 
 ## Context

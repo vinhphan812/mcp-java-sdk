@@ -2,6 +2,8 @@ package io.github.vinhphan812.mcp.api.config;
 
 import io.github.vinhphan812.mcp.api.logging.JulMcpLogger;
 import io.github.vinhphan812.mcp.api.logging.McpLogger;
+import io.github.vinhphan812.mcp.api.spi.McpAuthorization;
+import io.github.vinhphan812.mcp.core.McpProtocolHandler;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -41,6 +43,26 @@ public final class McpServerConfig {
     public final Map<String, Object> experimental;
     /** Maximum number of items returned in one paginated response. */
     public final int pageSize;
+    /** Listener for notification queue overflow events. */
+    public final McpProtocolHandler.QueueOverflowListener overflowListener;
+    /** Tool authorisation handler. */
+    public final McpAuthorization authorization;
+
+    /**
+     * Returns the configured queue overflow listener.
+     * @return overflow listener, or null if not configured
+     */
+    public McpProtocolHandler.QueueOverflowListener getOverflowListener() {
+        return overflowListener;
+    }
+
+    /**
+     * Returns the configured tool authorisation handler.
+     * @return authorisation handler, or null if not configured
+     */
+    public McpAuthorization getAuthorization() {
+        return authorization;
+    }
 
     private McpServerConfig(Builder builder) {
         protocolVersion = builder.protocolVersion;
@@ -56,6 +78,8 @@ public final class McpServerConfig {
         tasks = builder.tasks;
         experimental = Collections.unmodifiableMap(new LinkedHashMap<>(builder.experimental));
         pageSize = builder.pageSize;
+        overflowListener = builder.overflowListener;
+        authorization = builder.authorization;
     }
 
     /** Creates a builder for server configuration.
@@ -88,6 +112,8 @@ public final class McpServerConfig {
         }
 
         private int pageSize = 50;
+        private McpProtocolHandler.QueueOverflowListener overflowListener;
+        private McpAuthorization authorization;
 
         /** Sets maximum page size for paginated responses.
          * @param value positive maximum item count
@@ -187,6 +213,34 @@ public final class McpServerConfig {
          */
         public Builder tasks(boolean value) {
             tasks = value;
+            return this;
+        }
+
+        /**
+         * Sets the queue overflow listener. When the notification queue for a session reaches
+         * {@link McpProtocolHandler#MAX_PENDING_NOTIFICATIONS_PER_SESSION}, the listener is
+         * notified. If no listener is configured, a {@link McpProtocolHandler.QueueOverflowException}
+         * is thrown.
+         *
+         * @param listener the overflow listener, or null to disable
+         * @return this builder
+         */
+        public Builder overflowListener(McpProtocolHandler.QueueOverflowListener listener) {
+            this.overflowListener = listener;
+            return this;
+        }
+
+        /**
+         * Sets the tool authorisation handler. When configured, the handler's
+         * {@link McpAuthorization#denial(String[], boolean, Map)} method is called before each
+         * tool invocation. Return null to allow; return a denial message to reject.
+         * If not configured, all tools are allowed.
+         *
+         * @param authorization the authorisation handler, or null to allow all tools
+         * @return this builder
+         */
+        public Builder authorization(McpAuthorization authorization) {
+            this.authorization = authorization;
             return this;
         }
 

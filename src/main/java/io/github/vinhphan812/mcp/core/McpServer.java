@@ -54,8 +54,10 @@ public final class McpServer implements AutoCloseable {
         transport.start();
     }
 
-    /** Stops transport and closes active sessions. */
+    /** Stops transport, closes active sessions, and stops the cleanup thread. */
     public void stop() {
+        protocolHandler.shutdown();
+        protocolHandler.closeAllSessions();
         transport.stop();
     }
 
