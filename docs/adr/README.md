@@ -22,6 +22,7 @@ flowchart LR
     Core8["ADR-0008: Protocol baseline"]
     Core9["ADR-0009: Code audit"]
     Core10["ADR-0010: Package restructure"]
+    Core11["ADR-0011: Security & rate limiting\n(owner sessions, abuse scoring)"]
 
     Core1 --> Core2
     Core1 --> Core3
@@ -30,10 +31,12 @@ flowchart LR
     Core3 --> Core4
     Core4 --> Core5
     Core5 --> Core6
+    Core6 --> Core11
     Core7 --> Core3
     Core8 --> Core3
     Core9 --> Core1
     Core10 --> Core7
+    Core11 --> Core6
 ```
 
 ## Index
@@ -50,6 +53,7 @@ flowchart LR
 | [ADR-0008](ADR-0008-protocol-baseline-compatibility.md)       | Protocol Baseline and Compatibility Scope                                | Accepted | 2026-09-01 |
 | [ADR-0009](ADR-0009-code-audit-2026-09-11.md)                 | Code Audit Findings (2026-09-11)                                         | Accepted | 2026-09-11 |
 | [ADR-0010](ADR-0010-api-package-restructure.md)               | `api/` Package Restructure by Category                                   | Accepted | 2026-09-11 |
+| [ADR-0011](ADR-0011-security-rate-limiting.md)               | Security and Rate Limiting (owner sessions, per-category limits, abuse scoring) | Proposed | 2026-09-14 |
 
 ## When to create an ADR
 
