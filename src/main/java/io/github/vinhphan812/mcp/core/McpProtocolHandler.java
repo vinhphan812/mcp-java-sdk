@@ -19,6 +19,7 @@ package io.github.vinhphan812.mcp.core;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
+import io.github.vinhphan812.mcp.api.config.RateLimits;
 import io.github.vinhphan812.mcp.api.dto.McpBlobContent;
 import io.github.vinhphan812.mcp.api.dto.McpTask;
 import io.github.vinhphan812.mcp.api.handler.*;
@@ -61,6 +62,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private final McpRegistry registry;
     private final McpServerConfig config;
     private final McpLogger applicationLogger;
+    private final RateLimits rateLimits;
 
     // ==================== Security (ADR-0011) ====================
 
@@ -87,8 +89,15 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     /** Maximum requests per session per minute. */
         public static final int MAX_REQUESTS_PER_SESSION_PER_MINUTE = 120;
 
-    private static final long RATE_LIMIT_WINDOW_MS = 60 * 1000L;
-    private static final long RATE_LIMIT_SUSTAINED_WINDOW_MS = 5 * 60 * 1000L;
+    /** Session cleanup interval in milliseconds. */
+    public static final long SESSION_CLEANUP_INTERVAL_MS_DEFAULT = 60 * 1000L;
+    /** Sliding request rate-limit window in milliseconds. */
+    public static final long RATE_LIMIT_WINDOW_MS_DEFAULT = 60 * 1000L;
+    /** Sustained rate-limit window in milliseconds. */
+    public static final long RATE_LIMIT_SUSTAINED_WINDOW_MS_DEFAULT = 5 * 60 * 1000L;
+
+    private static final long RATE_LIMIT_WINDOW_MS = RATE_LIMIT_WINDOW_MS_DEFAULT;
+    private static final long RATE_LIMIT_SUSTAINED_WINDOW_MS = RATE_LIMIT_SUSTAINED_WINDOW_MS_DEFAULT;
 
     // Per-category limits
     /** Burst limit for read operations per session per minute. */
@@ -191,6 +200,9 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
     /** Thrown when notification queue overflows and no listener is configured. */
     public static class QueueOverflowException extends RuntimeException {
+        /**
+         * @param sessionId session identifier where overflow occurred
+         */
         public QueueOverflowException(String sessionId) {
             super("MCP notification queue is full for session: " + sessionId);
         }
@@ -201,6 +213,10 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
      * Register via {@code McpServerConfig.Builder.overflowListener(listener)}.
      */
     public interface QueueOverflowListener {
+        /**
+         * Called when the notification queue of a session exceeds the configured limit.
+         * @param sessionId session identifier where overflow occurred
+         */
         void onOverflow(String sessionId);
     }
 
@@ -264,15 +280,28 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         private final String body;
         private final String sessionId;
 
+        /**
+         * Creates response metadata.
+         * @param body JSON response body
+         * @param sessionId response session ID, possibly null
+         */
         public McpResponse(String body, String sessionId) {
             this.body = body;
             this.sessionId = sessionId;
         }
 
+        /**
+         * Returns response body.
+         * @return JSON response body
+         */
         public String getBody() {
             return body;
         }
 
+        /**
+         * Returns response session ID.
+         * @return session ID, possibly null
+         */
         public String getSessionId() {
             return sessionId;
         }
@@ -338,6 +367,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         this.registry = registry;
         this.config = config;
         this.applicationLogger = config.logger;
+        this.rateLimits = config.rateLimits == null ? RateLimits.defaults() : config.rateLimits;
         this.overflowListener = overflowListener;
         this.authorization = authorization;
         registry.setNotificationTarget(this);
@@ -363,10 +393,10 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         cleanupThread = new Thread(() -> {
             while (cleanupRunning) {
                 try {
-                    Thread.sleep(SESSION_CLEANUP_INTERVAL_MS);
+                    Thread.sleep(rateLimits.sessionCleanupIntervalMs);
                     long now = System.currentTimeMillis();
                     for (Map.Entry<String, SessionState> entry : sessions.entrySet()) {
-                        if (now - entry.getValue().lastActivity > SESSION_TIMEOUT_MS
+                        if (now - entry.getValue().lastActivity > rateLimits.sessionTimeoutMs
                                 && sessions.remove(entry.getKey(), entry.getValue())) {
                             clearOwnerBinding(entry.getValue());
                             sessionRateLimits.remove(entry.getKey());
@@ -375,7 +405,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                     }
                     // Prune idle IP rate limit records
                     ipRateLimits.entrySet().removeIf(entry ->
-                            entry.getValue().getRequestCount(RATE_LIMIT_WINDOW_MS) == 0);
+                            entry.getValue().getRequestCount(rateLimits.rateLimitWindowMs) == 0);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
@@ -486,7 +516,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             applicationLogger.debug("Handling MCP request: " + method);
 
             // Check max concurrent sessions for initialize
-            if ("initialize".equals(method) && sessions.size() >= MAX_CONCURRENT_SESSIONS) {
+            if ("initialize".equals(method) && sessions.size() >= rateLimits.maxConcurrentSessions) {
                 return new McpResponse(errorResponse(id, -32029,
                         "Too Many Requests: max concurrent sessions reached"), sessionId);
             }
@@ -814,14 +844,14 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (clientIp != null && !clientIp.trim().isEmpty()) {
             RateLimitRecord ipRecord = ipRateLimits.computeIfAbsent(
                     clientIp, k -> new RateLimitRecord());
-            if (!ipRecord.allowRequest(MAX_REQUESTS_PER_IP_PER_MINUTE, RATE_LIMIT_WINDOW_MS)) {
+            if (!ipRecord.allowRequest(rateLimits.maxRequestsPerIpPerMinute, rateLimits.rateLimitWindowMs)) {
                 return "client IP request limit exceeded";
             }
         }
         if (sessionId != null && !sessionId.trim().isEmpty()) {
             RateLimitRecord sessionRecord = sessionRateLimits.computeIfAbsent(
                     sessionId, k -> new RateLimitRecord());
-            if (!sessionRecord.allowRequest(MAX_REQUESTS_PER_SESSION_PER_MINUTE, RATE_LIMIT_WINDOW_MS)) {
+            if (!sessionRecord.allowRequest(rateLimits.maxRequestsPerSessionPerMinute, rateLimits.rateLimitWindowMs)) {
                 return "session request limit exceeded";
             }
         }
@@ -851,7 +881,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         long now = System.currentTimeMillis();
 
         // Destructive tool caps
-        if (DESTRUCTIVE_TOOLS.contains(toolName)) {
+        if (rateLimits.destructiveTools.contains(toolName)) {
             String destructiveError = checkDestructiveCap(cl, toolName, now, sessionId);
             if (destructiveError != null) return destructiveError;
         }
@@ -859,43 +889,43 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         // Per-category limits
         switch (category) {
             case CATEGORY_ADMIN:
-                if (cl.adminConcurrent.get() >= CATEGORY_ADMIN_CONCURRENT_CAP) {
+                if (cl.adminConcurrent.get() >= rateLimits.adminConcurrent) {
                     addAbuseScore(cl, sessionId, toolName, 1, "admin concurrent cap exceeded");
                     return "admin tool concurrent cap exceeded for tool: " + toolName;
                 }
-                if (!cl.adminBurst.allowRequest(CATEGORY_ADMIN_BURST_LIMIT, RATE_LIMIT_WINDOW_MS)) {
+                if (!cl.adminBurst.allowRequest(rateLimits.adminBurst, rateLimits.rateLimitWindowMs)) {
                     addAbuseScore(cl, sessionId, toolName, 2, "admin burst limit exceeded");
                     return "admin tool burst limit exceeded for tool: " + toolName;
                 }
-                if (!cl.adminSustained.allowRequest(CATEGORY_ADMIN_SUSTAINED_LIMIT, RATE_LIMIT_SUSTAINED_WINDOW_MS)) {
+                if (!cl.adminSustained.allowRequest(rateLimits.adminSustained, rateLimits.rateLimitSustainedWindowMs)) {
                     addAbuseScore(cl, sessionId, toolName, 2, "admin sustained limit exceeded");
                     return "admin tool sustained limit exceeded for tool: " + toolName;
                 }
                 break;
             case CATEGORY_WRITE:
-                if (cl.writeConcurrent.get() >= CATEGORY_WRITE_CONCURRENT_CAP) {
+                if (cl.writeConcurrent.get() >= rateLimits.writeConcurrent) {
                     addAbuseScore(cl, sessionId, toolName, 1, "write concurrent cap exceeded");
                     return "write tool concurrent cap exceeded for tool: " + toolName;
                 }
-                if (!cl.writeBurst.allowRequest(CATEGORY_WRITE_BURST_LIMIT, RATE_LIMIT_WINDOW_MS)) {
+                if (!cl.writeBurst.allowRequest(rateLimits.writeBurst, rateLimits.rateLimitWindowMs)) {
                     addAbuseScore(cl, sessionId, toolName, 1, "write burst limit exceeded");
                     return "write tool burst limit exceeded for tool: " + toolName;
                 }
-                if (!cl.writeSustained.allowRequest(CATEGORY_WRITE_SUSTAINED_LIMIT, RATE_LIMIT_SUSTAINED_WINDOW_MS)) {
+                if (!cl.writeSustained.allowRequest(rateLimits.writeSustained, rateLimits.rateLimitSustainedWindowMs)) {
                     addAbuseScore(cl, sessionId, toolName, 1, "write sustained limit exceeded");
                     return "write tool sustained limit exceeded for tool: " + toolName;
                 }
                 break;
             default: // READ
-                if (cl.readConcurrent.get() >= CATEGORY_READ_CONCURRENT_CAP) {
+                if (cl.readConcurrent.get() >= rateLimits.readConcurrent) {
                     addAbuseScore(cl, sessionId, toolName, 1, "read concurrent cap exceeded");
                     return "read tool concurrent cap exceeded for tool: " + toolName;
                 }
-                if (!cl.readBurst.allowRequest(CATEGORY_READ_BURST_LIMIT, RATE_LIMIT_WINDOW_MS)) {
+                if (!cl.readBurst.allowRequest(rateLimits.readBurst, rateLimits.rateLimitWindowMs)) {
                     addAbuseScore(cl, sessionId, toolName, 1, "read burst limit exceeded");
                     return "read tool burst limit exceeded for tool: " + toolName;
                 }
-                if (!cl.readSustained.allowRequest(CATEGORY_READ_SUSTAINED_LIMIT, RATE_LIMIT_SUSTAINED_WINDOW_MS)) {
+                if (!cl.readSustained.allowRequest(rateLimits.readSustained, rateLimits.rateLimitSustainedWindowMs)) {
                     addAbuseScore(cl, sessionId, toolName, 1, "read sustained limit exceeded");
                     return "read tool sustained limit exceeded for tool: " + toolName;
                 }
@@ -909,13 +939,13 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         long elapsed;
         switch (toolName) {
             case "shutdown":
-                if (cl.shutdownCount.get() >= DESTRUCTIVE_CAP_SHUTDOWN) {
+                if (cl.shutdownCount.get() >= rateLimits.shutdownCap) {
                     addAbuseScore(cl, sessionId, toolName, 5, "shutdown cap exceeded");
                     return "shutdown tool lifetime cap exceeded for session";
                 }
                 elapsed = now - cl.shutdownLastMs;
-                if (cl.shutdownLastMs > 0 && elapsed < DESTRUCTIVE_COOLDOWN_SHUTDOWN_MS) {
-                    long remaining = (DESTRUCTIVE_COOLDOWN_SHUTDOWN_MS - elapsed) / 1000;
+                if (cl.shutdownLastMs > 0 && elapsed < rateLimits.shutdownCooldownMs) {
+                    long remaining = (rateLimits.shutdownCooldownMs - elapsed) / 1000;
                     return "shutdown tool on cool-down, retry in " + remaining + "s";
                 }
                 cl.shutdownCount.incrementAndGet();
@@ -923,26 +953,26 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 break;
             case "delete_action":
             case "delete_prompt":
-                if (cl.deleteCount.get() >= DESTRUCTIVE_CAP_DELETE) {
+                if (cl.deleteCount.get() >= rateLimits.deleteCap) {
                     addAbuseScore(cl, sessionId, toolName, 3, "delete cap exceeded");
                     return toolName + " lifetime cap exceeded for session";
                 }
                 elapsed = now - cl.deleteLastMs;
-                if (cl.deleteLastMs > 0 && elapsed < DESTRUCTIVE_COOLDOWN_DELETE_MS) {
-                    long remaining = (DESTRUCTIVE_COOLDOWN_DELETE_MS - elapsed) / 1000;
+                if (cl.deleteLastMs > 0 && elapsed < rateLimits.deleteCooldownMs) {
+                    long remaining = (rateLimits.deleteCooldownMs - elapsed) / 1000;
                     return toolName + " on cool-down, retry in " + remaining + "s";
                 }
                 cl.deleteCount.incrementAndGet();
                 cl.deleteLastMs = now;
                 break;
             case "upload_file":
-                if (cl.uploadCount.get() >= DESTRUCTIVE_CAP_UPLOAD) {
+                if (cl.uploadCount.get() >= rateLimits.uploadCap) {
                     addAbuseScore(cl, sessionId, toolName, 2, "upload cap exceeded");
                     return "upload_file lifetime cap exceeded for session";
                 }
                 elapsed = now - cl.uploadLastMs;
-                if (cl.uploadLastMs > 0 && elapsed < DESTRUCTIVE_COOLDOWN_UPLOAD_MS) {
-                    long remaining = (DESTRUCTIVE_COOLDOWN_UPLOAD_MS - elapsed) / 1000;
+                if (cl.uploadLastMs > 0 && elapsed < rateLimits.uploadCooldownMs) {
+                    long remaining = (rateLimits.uploadCooldownMs - elapsed) / 1000;
                     return "upload_file on cool-down, retry in " + remaining + "s";
                 }
                 cl.uploadCount.incrementAndGet();
@@ -955,12 +985,12 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private void addAbuseScore(CategoryRateLimitState cl, String sessionId,
                                 String toolName, int weight, String reason) {
         int score = cl.abuseScore.addAndGet(weight);
-        String level = score >= ABUSE_SCORE_BLOCK_THRESHOLD ? "SEVERE"
-                : score >= ABUSE_SCORE_BLOCK_THRESHOLD / 2 ? "CRITICAL"
+        String level = score >= rateLimits.abuseScoreBlockThreshold ? "SEVERE"
+                : score >= rateLimits.abuseScoreBlockThreshold / 2 ? "CRITICAL"
                 : "WARN";
         LOGGER.warning("[" + level + "] session=" + sessionId
                 + " tool=" + toolName + " abuseScore=" + score + " reason=" + reason);
-        if (score >= ABUSE_SCORE_BLOCK_THRESHOLD) {
+        if (score >= rateLimits.abuseScoreBlockThreshold) {
             cl.blocked = true;
             LOGGER.severe("[SEVERE] Session blocked for abuse: " + sessionId);
         }
@@ -1670,7 +1700,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
      */
     private void enqueue(SessionState state, String notification) {
         synchronized (state.pendingNotifications) {
-            if (state.pendingNotifications.size() >= MAX_PENDING_NOTIFICATIONS_PER_SESSION) {
+            if (state.pendingNotifications.size() >= rateLimits.maxPendingNotificationsPerSession) {
                 if (overflowListener != null) {
                     overflowListener.onOverflow(state.sessionId);
                     return;

@@ -3,6 +3,7 @@ package io.github.vinhphan812.mcp.api.config;
 import io.github.vinhphan812.mcp.api.logging.JulMcpLogger;
 import io.github.vinhphan812.mcp.api.logging.McpLogger;
 import io.github.vinhphan812.mcp.api.spi.McpAuthorization;
+import io.github.vinhphan812.mcp.api.config.RateLimits;
 import io.github.vinhphan812.mcp.core.McpProtocolHandler;
 
 import java.util.Collections;
@@ -47,6 +48,8 @@ public final class McpServerConfig {
     public final McpProtocolHandler.QueueOverflowListener overflowListener;
     /** Tool authorisation handler. */
     public final McpAuthorization authorization;
+    /** Immutable rate-limit and security configuration. */
+    public final RateLimits rateLimits;
 
     /**
      * Returns the configured queue overflow listener.
@@ -80,6 +83,7 @@ public final class McpServerConfig {
         pageSize = builder.pageSize;
         overflowListener = builder.overflowListener;
         authorization = builder.authorization;
+        rateLimits = builder.rateLimits == null ? RateLimits.defaults() : builder.rateLimits;
     }
 
     /** Creates a builder for server configuration.
@@ -114,6 +118,7 @@ public final class McpServerConfig {
         private int pageSize = 50;
         private McpProtocolHandler.QueueOverflowListener overflowListener;
         private McpAuthorization authorization;
+        private RateLimits rateLimits;
 
         /** Sets maximum page size for paginated responses.
          * @param value positive maximum item count
@@ -241,6 +246,15 @@ public final class McpServerConfig {
          */
         public Builder authorization(McpAuthorization authorization) {
             this.authorization = authorization;
+            return this;
+        }
+
+        /** Sets immutable rate-limit and security configuration.
+         * @param rateLimits custom limits, or null for defaults
+         * @return this builder
+         */
+        public Builder rateLimits(RateLimits rateLimits) {
+            this.rateLimits = rateLimits;
             return this;
         }
 

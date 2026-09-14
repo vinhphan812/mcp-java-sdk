@@ -348,9 +348,10 @@ The SDK provides built-in security controls (ADR-0011):
 - **Queue overflow handling:** bounded notification queue (100/session); throws `QueueOverflowException` or notifies `QueueOverflowListener`.
 - **IP-based rate limiting:** per-client-IP request limits.
 - **Max concurrent sessions:** default 10; returns `-32029` when exceeded.
-- **Authorization SPI:** implement `McpAuthorization` for scope-based tool access control.
+- `McpServerConfig.Builder.rateLimits(...)` — server-specific security and rate-limit overrides
+- `RateLimits` is immutable; create a new server/configuration for runtime changes
 
-Configure via `McpServerConfig.Builder`:
+See [ADR-0011](../adr/ADR-0011-security-rate-limiting.md) for the complete design.
 
 ```java
 McpServerConfig.builder()

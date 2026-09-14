@@ -5,6 +5,25 @@
 **Accepted:** 2026-09-14 — all 10 phases implemented.
 **Authors:** MCP Java SDK team
 
+## Follow-up: Configurable RateLimits (2026-09-14)
+
+The security and rate-limit values are configurable through the immutable `RateLimits` value object in `api/config`. Use `McpServerConfig.Builder.rateLimits(...)` to apply an environment-specific configuration. When omitted or set to null, `RateLimits.defaults()` preserves the original `McpProtocolHandler` defaults.
+
+```java
+McpServerConfig config = McpServerConfig.builder()
+        .rateLimits(RateLimits.builder()
+                .maxConcurrentSessions(20)
+                .maxRequestsPerIpPerMinute(120)
+                .read(120, 500, 10)
+                .admin(10, 30, 2)
+                .abuseScoreBlockThreshold(20)
+                .build())
+        .build();
+```
+
+The value object is immutable and defensive-copies the destructive-tool set. Runtime mutation is not supported; create a new server configuration when limits need to change. Public constants on `McpProtocolHandler` remain the documented defaults for compatibility.
+
+
 ## Context
 
 The portable SDK's `McpProtocolHandler` handles session management and protocol dispatch but has no security controls. Any MCP client can call any registered tool without authentication, rate limits, or abuse prevention. The SDK's Android/ROSA host application (`CruzrEnglishAssistant`) has a richer `McpProtocolHandler` with owner-based sessions, per-category rate limiting, destructive tool caps, and abuse scoring. Those features are currently application-specific and not part of the SDK.
