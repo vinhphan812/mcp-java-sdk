@@ -39,4 +39,18 @@ bin/
 .DS_Store
 
 ## Docs ##
-docs/inspect
+docs/inspect.claude/
+
+# Claude agent
+.claude/
+
+# Hermes agent
+.hermes/
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db

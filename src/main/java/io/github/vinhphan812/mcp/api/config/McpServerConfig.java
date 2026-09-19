@@ -50,6 +50,27 @@ public final class McpServerConfig {
     public final McpAuthorization authorization;
     /** Immutable rate-limit and security configuration. */
     public final RateLimits rateLimits;
+    /**
+     * When true, the transport layer extracts the client IP from the X-Forwarded-For header
+     * instead of using the remote socket address. Only enable when the server runs behind a
+     * trusted reverse proxy. Default is false.
+     */
+    public final boolean trustXForwardedFor;
+
+    /**
+     * When {@code true}, each MCP session is bound to the client IP address recorded at
+     * {@code initialize} time. Subsequent requests arriving from a different IP are rejected
+     * with error -32602 (Invalid params). Default is {@code false}.
+     *
+     * <p>Addresses AUTH-03 / session-fixation prevention: binding the session to the
+     * originating IP makes it significantly harder for an attacker who steals a session token
+     * to use it from a different network location.
+     *
+     * <p><strong>Note:</strong> when the server is behind a reverse proxy you should also
+     * set {@code trustXForwardedFor = true} so the real client IP is used instead of the
+     * proxy address.
+     */
+    public final boolean bindSessionToIp;
 
     /**
      * Returns the configured queue overflow listener.
@@ -84,6 +105,8 @@ public final class McpServerConfig {
         overflowListener = builder.overflowListener;
         authorization = builder.authorization;
         rateLimits = builder.rateLimits == null ? RateLimits.defaults() : builder.rateLimits;
+        trustXForwardedFor = builder.trustXForwardedFor;
+        bindSessionToIp = builder.bindSessionToIp;
     }
 
     /** Creates a builder for server configuration.
@@ -119,6 +142,8 @@ public final class McpServerConfig {
         private McpProtocolHandler.QueueOverflowListener overflowListener;
         private McpAuthorization authorization;
         private RateLimits rateLimits;
+        private boolean trustXForwardedFor = false;
+        private boolean bindSessionToIp = false;
 
         /** Sets maximum page size for paginated responses.
          * @param value positive maximum item count
@@ -255,6 +280,34 @@ public final class McpServerConfig {
          */
         public Builder rateLimits(RateLimits rateLimits) {
             this.rateLimits = rateLimits;
+            return this;
+        }
+
+        /**
+         * When true, the transport layer extracts the client IP from the X-Forwarded-For header
+         * instead of using the remote socket address. Only enable when the server runs behind a
+         * trusted reverse proxy. Default is false.
+         */
+        public Builder trustXForwardedFor(boolean value) {
+            this.trustXForwardedFor = value;
+            return this;
+        }
+
+        /**
+         * When {@code true}, each MCP session is bound to the client IP address recorded at
+         * {@code initialize} time. Subsequent requests arriving from a different IP are rejected
+         * with error -32602 (Invalid params). Default is {@code false}.
+         *
+         * <p>Addresses AUTH-03 / session-fixation prevention: binding the session to the
+         * originating IP makes it significantly harder for an attacker who steals a session token
+         * to use it from a different network location.
+         *
+         * <p><strong>Note:</strong> when the server is behind a reverse proxy you should also
+         * set {@code trustXForwardedFor = true} so the real client IP is used instead of the
+         * proxy address.
+         */
+        public Builder bindSessionToIp(boolean value) {
+            this.bindSessionToIp = value;
             return this;
         }
 

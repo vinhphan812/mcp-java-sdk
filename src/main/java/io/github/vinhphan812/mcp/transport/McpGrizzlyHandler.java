@@ -16,40 +16,49 @@ import java.util.concurrent.Semaphore;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
-/** Grizzly Streamable HTTP adapter for the MCP protocol handler. */
 public final class McpGrizzlyHandler extends HttpHandler {
     private static final String SESSION_HEADER = "Mcp-Session-Id";
     private static final String AUTH_HEADER = "Authorization";
     private static final String DEFAULT_ENDPOINT = "/mcp";
     private static final String PROTOCOL_HEADER = "Mcp-Protocol-Version";
     private static final String LAST_EVENT_ID_HEADER = "Last-Event-ID";
+    private static final String X_FORWARDED_FOR_HEADER = "X-Forwarded-For";
     private static final Set<String> DEFAULT_ALLOWED_ORIGINS = Collections.unmodifiableSet(
             new HashSet<>(Arrays.asList("http://localhost", "http://127.0.0.1", "https://localhost")));
     private static final int DEFAULT_MAX_REQUEST_BODY_BYTES = 1024 * 1024;
-    private static final int MAX_SSE_CONNECTIONS = 4;
-    private static final Semaphore SSE_CONNECTIONS = new Semaphore(MAX_SSE_CONNECTIONS);
+    private static final int DEFAULT_MAX_SSE_CONNECTIONS = 4;
     private static final Gson GSON = new Gson();
     private static final Pattern CR_LF = Pattern.compile("\r\n|[\r\n]");
 
-    /**
-     * Removes carriage-return and line-feed from a header value to prevent
-     * HTTP response-splitting / CRLF injection.
-     *
-     * @param value raw header value
-     * @return sanitized value safe for use in a response header
-     */
     private static String sanitizeHeaderValue(String value) {
         if (value == null) return null;
         return CR_LF.matcher(value).replaceAll("");
     }
 
-    /** Escapes control characters in SSE data to prevent stream injection.
-     * @param data raw data content
-     * @return escaped data safe for SSE output
-     */
     private static String escapeSseData(String data) {
         if (data == null) return "";
         return CR_LF.matcher(data).replaceAll("");
+    }
+
+    /**
+     * Extracts the client IP address for rate limiting.
+     * If trustXForwardedFor is true and the X-Forwarded-For header is present,
+     * returns the first IP in the chain (original client). Otherwise returns
+     * the remote socket address.
+     */
+    private String getClientIp(Request request) {
+        if (trustXForwardedFor) {
+            String xff = request.getHeader(X_FORWARDED_FOR_HEADER);
+            if (xff != null && !xff.trim().isEmpty()) {
+                // X-Forwarded-For can contain multiple IPs: client, proxy1, proxy2
+                // The original client IP is the first one
+                String firstIp = xff.split(",")[0].trim();
+                if (!firstIp.isEmpty()) {
+                    return firstIp;
+                }
+            }
+        }
+        return request.getRemoteAddr();
     }
 
     private final McpProtocolHandler handler;
@@ -57,33 +66,30 @@ public final class McpGrizzlyHandler extends HttpHandler {
     private final Supplier<String> apiKeySupplier;
     private final Set<String> allowedOrigins;
     private final int maxRequestBodyBytes;
+    private final Semaphore sseConnections;
+    private final boolean trustXForwardedFor;
 
-    /** Creates handler with default endpoint and request limits.
-     * @param handler protocol handler serving requests */
     public McpGrizzlyHandler(McpProtocolHandler handler) {
         this(handler, DEFAULT_ENDPOINT, null, DEFAULT_ALLOWED_ORIGINS,
-                DEFAULT_MAX_REQUEST_BODY_BYTES);
+                DEFAULT_MAX_REQUEST_BODY_BYTES, false);
     }
 
-    /** Creates handler with endpoint and optional API key supplier.
-     * @param handler protocol handler serving requests
-     * @param endpoint HTTP endpoint path
-     * @param apiKeySupplier optional bearer key supplier */
     public McpGrizzlyHandler(McpProtocolHandler handler, String endpoint,
                              Supplier<String> apiKeySupplier) {
         this(handler, endpoint, apiKeySupplier, DEFAULT_ALLOWED_ORIGINS,
-                DEFAULT_MAX_REQUEST_BODY_BYTES);
+                DEFAULT_MAX_REQUEST_BODY_BYTES, false);
     }
 
-    /** Creates handler with explicit transport security and request limits.
-     * @param handler protocol handler serving requests
-     * @param endpoint HTTP endpoint path
-     * @param apiKeySupplier optional bearer key supplier
-     * @param allowedOrigins accepted browser origins
-     * @param maxRequestBodyBytes maximum POST body size */
     public McpGrizzlyHandler(McpProtocolHandler handler, String endpoint,
                              Supplier<String> apiKeySupplier, Set<String> allowedOrigins,
                              int maxRequestBodyBytes) {
+        this(handler, endpoint, apiKeySupplier, allowedOrigins,
+                maxRequestBodyBytes, false);
+    }
+
+    public McpGrizzlyHandler(McpProtocolHandler handler, String endpoint,
+                             Supplier<String> apiKeySupplier, Set<String> allowedOrigins,
+                             int maxRequestBodyBytes, boolean trustXForwardedFor) {
         if (handler == null) throw new IllegalArgumentException("handler cannot be null");
         if (endpoint == null || endpoint.trim().isEmpty()) {
             throw new IllegalArgumentException("endpoint cannot be empty");
@@ -103,6 +109,42 @@ public final class McpGrizzlyHandler extends HttpHandler {
         this.apiKeySupplier = apiKeySupplier;
         this.allowedOrigins = Collections.unmodifiableSet(normalizedOrigins);
         this.maxRequestBodyBytes = maxRequestBodyBytes;
+        this.sseConnections = new Semaphore(DEFAULT_MAX_SSE_CONNECTIONS);
+        this.trustXForwardedFor = trustXForwardedFor;
+    }
+
+    public McpGrizzlyHandler(McpProtocolHandler handler, String endpoint,
+                             Supplier<String> apiKeySupplier, Set<String> allowedOrigins,
+                             int maxRequestBodyBytes, int maxSseConnections) {
+        this(handler, endpoint, apiKeySupplier, allowedOrigins,
+                maxRequestBodyBytes, maxSseConnections, false);
+    }
+
+    public McpGrizzlyHandler(McpProtocolHandler handler, String endpoint,
+                             Supplier<String> apiKeySupplier, Set<String> allowedOrigins,
+                             int maxRequestBodyBytes, int maxSseConnections, boolean trustXForwardedFor) {
+        if (handler == null) throw new IllegalArgumentException("handler cannot be null");
+        if (endpoint == null || endpoint.trim().isEmpty()) {
+            throw new IllegalArgumentException("endpoint cannot be empty");
+        }
+        if (allowedOrigins == null) throw new IllegalArgumentException("allowedOrigins cannot be null");
+        if (maxRequestBodyBytes <= 0) throw new IllegalArgumentException("maxRequestBodyBytes must be positive");
+        if (maxSseConnections <= 0) throw new IllegalArgumentException("maxSseConnections must be positive");
+        Set<String> normalizedOrigins = new HashSet<>();
+        for (String origin : allowedOrigins) {
+            if (origin == null || origin.trim().isEmpty()) {
+                throw new IllegalArgumentException("allowedOrigins cannot contain blank values");
+            }
+            normalizedOrigins.add(origin.trim().toLowerCase(Locale.ROOT));
+        }
+        String normalized = endpoint.trim();
+        this.handler = handler;
+        this.endpoint = normalized.startsWith("/") ? normalized : "/" + normalized;
+        this.apiKeySupplier = apiKeySupplier;
+        this.allowedOrigins = Collections.unmodifiableSet(normalizedOrigins);
+        this.maxRequestBodyBytes = maxRequestBodyBytes;
+        this.sseConnections = new Semaphore(maxSseConnections);
+        this.trustXForwardedFor = trustXForwardedFor;
     }
 
     @Override
@@ -209,11 +251,29 @@ public final class McpGrizzlyHandler extends HttpHandler {
             writeError(response, 400, "Missing or invalid Mcp-Session-Id header");
             return;
         }
-        McpProtocolHandler.McpResponse result = handler.handleRequestResponse(body, sessionId);
+        String clientIp = getClientIp(request);
+        McpProtocolHandler.McpResponse result = handler.handleRequestResponse(body, sessionId, clientIp);
         if (result.getBody() == null) {
             response.setStatus(202);
             return;
         }
+        
+        // Check if this is a rate limit error (code -32029)
+        boolean isRateLimited = result.getBody() != null && 
+                result.getBody().contains("\"code\":-32029");
+        
+        if (isRateLimited) {
+            // Add rate limit headers if available
+            McpProtocolHandler.RateLimitStatus status = handler.getSessionRateLimitStatus(sessionId);
+            if (status != null) {
+                writeRateLimitedError(response, 429, "Too Many Requests", 
+                        status.limit, status.remaining, status.resetTime);
+            } else {
+                writeError(response, 429, "Too Many Requests");
+            }
+            return;
+        }
+        
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
         if (result.getSessionId() != null)
@@ -265,7 +325,7 @@ public final class McpGrizzlyHandler extends HttpHandler {
             response.getWriter().write(missed);
             response.getWriter().flush();
         }
-        if (!SSE_CONNECTIONS.tryAcquire()) {
+        if (!sseConnections.tryAcquire()) {
             writeError(response, 429, "Too many active SSE connections");
             return;
         }
@@ -305,7 +365,7 @@ public final class McpGrizzlyHandler extends HttpHandler {
             // Client disconnected mid-stream — release permit immediately.
         } finally {
             if (permitHeld) {
-                SSE_CONNECTIONS.release();
+                sseConnections.release();
                 permitHeld = false;
             }
         }
@@ -359,9 +419,24 @@ public final class McpGrizzlyHandler extends HttpHandler {
 
 
     private static void writeError(Response response, int status, String message) throws IOException {
+        writeError(response, status, message, null, null, null);
+    }
+
+    private static void writeRateLimitedError(Response response, int status, String message, 
+                                            int limit, int remaining, long reset) throws IOException {
+        writeError(response, status, message, limit, remaining, reset);
+    }
+
+    private static void writeError(Response response, int status, String message, 
+                                   Integer limit, Integer remaining, Long reset) throws IOException {
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
         response.setStatus(status);
+        if (status == 429 && limit != null) {
+            response.setHeader("X-RateLimit-Limit", String.valueOf(limit));
+            response.setHeader("X-RateLimit-Remaining", String.valueOf(remaining));
+            response.setHeader("X-RateLimit-Reset", String.valueOf(reset));
+        }
         Map<String, Object> error = new LinkedHashMap<>();
         error.put("code", status);
         error.put("message", message);

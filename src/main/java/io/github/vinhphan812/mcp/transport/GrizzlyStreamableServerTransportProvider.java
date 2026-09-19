@@ -149,7 +149,7 @@ public final class GrizzlyStreamableServerTransportProvider implements AutoClose
     public synchronized void start() throws IOExceptionUnchecked {
         if (isRunning()) return;
         try {
-            McpGrizzlyHandler httpHandler = new McpGrizzlyHandler(handler, endpoint, apiKeySupplier, allowedOrigins, maxRequestBodyBytes);
+            McpGrizzlyHandler httpHandler = new McpGrizzlyHandler(handler, endpoint, apiKeySupplier, allowedOrigins, maxRequestBodyBytes, 4, handler.getConfig().trustXForwardedFor);
             server = new HttpServer();
             server.addListener(new NetworkListener(LISTENER_NAME, host, port));
             server.getServerConfiguration().addHttpHandler(httpHandler, endpoint);
