@@ -6,7 +6,9 @@
 
 ## Context
 
-The MCP protocol uses JSON-RPC 2.0 over HTTP. Clients and servers must agree on a protocol version, and the server must advertise its capabilities. Some JSON-RPC fields are polymorphic (e.g. `params` can be an array, object, or null), and protocol versions change over time.
+The MCP protocol uses JSON-RPC 2.0 over HTTP. Clients and servers must agree on a protocol version, and the server must
+advertise its capabilities. Some JSON-RPC fields are polymorphic (e.g. `params` can be an array, object, or null), and
+protocol versions change over time.
 
 ## Decisions
 
@@ -33,27 +35,30 @@ The `initialize` handler validates the client's requested version:
 - If the client requests a supported version: that version is used.
 - If the client requests an unsupported or non-string value: `Invalid params` error is returned.
 
-Version strings are compared by exact equality against the configured version and a hardcoded list of accepted legacy versions.
+Version strings are compared by exact equality against the configured version and a hardcoded list of accepted legacy
+versions.
 
 ### Capability advertisement
 
 Capabilities are advertised in the `initialize` response based on `McpServerConfig` flags:
 
-| Capability  | Advertised when       |
-| ----------- | --------------------- |
-| `tools`     | `config.tools == true`  |
-| `resources` | `config.resources == true` |
-| `prompts`   | `config.prompts == true` |
-| `logging`   | `config.logging == true`  |
-| `completions` | `config.completions == true` |
-| `tasks`     | `config.tasks == true`   |
+| Capability     | Advertised when               |
+|----------------|-------------------------------|
+| `tools`        | `config.tools == true`        |
+| `resources`    | `config.resources == true`    |
+| `prompts`      | `config.prompts == true`      |
+| `logging`      | `config.logging == true`      |
+| `completions`  | `config.completions == true`  |
+| `tasks`        | `config.tasks == true`        |
 | `experimental` | `config.experimental != null` |
 
-Protected methods (tools, resources, prompts, logging, tasks, completions) return `Method not found` if their capability flag is `false`.
+Protected methods (tools, resources, prompts, logging, tasks, completions) return `Method not found` if their capability
+flag is `false`.
 
 ### `resources/subscribe` — capability coupling
 
-`resources/subscribe` and `resources/unsubscribe` are available only when both `config.resources` and `config.resourceSubscriptions` are `true`. The capability advertisement reflects this coupling.
+`resources/subscribe` and `resources/unsubscribe` are available only when both `config.resources` and
+`config.resourceSubscriptions` are `true`. The capability advertisement reflects this coupling.
 
 ## Consequences
 

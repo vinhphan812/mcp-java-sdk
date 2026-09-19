@@ -91,16 +91,16 @@ sequenceDiagram
 
 ### Flow explanation
 
-| Step | Layer | What happens |
-|------|-------|-------------|
-| 1 | `transport/` | `GrizzlyServer` receives HTTP request |
-| 2 | `transport/` | `McpGrizzlyHandler` parses HTTP: headers, body, session ID |
-| 3 | `core/` | `McpProtocolHandler` parses JSON-RPC envelope, routes by method |
-| 4 | `core/` | `McpRegistry` looks up the registered tool, resource, or prompt handler |
-| 5 | `core/` | Handler executes; result is a `Map<String, Object>` |
-| 6 | `core/` | `McpProtocolHandler` wraps result in a JSON-RPC 2.0 response |
-| 7 | `transport/` | `McpGrizzlyHandler` wraps `McpResponse` in an HTTP response |
-| 8 | `transport/` | `GrizzlyServer` sends HTTP response to client |
+| Step | Layer        | What happens                                                            |
+|------|--------------|-------------------------------------------------------------------------|
+| 1    | `transport/` | `GrizzlyServer` receives HTTP request                                   |
+| 2    | `transport/` | `McpGrizzlyHandler` parses HTTP: headers, body, session ID              |
+| 3    | `core/`      | `McpProtocolHandler` parses JSON-RPC envelope, routes by method         |
+| 4    | `core/`      | `McpRegistry` looks up the registered tool, resource, or prompt handler |
+| 5    | `core/`      | Handler executes; result is a `Map<String, Object>`                     |
+| 6    | `core/`      | `McpProtocolHandler` wraps result in a JSON-RPC 2.0 response            |
+| 7    | `transport/` | `McpGrizzlyHandler` wraps `McpResponse` in an HTTP response             |
+| 8    | `transport/` | `GrizzlyServer` sends HTTP response to client                           |
 
 For SSE, `McpGrizzlyHandler` calls `handleServerSentEvent` which streams `data: <json>\n\n` frames
 back through the Grizzly server to the client.

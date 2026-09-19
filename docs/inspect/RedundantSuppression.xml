@@ -1,66 +1,79 @@
 <problems>
-<problem>
-  <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/api/dto/McpBlobContent.java</file>
-  <line>93</line>
-  <module>mcp-java-sdk.main</module>
-  <package>io.github.vinhphan812.mcp.api.dto</package>
-  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.api.dto.McpBlobContent java.lang.Object get(java.lang.Object key)" />
-  <problem_class id="RedundantSuppression" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Redundant suppression</problem_class>
-  <hints>
-    <hint value="unchecked;JAVA" />
-  </hints>
-  <description>Redundant suppression</description>
-  <highlighted_element>get</highlighted_element>
-  <language>JAVA</language>
-  <offset>18</offset>
-  <length>3</length>
-</problem>
-<problem>
-  <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/api/dto/McpBlobContent.java</file>
-  <line>112</line>
-  <module>mcp-java-sdk.main</module>
-  <package>io.github.vinhphan812.mcp.api.dto</package>
-  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.api.dto.McpBlobContent void putAll(java.util.Map&lt;? extends java.lang.String,?&gt; m)" />
-  <problem_class id="RedundantSuppression" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Redundant suppression</problem_class>
-  <hints>
-    <hint value="unchecked;JAVA" />
-  </hints>
-  <description>Redundant suppression</description>
-  <highlighted_element>putAll</highlighted_element>
-  <language>JAVA</language>
-  <offset>16</offset>
-  <length>6</length>
-</problem>
-<problem>
-  <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpProtocolHandler.java</file>
-  <line>252</line>
-  <module>mcp-java-sdk.main</module>
-  <package>io.github.vinhphan812.mcp.core</package>
-  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.core.McpProtocolHandler io.github.vinhphan812.mcp.core.McpProtocolHandler.McpResponse handleRequestResponse(java.lang.String requestBody, java.lang.String sessionId)" />
-  <problem_class id="RedundantSuppression" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Redundant suppression</problem_class>
-  <hints>
-    <hint value="DuplicateBranchesInSwitch;JAVA" />
-  </hints>
-  <description>Redundant suppression</description>
-  <highlighted_element>//noinspection DuplicatesInSwitchStatementDuplicatesBodies,DuplicateBranchesInSwitch</highlighted_element>
-  <language>JAVA</language>
-  <offset>12</offset>
-  <length>84</length>
-</problem>
-<problem>
-  <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/transport/McpGrizzlyHandler.java</file>
-  <line>285</line>
-  <module>mcp-java-sdk.main</module>
-  <package>io.github.vinhphan812.mcp.transport</package>
-  <entry_point TYPE="method" FQNAME="io.github.vinhphan812.mcp.transport.McpGrizzlyHandler void handleGet(org.glassfish.grizzly.http.server.Request request, org.glassfish.grizzly.http.server.Response response)" />
-  <problem_class id="RedundantSuppression" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Redundant suppression</problem_class>
-  <hints>
-    <hint value="BusyWait;JAVA" />
-  </hints>
-  <description>Redundant suppression</description>
-  <highlighted_element>//noinspection BusyWait</highlighted_element>
-  <language>JAVA</language>
-  <offset>12</offset>
-  <length>23</length>
-</problem>
+    <problem>
+        <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/api/dto/McpBlobContent.java</file>
+        <line>93</line>
+        <module>mcp-java-sdk.main</module>
+        <package>io.github.vinhphan812.mcp.api.dto</package>
+        <entry_point TYPE="method"
+                     FQNAME="io.github.vinhphan812.mcp.api.dto.McpBlobContent java.lang.Object get(java.lang.Object key)"/>
+        <problem_class id="RedundantSuppression" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Redundant
+            suppression
+        </problem_class>
+        <hints>
+            <hint value="unchecked;JAVA"/>
+        </hints>
+        <description>Redundant suppression</description>
+        <highlighted_element>get</highlighted_element>
+        <language>JAVA</language>
+        <offset>18</offset>
+        <length>3</length>
+    </problem>
+    <problem>
+        <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/api/dto/McpBlobContent.java</file>
+        <line>112</line>
+        <module>mcp-java-sdk.main</module>
+        <package>io.github.vinhphan812.mcp.api.dto</package>
+        <entry_point TYPE="method"
+                     FQNAME="io.github.vinhphan812.mcp.api.dto.McpBlobContent void putAll(java.util.Map&lt;? extends java.lang.String,?&gt; m)"/>
+        <problem_class id="RedundantSuppression" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Redundant
+            suppression
+        </problem_class>
+        <hints>
+            <hint value="unchecked;JAVA"/>
+        </hints>
+        <description>Redundant suppression</description>
+        <highlighted_element>putAll</highlighted_element>
+        <language>JAVA</language>
+        <offset>16</offset>
+        <length>6</length>
+    </problem>
+    <problem>
+        <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpProtocolHandler.java</file>
+        <line>252</line>
+        <module>mcp-java-sdk.main</module>
+        <package>io.github.vinhphan812.mcp.core</package>
+        <entry_point TYPE="method"
+                     FQNAME="io.github.vinhphan812.mcp.core.McpProtocolHandler io.github.vinhphan812.mcp.core.McpProtocolHandler.McpResponse handleRequestResponse(java.lang.String requestBody, java.lang.String sessionId)"/>
+        <problem_class id="RedundantSuppression" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Redundant
+            suppression
+        </problem_class>
+        <hints>
+            <hint value="DuplicateBranchesInSwitch;JAVA"/>
+        </hints>
+        <description>Redundant suppression</description>
+        <highlighted_element>//noinspection DuplicatesInSwitchStatementDuplicatesBodies,DuplicateBranchesInSwitch
+        </highlighted_element>
+        <language>JAVA</language>
+        <offset>12</offset>
+        <length>84</length>
+    </problem>
+    <problem>
+        <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/transport/McpGrizzlyHandler.java</file>
+        <line>285</line>
+        <module>mcp-java-sdk.main</module>
+        <package>io.github.vinhphan812.mcp.transport</package>
+        <entry_point TYPE="method"
+                     FQNAME="io.github.vinhphan812.mcp.transport.McpGrizzlyHandler void handleGet(org.glassfish.grizzly.http.server.Request request, org.glassfish.grizzly.http.server.Response response)"/>
+        <problem_class id="RedundantSuppression" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Redundant
+            suppression
+        </problem_class>
+        <hints>
+            <hint value="BusyWait;JAVA"/>
+        </hints>
+        <description>Redundant suppression</description>
+        <highlighted_element>//noinspection BusyWait</highlighted_element>
+        <language>JAVA</language>
+        <offset>12</offset>
+        <length>23</length>
+    </problem>
 </problems>

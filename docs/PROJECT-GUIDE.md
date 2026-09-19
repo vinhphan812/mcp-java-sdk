@@ -159,7 +159,9 @@ flowchart TB
     style transport fill:#fff3e0,stroke:#e65100
 ```
 
-**Two-layer design.** `core/` holds MCP logic (JSON-RPC dispatch, registry, session state) and knows nothing about the network. `transport/` holds Grizzly-specific HTTP/SSE handling and calls into `core/` for protocol work. This separation allows the protocol layer to be tested in isolation and permits swapping the transport in the future.
+**Two-layer design.** `core/` holds MCP logic (JSON-RPC dispatch, registry, session state) and knows nothing about the
+network. `transport/` holds Grizzly-specific HTTP/SSE handling and calls into `core/` for protocol work. This separation
+allows the protocol layer to be tested in isolation and permits swapping the transport in the future.
 
 Providers are registered before `start()`:
 
@@ -345,7 +347,8 @@ The SDK provides built-in security controls (ADR-0011):
 - **Per-category rate limiting:** read/write/admin burst + sustained + concurrent caps.
 - **Destructive tool caps:** lifetime limits + cooldown for `shutdown`, `delete_action`, `delete_prompt`, `upload_file`.
 - **Abuse scoring:** weighted signals accumulate; session blocked at threshold.
-- **Queue overflow handling:** bounded notification queue (100/session); throws `QueueOverflowException` or notifies `QueueOverflowListener`.
+- **Queue overflow handling:** bounded notification queue (100/session); throws `QueueOverflowException` or notifies
+  `QueueOverflowListener`.
 - **IP-based rate limiting:** per-client-IP request limits.
 - **Max concurrent sessions:** default 10; returns `-32029` when exceeded.
 - `McpServerConfig.Builder.rateLimits(...)` — server-specific security and rate-limit overrides

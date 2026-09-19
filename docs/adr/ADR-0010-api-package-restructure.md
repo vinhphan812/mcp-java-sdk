@@ -10,7 +10,8 @@ After the P0/P1 implementation was completed, `io.github.vinhphan812.mcp.api` co
 16 unrelated types in a single flat package:
 
 - Registration interfaces (`McpRegistrar`, listeners)
-- Handler interfaces (`McpToolHandler`, `McpResourceHandler`, `McpPromptHandler`, `McpCompletionProvider`, `McpBlobResourceHandler`)
+- Handler interfaces (`McpToolHandler`, `McpResourceHandler`, `McpPromptHandler`, `McpCompletionProvider`,
+  `McpBlobResourceHandler`)
 - Immutable value objects (`McpTask`, `McpBlobContent`)
 - Configuration types (`McpServerConfig`, `McpClientCapabilities`)
 - Logging interfaces and adapters (`McpLogger`, `JulMcpLogger`)
@@ -24,14 +25,14 @@ imports were also harder to audit.
 
 Reorganize `api/` into five subpackages grouped by category:
 
-| Subpackage | Contents | Purpose |
-| ---------- | -------- | ------- |
-| `api/spi/` | `McpRegistrar`, `McpResourceUpdateListener`, `McpRegistryChangeListener` | Service-provider interfaces and lifecycle listeners |
-| `api/handler/` | `McpToolHandler`, `McpResourceHandler`, `McpBlobResourceHandler`, `McpPromptHandler`, `McpCompletionProvider` | Behaviour contracts applications implement |
-| `api/dto/` | `McpTask`, `McpBlobContent` | Immutable value objects passed through the protocol |
-| `api/config/` | `McpServerConfig`, `McpClientCapabilities` | Configuration and capability metadata |
-| `api/logging/` | `McpLogger`, `JulMcpLogger` | Portable logger interface and adapters |
-| `api/` (root) | `McpReflectionRegistrar` | Standalone utility — uses types from every subpackage, so it stays at the package root |
+| Subpackage     | Contents                                                                                                      | Purpose                                                                                |
+|----------------|---------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
+| `api/spi/`     | `McpRegistrar`, `McpResourceUpdateListener`, `McpRegistryChangeListener`                                      | Service-provider interfaces and lifecycle listeners                                    |
+| `api/handler/` | `McpToolHandler`, `McpResourceHandler`, `McpBlobResourceHandler`, `McpPromptHandler`, `McpCompletionProvider` | Behaviour contracts applications implement                                             |
+| `api/dto/`     | `McpTask`, `McpBlobContent`                                                                                   | Immutable value objects passed through the protocol                                    |
+| `api/config/`  | `McpServerConfig`, `McpClientCapabilities`                                                                    | Configuration and capability metadata                                                  |
+| `api/logging/` | `McpLogger`, `JulMcpLogger`                                                                                   | Portable logger interface and adapters                                                 |
+| `api/` (root)  | `McpReflectionRegistrar`                                                                                      | Standalone utility — uses types from every subpackage, so it stays at the package root |
 
 Each subpackage receives a `package-info.java` describing its contents.
 

@@ -6,7 +6,9 @@
 
 ## Context
 
-MCP requires a session between client and server for stateful communication. Sessions are created during `initialize`, associated with a unique ID, and must be validated on subsequent requests. Sessions expire after 5 minutes of inactivity and can be terminated by the client via `DELETE /mcp` or by the server internally.
+MCP requires a session between client and server for stateful communication. Sessions are created during `initialize`,
+associated with a unique ID, and must be validated on subsequent requests. Sessions expire after 5 minutes of inactivity
+and can be terminated by the client via `DELETE /mcp` or by the server internally.
 
 ## Decisions
 
@@ -36,7 +38,8 @@ Sessions are terminated by:
 - `DELETE /mcp` — client-initiated via HTTP DELETE with valid session header.
 - `terminateSession(id)` — server-initiated via the protocol handler.
 - `close()` — `McpServer.stop()` calls `terminateSession` for all open sessions.
-- **Expiry:** `MAX_SESSION_IDLE_MS = 300000L` (5 minutes). The SSE polling loop checks `hasSession` on every iteration; if the session has been removed, the loop exits cleanly.
+- **Expiry:** `MAX_SESSION_IDLE_MS = 300000L` (5 minutes). The SSE polling loop checks `hasSession` on every iteration;
+  if the session has been removed, the loop exits cleanly.
 
 ### Session state
 
@@ -52,7 +55,9 @@ private static class SessionState {
 
 ### SSE replay
 
-When a client reconnects with `Last-Event-ID: N`, the transport calls `handler.getMissedEvents(sessionId, N)`, which returns all queued events with IDs greater than `N` in SSE format. After replay, the client continues polling from the current event tail. Events older than the replay window (beyond 1000 queued events) are silently dropped.
+When a client reconnects with `Last-Event-ID: N`, the transport calls `handler.getMissedEvents(sessionId, N)`, which
+returns all queued events with IDs greater than `N` in SSE format. After replay, the client continues polling from the
+current event tail. Events older than the replay window (beyond 1000 queued events) are silently dropped.
 
 ## Consequences
 

@@ -41,20 +41,20 @@ flowchart LR
 
 ## Index
 
-| ID                                                            | Title                                                                    | Status   | Date       |
-|---------------------------------------------------------------|--------------------------------------------------------------------------|----------|------------|
-| [ADR-0001](ADR-0001-portable-java8-core.md)                   | Portable Java 8 Core Without Android SDK                                 | Accepted | 2026-09-01 |
-| [ADR-0002](ADR-0002-grizzly-transport-isolation.md)           | Grizzly Transport Isolation                                              | Accepted | 2026-09-01 |
-| [ADR-0003](ADR-0003-json-rpc-envelope-protocol-versioning.md) | JSON-RPC 2.0 Envelope, Protocol Versioning, and Capability Advertisement | Accepted | 2026-09-01 |
-| [ADR-0004](ADR-0004-session-management.md)                    | Session Management and Lifecycle                                         | Accepted | 2026-09-01 |
-| [ADR-0005](ADR-0005-sse-notifications-event-queue.md)         | Server-Initiated Notifications via SSE Event Queue                       | Accepted | 2026-09-01 |
-| [ADR-0006](ADR-0006-security-model.md)                        | Security Model: Origin, Authentication, and Input Validation             | Accepted | 2026-09-01 |
-| [ADR-0007](ADR-0007-annotation-registration.md)               | Annotation-Based Registration with Reflection Registrar                  | Accepted | 2026-09-01 |
-| [ADR-0008](ADR-0008-protocol-baseline-compatibility.md)       | Protocol Baseline and Compatibility Scope                                | Accepted | 2026-09-01 |
-| [ADR-0009](ADR-0009-code-audit-2026-09-11.md)                 | Code Audit Findings (2026-09-11)                                         | Accepted | 2026-09-11 |
-| [ADR-0010](ADR-0010-api-package-restructure.md)               | `api/` Package Restructure by Category                                   | Accepted | 2026-09-11 |
-| [ADR-0011](ADR-0011-security-rate-limiting.md)               | Security and Rate Limiting (owner sessions, per-category limits, abuse scoring) | Accepted | 2026-09-14 |
-| [ADR-0011-follow-up](ADR-0011-follow-up-rate-limits-config.md)| Configurable RateLimits via McpServerConfig                              | Proposed | 2026-09-14 |
+| ID                                                             | Title                                                                           | Status   | Date       |
+|----------------------------------------------------------------|---------------------------------------------------------------------------------|----------|------------|
+| [ADR-0001](ADR-0001-portable-java8-core.md)                    | Portable Java 8 Core Without Android SDK                                        | Accepted | 2026-09-01 |
+| [ADR-0002](ADR-0002-grizzly-transport-isolation.md)            | Grizzly Transport Isolation                                                     | Accepted | 2026-09-01 |
+| [ADR-0003](ADR-0003-json-rpc-envelope-protocol-versioning.md)  | JSON-RPC 2.0 Envelope, Protocol Versioning, and Capability Advertisement        | Accepted | 2026-09-01 |
+| [ADR-0004](ADR-0004-session-management.md)                     | Session Management and Lifecycle                                                | Accepted | 2026-09-01 |
+| [ADR-0005](ADR-0005-sse-notifications-event-queue.md)          | Server-Initiated Notifications via SSE Event Queue                              | Accepted | 2026-09-01 |
+| [ADR-0006](ADR-0006-security-model.md)                         | Security Model: Origin, Authentication, and Input Validation                    | Accepted | 2026-09-01 |
+| [ADR-0007](ADR-0007-annotation-registration.md)                | Annotation-Based Registration with Reflection Registrar                         | Accepted | 2026-09-01 |
+| [ADR-0008](ADR-0008-protocol-baseline-compatibility.md)        | Protocol Baseline and Compatibility Scope                                       | Accepted | 2026-09-01 |
+| [ADR-0009](ADR-0009-code-audit-2026-09-11.md)                  | Code Audit Findings (2026-09-11)                                                | Accepted | 2026-09-11 |
+| [ADR-0010](ADR-0010-api-package-restructure.md)                | `api/` Package Restructure by Category                                          | Accepted | 2026-09-11 |
+| [ADR-0011](ADR-0011-security-rate-limiting.md)                 | Security and Rate Limiting (owner sessions, per-category limits, abuse scoring) | Accepted | 2026-09-14 |
+| [ADR-0011-follow-up](ADR-0011-follow-up-rate-limits-config.md) | Configurable RateLimits via McpServerConfig                                     | Proposed | 2026-09-14 |
 
 ## When to create an ADR
 

@@ -1,27 +1,22 @@
-# MCP Java SDK Audit Folder
+# Audit Documentation
 
-## Start here
+## Current Status
+See [AUDIT_STATUS.md](./AUDIT_STATUS.md) for the complete audit findings and verification status.
 
-Read [AUDIT_STATUS.md](./AUDIT_STATUS.md) for the final status.
+## Summary
+- **Total findings**: 30
+- **VERIFIED**: 30
+- **PARTIAL**: 0
+- **OPEN**: 0
 
-**Overall audit status: 29/30 findings VERIFIED. See `AUDIT_STATUS.md` for current status and evidence.**
+## Key Documents
+| Document | Description |
+|----------|-------------|
+| [AUDIT_STATUS.md](./AUDIT_STATUS.md) | Complete audit findings with verification status |
+| [LOC-AUDIT.md](./LOC-AUDIT.md) | Lines of code analysis |
+| [historical/](./historical/) | Superseded audit documents |
 
-## Directory map
-
-```text
-README.md                              This guide
-AUDIT_STATUS.md                        Final audit status (all findings VERIFIED)
-2026-09-14-mcp-rate-limit-security-audit.md
-                                        Detailed finding register with original criteria
-historical/                           Superseded audit reports and verification snapshots
-```
-
-## Finding status summary
-
-| Status   | Meaning                                                |
-|----------|--------------------------------------------------------|
-| VERIFIED | Source/test evidence confirms the finding is resolved. |
-| PARTIAL  | Some work verified, not fully closed.                  |
-| OPEN     | No sufficient closure evidence.                        |
-
-Evidence and historical reports are retained for audit traceability only. Current status is in `AUDIT_STATUS.md`.
+## Categories
+- **SEC**: Security findings (15)
+- **DOC**: Documentation findings (13)
+- **VER**: Verification findings (2)

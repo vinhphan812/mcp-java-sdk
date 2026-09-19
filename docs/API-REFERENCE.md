@@ -54,6 +54,7 @@ io.github.vinhphan812.mcp
 Marks a method as an MCP tool. Applied to a method inside a class annotated `@Tools`.
 
 ```java
+
 @McpTool(name = "greet", description = "Greets a user by name")
 public Map<String, Object> greet(@McpParam(name = "name", required = true) String name) {
     return Map.of("text", "Hello, " + name + "!");
@@ -73,10 +74,11 @@ public Map<String, Object> greet(@McpParam(name = "name", required = true) Strin
 Binds a single method parameter to a named JSON argument. Used inside tool and prompt methods.
 
 ```java
+
 @McpTool(name = "calculate")
 public Map<String, Object> calculate(
-    @McpParam(name = "quantity", type = "integer", required = true) int quantity,
-    @McpParam(name = "price", type = "number", required = true) double price) {
+        @McpParam(name = "quantity", type = "integer", required = true) int quantity,
+        @McpParam(name = "price", type = "number", required = true) double price) {
     // ...
 }
 ```
@@ -104,10 +106,19 @@ public static class Address {
     @SerializedName("country")
     private final String country;
 
-    public Address(String street, String city, String country) { ... }
-    public String getStreet()  { return street; }
-    public String getCity()    { return city; }
-    public String getCountry() { return country; }
+    public Address(String street, String city, String country) { ...}
+
+    public String getStreet() {
+        return street;
+    }
+
+    public String getCity() {
+        return city;
+    }
+
+    public String getCountry() {
+        return country;
+    }
 }
 
 @McpTool(name = "format-address")
@@ -127,6 +138,7 @@ working example with `Address`.
 Marks a method as an exact-match resource. Applied to a method inside a class annotated `@Resources`.
 
 ```java
+
 @McpResource(uri = "demo://readme", mimeType = "text/plain", description = "SDK overview")
 public String readReadme() {
     return "This is the MCP Java SDK...";
@@ -146,6 +158,7 @@ public String readReadme() {
 Marks a method as a resource template with URI variables. Applied to a method inside a class annotated `@Resources`.
 
 ```java
+
 @McpResourceTemplate(uri = "demo://users/{userId}", description = "User profile by ID")
 public String getUserProfile(String userId) {
     return "User " + userId;
@@ -166,6 +179,7 @@ The method parameter receives the resolved variable value (the part of the URI m
 Marks a method as a prompt. Applied to a method inside a class annotated `@Prompts`.
 
 ```java
+
 @McpPrompt(name = "explain-user", description = "Explains a user profile")
 public Map<String, Object> explainUser(
         @McpParam(name = "userId", required = true) String userId) {
@@ -188,19 +202,23 @@ Class-level markers that enable reflection scanning. Place on a class to registe
 corresponding MCP annotation.
 
 ```java
+
 @Tools
 public class MyTools {
-    @McpTool(name = "my-tool") public Map<String, Object> myTool(...) { ... }
+    @McpTool(name = "my-tool")
+    public Map<String, Object> myTool(...) { ...}
 }
 
 @Resources
 public class MyResources {
-    @McpResource(uri = "demo://file") public String readFile(...) { ... }
+    @McpResource(uri = "demo://file")
+    public String readFile(...) { ...}
 }
 
 @Prompts
 public class MyPrompts {
-    @McpPrompt(name = "my-prompt") public Map<String, Object> myPrompt(...) { ... }
+    @McpPrompt(name = "my-prompt")
+    public Map<String, Object> myPrompt(...) { ...}
 }
 ```
 
@@ -230,11 +248,19 @@ McpServer server = McpServer.builder()
         .register(new MyResources())
         .register(new MyPrompts());
 
-server.start();
-Logger.getLogger("mcp-server").info(server.getUrl());  // http://127.0.0.1:3011/mcp
+server.
+
+start();
+Logger.
+
+getLogger("mcp-server").
+
+info(server.getUrl());  // http://127.0.0.1:3011/mcp
 
 // shutdown
-server.close();
+        server.
+
+close();
 ```
 
 **Builder methods**
@@ -307,21 +333,32 @@ Public SPI for registering capability handlers. All registration methods throw `
 names or invalid arguments.
 
 ```java
-registrar.registerTool("my-tool", "A tool",
-    Map.of("properties", Map.of("name", Map.of("type", "string"))),
-    List.of("name"),
-    arguments -> Map.of("result", "ok"));
+registrar.registerTool("my-tool","A tool",
+                       Map.of("properties", Map.of("name", Map.of("type", "string"))),
+        List.
 
-registrar.registerResource(
+of("name"),
+
+arguments ->Map.
+
+of("result","ok"));
+
+        registrar.
+
+registerResource(
     "demo://readme",
-    "text/plain",
-    "SDK readme",
-    uri -> "Readme content...");
+            "text/plain",
+            "SDK readme",
+    uri ->"Readme content...");
 
-registrar.registerPrompt(
+        registrar.
+
+registerPrompt(
     "my-prompt",
-    "A prompt",
-    arguments -> Map.of("role", "user", "content", "Hello"));
+            "A prompt",
+    arguments ->Map.
+
+of("role","user","content","Hello"));
 ```
 
 **Tool registration**
@@ -360,7 +397,9 @@ Scans annotated provider objects and registers everything through a `McpRegistra
 
 ```java
 McpReflectionRegistrar registrar = new McpReflectionRegistrar();
-registrar.register(providerObject, myRegistrar);
+registrar.
+
+register(providerObject, myRegistrar);
 ```
 
 ---
@@ -430,9 +469,9 @@ public class McpBlobContent {
     public final String blob;       // Base64-encoded content
     public final String mimeType;   // MIME type (e.g. "image/png")
 
-    public McpBlobContent(String blob, String mimeType) { ... }
+    public McpBlobContent(String blob, String mimeType) { ...}
 
-    public static boolean isValidBase64(String value) { ... }
+    public static boolean isValidBase64(String value) { ...}
 }
 ```
 
@@ -440,11 +479,13 @@ MCP `resources/read` response for a blob:
 
 ```json
 {
-  "contents": [{
-    "type": "blob",
-    "blob": "<base64>",
-    "mimeType": "image/png"
-  }]
+  "contents": [
+    {
+      "type": "blob",
+      "blob": "<base64>",
+      "mimeType": "image/png"
+    }
+  ]
 }
 ```
 
@@ -465,7 +506,7 @@ public class McpTask {
     public final long createdAt;
     public long completedAt;
 
-    public enum Status { PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED }
+    public enum Status {PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED}
 }
 ```
 
@@ -492,8 +533,11 @@ Server-side logging interface. Implement to redirect SDK log output.
 ```java
 public interface McpLogger {
     void debug(String message);
+
     void info(String message);
+
     void warn(String message);
+
     void error(String message);
 }
 ```
@@ -685,6 +729,7 @@ io.github.vinhphan812.mcp
 Marks a method as an MCP tool. Applied to a method inside a class annotated `@Tools`.
 
 ```java
+
 @McpTool(name = "greet", description = "Greets a user by name")
 public Map<String, Object> greet(@McpParam(name = "name", required = true) String name) {
     return Map.of("text", "Hello, " + name + "!");
@@ -704,10 +749,11 @@ public Map<String, Object> greet(@McpParam(name = "name", required = true) Strin
 Binds a single method parameter to a named JSON argument. Used inside tool and prompt methods.
 
 ```java
+
 @McpTool(name = "calculate")
 public Map<String, Object> calculate(
-    @McpParam(name = "quantity", type = "integer", required = true) int quantity,
-    @McpParam(name = "price", type = "number", required = true) double price) {
+        @McpParam(name = "quantity", type = "integer", required = true) int quantity,
+        @McpParam(name = "price", type = "number", required = true) double price) {
     // ...
 }
 ```
@@ -728,6 +774,7 @@ example with `Address`.
 Marks a method as an exact-match resource. Applied to a method inside a class annotated `@Resources`.
 
 ```java
+
 @McpResource(uri = "demo://readme", mimeType = "text/plain", description = "SDK overview")
 public String readReadme() {
     return "This is the MCP Java SDK...";
@@ -747,6 +794,7 @@ public String readReadme() {
 Marks a method as a resource template with URI variables. Applied to a method inside a class annotated `@Resources`.
 
 ```java
+
 @McpResourceTemplate(uri = "demo://users/{userId}", description = "User profile by ID")
 public String getUserProfile(String userId) {
     return "User " + userId;
@@ -767,6 +815,7 @@ The method parameter receives the resolved variable value (the part of the URI m
 Marks a method as a prompt. Applied to a method inside a class annotated `@Prompts`.
 
 ```java
+
 @McpPrompt(name = "explain-user", description = "Explains a user profile")
 public Map<String, Object> explainUser(
         @McpParam(name = "userId", required = true) String userId) {
@@ -789,19 +838,23 @@ Class-level markers that enable reflection scanning. Place on a class to registe
 corresponding MCP annotation.
 
 ```java
+
 @Tools
 public class MyTools {
-    @McpTool(name = "my-tool") public Map<String, Object> myTool(...) { ... }
+    @McpTool(name = "my-tool")
+    public Map<String, Object> myTool(...) { ...}
 }
 
 @Resources
 public class MyResources {
-    @McpResource(uri = "demo://file") public String readFile(...) { ... }
+    @McpResource(uri = "demo://file")
+    public String readFile(...) { ...}
 }
 
 @Prompts
 public class MyPrompts {
-    @McpPrompt(name = "my-prompt") public Map<String, Object> myPrompt(...) { ... }
+    @McpPrompt(name = "my-prompt")
+    public Map<String, Object> myPrompt(...) { ...}
 }
 ```
 
@@ -831,11 +884,19 @@ McpServer server = McpServer.builder()
         .register(new MyResources())
         .register(new MyPrompts());
 
-server.start();
-Logger.getLogger("mcp-server").info(server.getUrl());  // http://127.0.0.1:3011/mcp
+server.
+
+start();
+Logger.
+
+getLogger("mcp-server").
+
+info(server.getUrl());  // http://127.0.0.1:3011/mcp
 
 // shutdown
-server.close();
+        server.
+
+close();
 ```
 
 **Builder methods**
@@ -908,21 +969,32 @@ Public SPI for registering capability handlers. All registration methods throw `
 names or invalid arguments.
 
 ```java
-registrar.registerTool("my-tool", "A tool",
-    Map.of("properties", Map.of("name", Map.of("type", "string"))),
-    List.of("name"),
-    arguments -> Map.of("result", "ok"));
+registrar.registerTool("my-tool","A tool",
+                       Map.of("properties", Map.of("name", Map.of("type", "string"))),
+        List.
 
-registrar.registerResource(
+of("name"),
+
+arguments ->Map.
+
+of("result","ok"));
+
+        registrar.
+
+registerResource(
     "demo://readme",
-    "text/plain",
-    "SDK readme",
-    uri -> "Readme content...");
+            "text/plain",
+            "SDK readme",
+    uri ->"Readme content...");
 
-registrar.registerPrompt(
+        registrar.
+
+registerPrompt(
     "my-prompt",
-    "A prompt",
-    arguments -> Map.of("role", "user", "content", "Hello"));
+            "A prompt",
+    arguments ->Map.
+
+of("role","user","content","Hello"));
 ```
 
 **Tool registration**
@@ -961,7 +1033,9 @@ Scans annotated provider objects and registers everything through a `McpRegistra
 
 ```java
 McpReflectionRegistrar registrar = new McpReflectionRegistrar();
-registrar.register(providerObject, myRegistrar);
+registrar.
+
+register(providerObject, myRegistrar);
 ```
 
 ---
@@ -1031,9 +1105,9 @@ public class McpBlobContent {
     public final String blob;       // Base64-encoded content
     public final String mimeType;   // MIME type (e.g. "image/png")
 
-    public McpBlobContent(String blob, String mimeType) { ... }
+    public McpBlobContent(String blob, String mimeType) { ...}
 
-    public static boolean isValidBase64(String value) { ... }
+    public static boolean isValidBase64(String value) { ...}
 }
 ```
 
@@ -1041,11 +1115,13 @@ MCP `resources/read` response for a blob:
 
 ```json
 {
-  "contents": [{
-    "type": "blob",
-    "blob": "<base64>",
-    "mimeType": "image/png"
-  }]
+  "contents": [
+    {
+      "type": "blob",
+      "blob": "<base64>",
+      "mimeType": "image/png"
+    }
+  ]
 }
 ```
 
@@ -1066,7 +1142,7 @@ public class McpTask {
     public final long createdAt;
     public long completedAt;
 
-    public enum Status { PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED }
+    public enum Status {PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED}
 }
 ```
 
@@ -1093,8 +1169,11 @@ Server-side logging interface. Implement to redirect SDK log output.
 ```java
 public interface McpLogger {
     void debug(String message);
+
     void info(String message);
+
     void warn(String message);
+
     void error(String message);
 }
 ```

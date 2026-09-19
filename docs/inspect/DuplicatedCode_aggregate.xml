@@ -1,14 +1,20 @@
 <root>
-<duplicate cost="1" hash="0">
-  <fragment file="file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpProtocolHandler.java" line="641" start="28119" end="28334" />
-  <fragment file="file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpProtocolHandler.java" line="653" start="28574" end="28830" />
-</duplicate>
-<duplicate cost="1" hash="0">
-  <fragment file="file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpRegistry.java" line="103" start="5089" end="5470" />
-  <fragment file="file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpRegistry.java" line="127" start="6154" end="6535" />
-</duplicate>
-<duplicate cost="1" hash="0">
-  <fragment file="file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpRegistry.java" line="150" start="7230" end="7676" />
-  <fragment file="file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpRegistry.java" line="175" start="8520" end="8966" />
-</duplicate>
+    <duplicate cost="1" hash="0">
+        <fragment file="file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpProtocolHandler.java"
+                  line="641" start="28119" end="28334"/>
+        <fragment file="file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpProtocolHandler.java"
+                  line="653" start="28574" end="28830"/>
+    </duplicate>
+    <duplicate cost="1" hash="0">
+        <fragment file="file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpRegistry.java" line="103"
+                  start="5089" end="5470"/>
+        <fragment file="file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpRegistry.java" line="127"
+                  start="6154" end="6535"/>
+    </duplicate>
+    <duplicate cost="1" hash="0">
+        <fragment file="file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpRegistry.java" line="150"
+                  start="7230" end="7676"/>
+        <fragment file="file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpRegistry.java" line="175"
+                  start="8520" end="8966"/>
+    </duplicate>
 </root>

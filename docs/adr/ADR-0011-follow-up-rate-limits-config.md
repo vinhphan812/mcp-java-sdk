@@ -7,15 +7,20 @@
 
 ## Context
 
-ADR-0011 was implemented with rate-limit and security constants hardcoded as `public static final` on `McpProtocolHandler`. This makes it impossible for consumers to tune the limits for their environment without forking the SDK. The ADR-0011 "Configuration" section promised:
+ADR-0011 was implemented with rate-limit and security constants hardcoded as `public static final` on
+`McpProtocolHandler`. This makes it impossible for consumers to tune the limits for their environment without forking
+the SDK. The ADR-0011 "Configuration" section promised:
 
-> All limits are public constants in `McpProtocolHandler` and overridable via `McpServerConfig`. The config builder accepts optional rate-limit overrides.
+> All limits are public constants in `McpProtocolHandler` and overridable via `McpServerConfig`. The config builder
+> accepts optional rate-limit overrides.
 
-The override mechanism was never implemented. Twenty-four constants are referenced 2-7 times each in `checkRateLimit`, `checkToolRateLimit`, `checkDestructiveCap`, `addAbuseScore`, `startCleanupThread`, and `enqueue`.
+The override mechanism was never implemented. Twenty-four constants are referenced 2-7 times each in `checkRateLimit`,
+`checkToolRateLimit`, `checkDestructiveCap`, `addAbuseScore`, `startCleanupThread`, and `enqueue`.
 
 ## Decision
 
-Introduce a `RateLimits` value object. `McpServerConfig` carries an optional `RateLimits`. When no override is supplied, `McpProtocolHandler` uses the same defaults as today — backward compatible.
+Introduce a `RateLimits` value object. `McpServerConfig` carries an optional `RateLimits`. When no override is supplied,
+`McpProtocolHandler` uses the same defaults as today — backward compatible.
 
 ## Goals
 
@@ -87,7 +92,8 @@ public final class RateLimits {
 }
 ```
 
-`RateLimits.defaults()` returns a value object whose fields are populated from the existing `McpProtocolHandler` public constants — so the canonical defaults live in exactly one place.
+`RateLimits.defaults()` returns a value object whose fields are populated from the existing `McpProtocolHandler` public
+constants — so the canonical defaults live in exactly one place.
 
 ### `McpServerConfig`
 
@@ -118,8 +124,11 @@ public static final class Builder {
 ### `McpProtocolHandler`
 
 - Field `private final RateLimits rateLimits;` initialised in the 4-arg constructor from `config.getRateLimits()`.
-- Replace every reference to a constant of interest (e.g. `MAX_REQUESTS_PER_IP_PER_MINUTE`, `CATEGORY_READ_BURST_LIMIT`, `ABUSE_SCORE_BLOCK_THRESHOLD`) with `rateLimits.maxRequestsPerIpPerMinute`, `rateLimits.readBurst`, `rateLimits.abuseScoreBlockThreshold`.
-- Public constants stay declared as `public static final` and are referenced from `RateLimits.defaults()` — single source of truth.
+- Replace every reference to a constant of interest (e.g. `MAX_REQUESTS_PER_IP_PER_MINUTE`, `CATEGORY_READ_BURST_LIMIT`,
+  `ABUSE_SCORE_BLOCK_THRESHOLD`) with `rateLimits.maxRequestsPerIpPerMinute`, `rateLimits.readBurst`,
+  `rateLimits.abuseScoreBlockThreshold`.
+- Public constants stay declared as `public static final` and are referenced from `RateLimits.defaults()` — single
+  source of truth.
 - The `DESTRUCTIVE_TOOLS` constant becomes `rateLimits.getDestructiveTools()` so consumers can extend the set.
 
 ## Migration
@@ -127,10 +136,12 @@ public static final class Builder {
 1. Default config produces identical behaviour to v1.1.0-pre.
 2. Existing tests pass without changes.
 3. New tests added under `src/test/java/.../McpRateLimitsConfigTest.java`:
-   - `defaultsMatchConstants` — `RateLimits.defaults().readBurst == McpProtocolHandler.CATEGORY_READ_BURST_LIMIT`
-   - `overridesAreHonoured` — `new McpProtocolHandler(registry, config.rateLimits(RateLimits.builder().readBurst(3).build()))` rejects the 4th call
-   - `nullOverrideUsesDefaults` — `config.rateLimits(null)` matches default behaviour
-   - `customDestructiveToolSet` — extends DESTRUCTIVE_TOOLS
+    - `defaultsMatchConstants` — `RateLimits.defaults().readBurst == McpProtocolHandler.CATEGORY_READ_BURST_LIMIT`
+    - `overridesAreHonoured` —
+      `new McpProtocolHandler(registry, config.rateLimits(RateLimits.builder().readBurst(3).build()))` rejects the 4th
+      call
+    - `nullOverrideUsesDefaults` — `config.rateLimits(null)` matches default behaviour
+    - `customDestructiveToolSet` — extends DESTRUCTIVE_TOOLS
 
 ## ADR-0011 update
 
@@ -156,30 +167,35 @@ See ADR-0011 follow-up for the schema and migration notes.
 
 ## Files affected
 
-| File | Action |
-|---|---|
-| `api/config/RateLimits.java` | NEW |
-| `api/config/McpServerConfig.java` | Add `rateLimits` field, builder method, getter |
-| `core/McpProtocolHandler.java` | Add `rateLimits` field; replace ~24 constant refs with field reads |
-| `test/McpRateLimitsConfigTest.java` | NEW |
-| `docs/adr/ADR-0011-follow-up-rate-limits-config.md` | NEW (this document) |
-| `docs/adr/ADR-0011-security-rate-limiting.md` | Append follow-up section |
+| File                                                | Action                                                             |
+|-----------------------------------------------------|--------------------------------------------------------------------|
+| `api/config/RateLimits.java`                        | NEW                                                                |
+| `api/config/McpServerConfig.java`                   | Add `rateLimits` field, builder method, getter                     |
+| `core/McpProtocolHandler.java`                      | Add `rateLimits` field; replace ~24 constant refs with field reads |
+| `test/McpRateLimitsConfigTest.java`                 | NEW                                                                |
+| `docs/adr/ADR-0011-follow-up-rate-limits-config.md` | NEW (this document)                                                |
+| `docs/adr/ADR-0011-security-rate-limiting.md`       | Append follow-up section                                           |
 
 ## Phases
 
 ### Phase 1 — `RateLimits` value object
+
 Create the immutable type and builder. Default values come from constants on `McpProtocolHandler`.
 
 ### Phase 2 — `McpServerConfig` integration
+
 Add `rateLimits` field, builder method, getter. Default is `RateLimits.defaults()`.
 
 ### Phase 3 — `McpProtocolHandler` refactor
+
 Replace hardcoded references with `rateLimits.X` reads. Verify public constants still equal `defaults()`.
 
 ### Phase 4 — Tests
+
 Add `McpRateLimitsConfigTest.java` covering defaults, override, null-override, custom destructive set.
 
 ### Phase 5 — ADR-0011 cross-reference
+
 Append follow-up section to ADR-0011. Commit ADR follow-up separately.
 
 ## Risks

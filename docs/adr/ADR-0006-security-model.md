@@ -6,13 +6,16 @@
 
 ## Context
 
-An MCP server exposes a local HTTP endpoint that could be accessible beyond the developer's machine. Without security controls, arbitrary clients could call tools, read resources, or consume CPU. The SDK targets local-first development and must provide configurable controls that can be hardened for production.
+An MCP server exposes a local HTTP endpoint that could be accessible beyond the developer's machine. Without security
+controls, arbitrary clients could call tools, read resources, or consume CPU. The SDK targets local-first development
+and must provide configurable controls that can be hardened for production.
 
 ## Decisions
 
 ### Origin allowlisting
 
-The transport validates the `Origin` header on all requests (POST, GET, DELETE). The default allowlist accepts only local origins:
+The transport validates the `Origin` header on all requests (POST, GET, DELETE). The default allowlist accepts only
+local origins:
 
 ```java
 // Default: allow only local (file://, http://127.0.0.1, http://localhost, http://[::1])
@@ -31,7 +34,8 @@ Authentication is provided via an external `Supplier<String>`:
 .apiKeySupplier(() -> System.getenv("MCP_API_KEY"))
 ```
 
-The secret is never written to logs, source, or configuration files. Comparison uses `MessageDigest.isEqual` for constant-time comparison against timing attacks:
+The secret is never written to logs, source, or configuration files. Comparison uses `MessageDigest.isEqual` for
+constant-time comparison against timing attacks:
 
 ```java
 MessageDigest.isEqual(
@@ -55,7 +59,8 @@ A body exceeding the limit returns HTTP 413 Payload Too Large before any JSON pa
 
 ### CRLF injection protection
 
-SSE data fields and HTTP response headers are sanitised before transmission. Any `\r` or `\n` characters in user-controlled strings are stripped:
+SSE data fields and HTTP response headers are sanitised before transmission. Any `\r` or `\n` characters in
+user-controlled strings are stripped:
 
 ```java
 CR_LF.matcher(value).replaceAll("")

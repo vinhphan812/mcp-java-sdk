@@ -6,7 +6,9 @@
 
 ## Context
 
-MCP servers need to send notifications to clients asynchronously — for example, when a subscribed resource changes or when a task completes. HTTP is request-response; the client cannot receive a push without an open connection. The Streamable HTTP profile solves this with a long-lived GET connection that acts as an event stream.
+MCP servers need to send notifications to clients asynchronously — for example, when a subscribed resource changes or
+when a task completes. HTTP is request-response; the client cannot receive a push without an open connection. The
+Streamable HTTP profile solves this with a long-lived GET connection that acts as an event stream.
 
 ## Decision
 
@@ -15,9 +17,11 @@ The SDK uses Server-Sent Events (SSE) over a long-lived HTTP GET connection:
 1. After `initialize`, the client opens `GET /mcp` with the session ID.
 2. The server immediately sends a `endpoint/message` event with the session metadata.
 3. The server sends ping events every 60 seconds.
-4. When a server-initiated notification is triggered, it is queued into the session's event queue and dequeued by the SSE polling loop.
+4. When a server-initiated notification is triggered, it is queued into the session's event queue and dequeued by the
+   SSE polling loop.
 5. Events are formatted as SSE with `id:` and `data:` fields.
-6. When the client reconnects with `Last-Event-ID`, the server replays all queued events with IDs greater than the requested ID.
+6. When the client reconnects with `Last-Event-ID`, the server replays all queued events with IDs greater than the
+   requested ID.
 
 ### Event format
 
@@ -43,7 +47,8 @@ ConcurrentLinkedQueue<SseEvent> eventQueue;      // max 1000 events (FIFO, oldes
 
 ### CRLF sanitisation
 
-SSE data fields are sanitised before transmission: `\r` and `\n` inside JSON body strings are escaped as `\\r` and `\\n`. This prevents HTTP response splitting.
+SSE data fields are sanitised before transmission: `\r` and `\n` inside JSON body strings are escaped as `\\r` and
+`\\n`. This prevents HTTP response splitting.
 
 ## Consequences
 

@@ -52,7 +52,8 @@ Use Gson directly for JSON serialization in portable core. Add:
 implementation 'com.google.code.gson:gson:2.11.0'
 ```
 
-Do not copy Android logging or `GsonObjectMapper`; replace protocol logging with JDK logging. Keep Java 8-compatible collection and reflection APIs.
+Do not copy Android logging or `GsonObjectMapper`; replace protocol logging with JDK logging. Keep Java 8-compatible
+collection and reflection APIs.
 
 ## Package conversion
 
@@ -80,12 +81,16 @@ io.github.vinhphan812.mcp   # new portable package
 
 ## Execution status
 
-Implemented baseline verified locally. The repository contains four JUnit 5 test classes with nine passing tests. These tests provide basic behaviour coverage; transport rejection, broader protocol coverage, and external-client interoperability remain release prerequisites.
+Implemented baseline verified locally. The repository contains four JUnit 5 test classes with nine passing tests. These
+tests provide basic behaviour coverage; transport rejection, broader protocol coverage, and external-client
+interoperability remain release prerequisites.
 
 ## Risks and limits
 
 - This is a core library port with a Grizzly HTTP transport, not a drop-in Android server replacement.
 - Android runtime compatibility, including Android API 21, has not been verified with a device or emulator.
-- WebSocket is outside this package; robots and applications must use an external bridge or adapter if they require WebSocket integration.
+- WebSocket is outside this package; robots and applications must use an external bridge or adapter if they require
+  WebSocket integration.
 - Credential storage remains the responsibility of the consuming application or an external adapter.
-- The repository is distributed under the Apache License 2.0; see the root `LICENSE` file. No tagged release or package publication has been executed.
+- The repository is distributed under the Apache License 2.0; see the root `LICENSE` file. No tagged release or package
+  publication has been executed.

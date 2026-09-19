@@ -7,7 +7,9 @@
 
 ## Follow-up: Configurable RateLimits (2026-09-14)
 
-The security and rate-limit values are configurable through the immutable `RateLimits` value object in `api/config`. Use `McpServerConfig.Builder.rateLimits(...)` to apply an environment-specific configuration. When omitted or set to null, `RateLimits.defaults()` preserves the original `McpProtocolHandler` defaults.
+The security and rate-limit values are configurable through the immutable `RateLimits` value object in `api/config`. Use
+`McpServerConfig.Builder.rateLimits(...)` to apply an environment-specific configuration. When omitted or set to null,
+`RateLimits.defaults()` preserves the original `McpProtocolHandler` defaults.
 
 ```java
 McpServerConfig config = McpServerConfig.builder()
@@ -21,16 +23,23 @@ McpServerConfig config = McpServerConfig.builder()
         .build();
 ```
 
-The value object is immutable and defensive-copies the destructive-tool set. Runtime mutation is not supported; create a new server configuration when limits need to change. Public constants on `McpProtocolHandler` remain the documented defaults for compatibility.
-
+The value object is immutable and defensive-copies the destructive-tool set. Runtime mutation is not supported; create a
+new server configuration when limits need to change. Public constants on `McpProtocolHandler` remain the documented
+defaults for compatibility.
 
 ## Context
 
-The portable SDK's `McpProtocolHandler` handles session management and protocol dispatch but has no security controls. Any MCP client can call any registered tool without authentication, rate limits, or abuse prevention. The SDK's Android/ROSA host application (`CruzrEnglishAssistant`) has a richer `McpProtocolHandler` with owner-based sessions, per-category rate limiting, destructive tool caps, and abuse scoring. Those features are currently application-specific and not part of the SDK.
+The portable SDK's `McpProtocolHandler` handles session management and protocol dispatch but has no security controls.
+Any MCP client can call any registered tool without authentication, rate limits, or abuse prevention. The SDK's
+Android/ROSA host application (`CruzrEnglishAssistant`) has a richer `McpProtocolHandler` with owner-based sessions,
+per-category rate limiting, destructive tool caps, and abuse scoring. Those features are currently application-specific
+and not part of the SDK.
 
 ## Decision
 
-Port the following security and rate-limiting features from the application-specific implementation into `McpProtocolHandler` in `core/`. All features are Java 8-compatible and require only the existing portable dependencies (Gson, concurrent collections).
+Port the following security and rate-limiting features from the application-specific implementation into
+`McpProtocolHandler` in `core/`. All features are Java 8-compatible and require only the existing portable
+dependencies (Gson, concurrent collections).
 
 ## Features
 
@@ -49,31 +58,31 @@ sessionOwners: ConcurrentHashMap<String, String>  // ownerId → sessionId
 
 Three categories: `read`, `write`, `admin`. Each session tracks:
 
-| Limit type | Description |
-|---|---|
-| Burst | Sliding window per minute |
-| Sustained | Sliding window per 5 minutes |
+| Limit type | Description                   |
+|------------|-------------------------------|
+| Burst      | Sliding window per minute     |
+| Sustained  | Sliding window per 5 minutes  |
 | Concurrent | In-flight tool call count cap |
 
 Category is determined by required scopes: any `admin` scope → `admin`; any `write` scope → `write`; otherwise → `read`.
 
 **Constants** (public, configurable via `McpServerConfig`):
 
-| Category | Burst | Sustained | Concurrent cap |
-|---|---|---|---|
-| read | 60/min | 200/5min | 5 |
-| write | 30/min | 100/5min | 3 |
-| admin | 5/min | 15/5min | 1 |
+| Category | Burst  | Sustained | Concurrent cap |
+|----------|--------|-----------|----------------|
+| read     | 60/min | 200/5min  | 5              |
+| write    | 30/min | 100/5min  | 3              |
+| admin    | 5/min  | 15/5min   | 1              |
 
 ### 3. Destructive tool caps
 
 Named destructive tools get lifetime call limits and cooldown periods:
 
-| Tool | Lifetime cap | Cooldown |
-|---|---|---|
-| `shutdown` | 3 | 10 min |
-| `delete_action`, `delete_prompt` | 10 | 2 min |
-| `upload_file` | 5 | 1 min |
+| Tool                             | Lifetime cap | Cooldown |
+|----------------------------------|--------------|----------|
+| `shutdown`                       | 3            | 10 min   |
+| `delete_action`, `delete_prompt` | 10           | 2 min    |
+| `upload_file`                    | 5            | 1 min    |
 
 ### 4. Abuse scoring
 
@@ -123,7 +132,8 @@ if (!missing.isEmpty()) {
 
 ### 9. Authorization integration
 
-The existing `McpAuthorization` class from `security/` package provides scope checking. `handleToolsCall` calls `McpAuthorization.denial(requiredScopes, confirmationRequired, arguments)` before invoking the handler.
+The existing `McpAuthorization` class from `security/` package provides scope checking. `handleToolsCall` calls
+`McpAuthorization.denial(requiredScopes, confirmationRequired, arguments)` before invoking the handler.
 
 ### 10. Credential rotation
 
@@ -193,13 +203,15 @@ private static class RateLimitRecord {
 ## Dependencies
 
 No new external dependencies. Uses existing:
+
 - `java.util.concurrent.ConcurrentHashMap`, `ConcurrentLinkedQueue`, `AtomicInteger`
 - `com.google.gson.Gson`
 - Existing `McpServerConfig`, `McpAuthorization`
 
 ## Configuration
 
-All limits are public constants in `McpProtocolHandler` and overridable via `McpServerConfig`. The config builder accepts optional rate-limit overrides:
+All limits are public constants in `McpProtocolHandler` and overridable via `McpServerConfig`. The config builder
+accepts optional rate-limit overrides:
 
 ```java
 McpServerConfig.builder()
@@ -215,6 +227,7 @@ McpServerConfig.builder()
 ## Consequences
 
 **Positive:**
+
 - SDK consumers get enterprise-grade security out of the box.
 - Owner-based sessions prevent a single client from holding multiple sessions.
 - Rate limiting protects against abuse and runaway clients.
@@ -223,11 +236,13 @@ McpServerConfig.builder()
 - Queue overflow handling prevents memory exhaustion from notification floods.
 
 **Negative:**
+
 - Increased complexity in `McpProtocolHandler` (currently ~1200 lines, will grow).
 - More public constants to document.
 - Testing surface increases significantly.
 - Config builder needs new overloads for rate-limit overrides.
 
 **Alternatives considered:**
+
 - Keep security in the application layer only — rejected because every consumer must re-implement the same controls.
 - Use a third-party rate-limiting library — rejected to keep the SDK dependency-free and portable.

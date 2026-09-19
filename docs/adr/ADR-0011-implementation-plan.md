@@ -1,6 +1,7 @@
 # ADR-0011 Implementation Plan — Security and Rate Limiting
 
-This document tracks the phased implementation of ADR-0011. Each phase is self-contained, testable, and leaves the codebase in a buildable state.
+This document tracks the phased implementation of ADR-0011. Each phase is self-contained, testable, and leaves the
+codebase in a buildable state.
 
 ---
 
@@ -144,6 +145,7 @@ static final class CategoryRateLimitState {
 ```
 
 ### Validation
+
 - `./gradlew clean test` — BUILD SUCCESSFUL
 - No new javadoc warnings
 
@@ -287,6 +289,7 @@ public McpResponse handleRequestResponse(String requestBody, String sessionId) {
 ```
 
 ### Validation
+
 - `./gradlew clean test` — BUILD SUCCESSFUL
 - `McpProtocolHandlerTest` — all pass
 - New test: `testMaxConcurrentSessions` — `initialize` returns error when limit reached
@@ -519,17 +522,18 @@ if (rateLimitError != null) {
 ```
 
 ### Validation
+
 - `./gradlew clean test` — BUILD SUCCESSFUL
 - New test file: `McpRateLimitTest.java` with tests for:
-  - IP rate limit exceeded
-  - Session rate limit exceeded
-  - Read/write/admin category burst limits
-  - Read/write/admin sustained limits
-  - Concurrent cap exceeded
-  - Destructive tool lifetime caps
-  - Destructive tool cooldown
-  - Abuse score accumulates
-  - Abuse score blocks session
+    - IP rate limit exceeded
+    - Session rate limit exceeded
+    - Read/write/admin category burst limits
+    - Read/write/admin sustained limits
+    - Concurrent cap exceeded
+    - Destructive tool lifetime caps
+    - Destructive tool cooldown
+    - Abuse score accumulates
+    - Abuse score blocks session
 
 ---
 
@@ -617,6 +621,7 @@ public void notifyResourceUpdated(String uri) {
 ```
 
 ### Validation
+
 - `./gradlew clean test` — BUILD SUCCESSFUL
 - New test: `testQueueOverflowWithListener` — overflow calls listener
 - New test: `testQueueOverflowWithoutListener` — throws `QueueOverflowException`
@@ -627,6 +632,7 @@ public void notifyResourceUpdated(String uri) {
 
 **Owner:** `dev-backend`
 **Files:**
+
 - `src/main/java/io/github/vinhphan812/mcp/api/spi/McpAuthorization.java` (NEW)
 - `src/main/java/io/github/vinhphan812/mcp/core/McpProtocolHandler.java`
 
@@ -727,6 +733,7 @@ if (denial != null) return errorToolResult("Authorization denied: " + denial);
 ```
 
 ### Validation
+
 - `./gradlew clean test` — BUILD SUCCESSFUL
 - New test: `McpAuthorizationTest.java` — authorization called, denial returned
 
@@ -765,6 +772,7 @@ if (definition != null) {
 ```
 
 ### Validation
+
 - `./gradlew clean test` — BUILD SUCCESSFUL
 - Existing `McpReflectionRegistrarDirectBindingTest` covers this via schema
 
@@ -794,6 +802,7 @@ try {
 ```
 
 ### Validation
+
 - `./gradlew clean test` — BUILD SUCCESSFUL
 - `McpRateLimitTest.testConcurrentCapExceeded` — concurrent counter blocks
 
@@ -853,6 +862,7 @@ Call `startCleanupThread()` in constructor (existing pattern already has it).
 Call `shutdown()` in `McpServer.stop()`.
 
 ### Validation
+
 - `./gradlew clean test` — BUILD SUCCESSFUL
 - `McpProtocolHandlerTest` — sessions expire after timeout
 
@@ -899,6 +909,7 @@ protocolHandler = new McpProtocolHandler(registry, config,
 ```
 
 ### Validation
+
 - `./gradlew clean test` — BUILD SUCCESSFUL
 - `McpServerConfigTest` — overflow listener and authorization set and retrieved
 
@@ -908,6 +919,7 @@ protocolHandler = new McpProtocolHandler(registry, config,
 
 **Owner:** `dev-backend`
 **Files:**
+
 - `docs/adr/ADR-0011-security-rate-limiting.md` — update status to Accepted
 - `docs/adr/README.md` — update ADR-0011 status
 - `docs/API-REFERENCE.md` — add `McpAuthorization` SPI section
@@ -942,6 +954,7 @@ Return `null` to allow; return a denial message to reject.
 
 If not configured, all tools are allowed. The authorization handler is consulted after
 schema validation and before the tool handler is invoked.
+
 ```
 
 ### Add security section to PROJECT-GUIDE.md
@@ -968,6 +981,7 @@ See `docs/adr/ADR-0011-security-rate-limiting.md` for the full design.
 Mark `McpAuthorization` SPI and all rate-limiting features as Implemented.
 
 ### Validation
+
 - `./gradlew clean build javadoc` — BUILD SUCCESSFUL, 0 warnings
 - `gh run list` — CI passed
 
@@ -975,38 +989,38 @@ Mark `McpAuthorization` SPI and all rate-limiting features as Implemented.
 
 ## Test summary
 
-| Test file | Coverage |
-|---|---|
-| `McpProtocolHandlerTest` | Session lifecycle, initialize, terminate, closeAll |
-| `McpRateLimitTest` | IP/session limits, category burst/sustained/concurrent, destructive caps, cooldown, abuse scoring, blocking |
-| `McpQueueOverflowTest` | Bounded queue, overflow with listener, overflow without listener (exception) |
-| `McpAuthorizationTest` | Authorization called, denial returned, null allows |
-| `McpSecurityConfigTest` | Overflow listener and authorization set via config |
-| `McpSessionTimeoutTest` | Session expires after idle timeout |
-| `McpOwnerSessionTest` | One session per owner, replace existing |
+| Test file                | Coverage                                                                                                    |
+|--------------------------|-------------------------------------------------------------------------------------------------------------|
+| `McpProtocolHandlerTest` | Session lifecycle, initialize, terminate, closeAll                                                          |
+| `McpRateLimitTest`       | IP/session limits, category burst/sustained/concurrent, destructive caps, cooldown, abuse scoring, blocking |
+| `McpQueueOverflowTest`   | Bounded queue, overflow with listener, overflow without listener (exception)                                |
+| `McpAuthorizationTest`   | Authorization called, denial returned, null allows                                                          |
+| `McpSecurityConfigTest`  | Overflow listener and authorization set via config                                                          |
+| `McpSessionTimeoutTest`  | Session expires after idle timeout                                                                          |
+| `McpOwnerSessionTest`    | One session per owner, replace existing                                                                     |
 
 ---
 
 ## Files summary
 
-| File | Action |
-|---|---|
-| `core/McpProtocolHandler.java` | Rewrite ~1800 lines |
-| `api/spi/McpAuthorization.java` | New interface |
-| `api/config/McpServerConfig.java` | Add overflowListener + authorization fields |
-| `core/McpServer.java` | Pass overflowListener + authorization to handler |
-| `McpRateLimitTest.java` | New test |
-| `McpQueueOverflowTest.java` | New test |
-| `McpAuthorizationTest.java` | New test |
-| `McpSecurityConfigTest.java` | New test |
-| `McpSessionTimeoutTest.java` | New test |
-| `McpOwnerSessionTest.java` | New test |
-| `docs/adr/ADR-0011-security-rate-limiting.md` | Update status → Accepted |
-| `docs/adr/ADR-0011-implementation-plan.md` | This document |
-| `docs/API-REFERENCE.md` | Add McpAuthorization section |
-| `docs/PROJECT-GUIDE.md` | Add security section |
-| `docs/IMPLEMENTATION-STATUS.md` | Mark features implemented |
-| `docs/adr/README.md` | Update ADR-0011 status |
+| File                                          | Action                                           |
+|-----------------------------------------------|--------------------------------------------------|
+| `core/McpProtocolHandler.java`                | Rewrite ~1800 lines                              |
+| `api/spi/McpAuthorization.java`               | New interface                                    |
+| `api/config/McpServerConfig.java`             | Add overflowListener + authorization fields      |
+| `core/McpServer.java`                         | Pass overflowListener + authorization to handler |
+| `McpRateLimitTest.java`                       | New test                                         |
+| `McpQueueOverflowTest.java`                   | New test                                         |
+| `McpAuthorizationTest.java`                   | New test                                         |
+| `McpSecurityConfigTest.java`                  | New test                                         |
+| `McpSessionTimeoutTest.java`                  | New test                                         |
+| `McpOwnerSessionTest.java`                    | New test                                         |
+| `docs/adr/ADR-0011-security-rate-limiting.md` | Update status → Accepted                         |
+| `docs/adr/ADR-0011-implementation-plan.md`    | This document                                    |
+| `docs/API-REFERENCE.md`                       | Add McpAuthorization section                     |
+| `docs/PROJECT-GUIDE.md`                       | Add security section                             |
+| `docs/IMPLEMENTATION-STATUS.md`               | Mark features implemented                        |
+| `docs/adr/README.md`                          | Update ADR-0011 status                           |
 
 ---
 

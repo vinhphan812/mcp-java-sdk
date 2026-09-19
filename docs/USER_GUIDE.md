@@ -2,11 +2,13 @@
 
 ## 1. Getting Started (5 minutes)
 
-`mcp-java-sdk` is an independent, portable MCP server SDK for Java 8. It provides a lightweight framework to expose tools, resources, and prompts over HTTP using an annotation-based API.
+`mcp-java-sdk` is an independent, portable MCP server SDK for Java 8. It provides a lightweight framework to expose
+tools, resources, and prompts over HTTP using an annotation-based API.
 
 ### Quick Setup
 
 Add the dependency to your `build.gradle` (using Gradle):
+
 ```gradle
 dependencies {
     implementation 'io.github.vinhphan812:mcp-java-sdk:1.0-SNAPSHOT'
@@ -45,6 +47,7 @@ server.start();
 ## 3. Advanced Usage
 
 ### Rate Limits
+
 Configure rate limits to prevent server overloading:
 
 ```java
@@ -64,6 +67,7 @@ McpServerConfig config = McpServerConfig.builder()
 ```
 
 ### Authentication and authorization
+
 The bundled Grizzly transport supports optional HTTP Bearer authentication. Configure the expected token through
 `McpServer.Builder.apiKeySupplier`; the supplier is evaluated for every request, so it can read a rotating secret from
 an environment variable or secret manager. Do not hard-code a token in source code.
@@ -119,6 +123,7 @@ For detailed information on porting or migrating MCP projects, see `MCP-PORTING-
 A: No, the SDK directly supports HTTP streamable transport only. WebSocket connectivity requires an external bridge.
 
 **Q: Can I run this on Android?**
-A: The SDK is designed to be portable and independent, and can be used on Android by owning the lifecycle within a `Service`, but must be verified on the target Android API level.
+A: The SDK is designed to be portable and independent, and can be used on Android by owning the lifecycle within a
+`Service`, but must be verified on the target Android API level.
 
 See `PROJECT-GUIDE.md` for project scope details and implementation architecture.

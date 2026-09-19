@@ -1,6 +1,7 @@
 # MCP Compatibility Plan
 
-Status: P0 and P1 work complete; P2 follow-up remains. This is a compatibility plan, not a claim of certification or external-client interoperability.
+Status: P0 and P1 work complete; P2 follow-up remains. This is a compatibility plan, not a claim of certification or
+external-client interoperability.
 
 Reference documentation:
 
@@ -13,13 +14,16 @@ Reference documentation:
 
 ## Scope
 
-This project is a lightweight Java 8-compatible MCP server implementation. It is not the official `modelcontextprotocol/java-sdk` and does not claim full feature parity.
+This project is a lightweight Java 8-compatible MCP server implementation. It is not the official
+`modelcontextprotocol/java-sdk` and does not claim full feature parity.
 
 ## Target baseline
 
-Target protocol baseline: `2025-11-25` (the latest stable baseline implemented by this Java 8 SDK). The newer documentation/specification snapshot `2026-07-28` was used for audit comparison but is not advertised as implemented.
+Target protocol baseline: `2025-11-25` (the latest stable baseline implemented by this Java 8 SDK). The newer
+documentation/specification snapshot `2026-07-28` was used for audit comparison but is not advertised as implemented.
 
-The server must accept a client protocol version only when it is supported. Unsupported versions must return an initialize error rather than silently advertising a different version.
+The server must accept a client protocol version only when it is supported. Unsupported versions must return an
+initialize error rather than silently advertising a different version.
 
 ## P0 compatibility work
 
@@ -38,12 +42,14 @@ The server must accept a client protocol version only when it is supported. Unsu
 ## P1 compatibility work
 
 - Cursor pagination for list methods (implemented and tested).
-- `notifications/tools/list_changed`, `notifications/resources/list_changed`, and `notifications/prompts/list_changed` (implemented and tested).
+- `notifications/tools/list_changed`, `notifications/resources/list_changed`, and `notifications/prompts/list_changed` (
+  implemented and tested).
 - SSE message IDs (implemented and tested); `Last-Event-ID` replay is implemented and tested.
 - Resource `blob` contents (implemented via `McpBlobResourceHandler` and `McpBlobContent`).
 - Tool `outputSchema` via `@McpTool(outputSchema = "...")` annotation attribute.
 - `completion/complete` (implemented with registered providers; initialize advertisement is configuration-driven).
-- Logging (`logging/setLevel` and `notifications/message`) (implemented; initialize advertisement is configuration-driven).
+- Logging (`logging/setLevel` and `notifications/message`) (implemented; initialize advertisement is
+  configuration-driven).
 
 ## P2 compatibility work
 
@@ -58,11 +64,14 @@ The server must accept a client protocol version only when it is supported. Unsu
 
 ## Compatibility limitations
 
-Until P1/P2 work is complete, documentation must not claim full compliance with the latest MCP specification. Existing custom APIs remain source-compatible where possible, but wire behaviour follows the target MCP specification.
+Until P1/P2 work is complete, documentation must not claim full compliance with the latest MCP specification. Existing
+custom APIs remain source-compatible where possible, but wire behaviour follows the target MCP specification.
 
 ## Validation
 
-Local evidence currently includes `./gradlew.bat --no-daemon test --console=plain` with 49 passing tests, focused protocol capability tests, security-matrix tests, pagination/list-change/task tests, and in-process Grizzly smoke tests. This does not establish external client interoperability. The following remains the broader validation checklist:
+Local evidence currently includes `./gradlew.bat --no-daemon test --console=plain` with 49 passing tests, focused
+protocol capability tests, security-matrix tests, pagination/list-change/task tests, and in-process Grizzly smoke tests.
+This does not establish external client interoperability. The following remains the broader validation checklist:
 
 1. `./gradlew clean test build --console=plain`
 2. Start Grizzly on port `0`.
