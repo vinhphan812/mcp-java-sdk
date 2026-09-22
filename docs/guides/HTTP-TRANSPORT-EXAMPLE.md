@@ -1,6 +1,6 @@
 # Grizzly MCP Example
 
-`examples/src/main/java/io/github/vinhphan812/mcp/examples/GrizzlyExample.java` is a standalone Java 8 server using the
+`examples/src/main/java/io/github/vinhphan812/mcp/examples/HttpExample.java` is a standalone Java 8 server using the
 SDK's Grizzly Streamable HTTP transport. It binds to `http://127.0.0.1:3011/mcp` and demonstrates a coherent small
 catalogue domain.
 
@@ -36,7 +36,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart TB
-    subgraph Example["GrizzlyExample.java"]
+    subgraph Example["HttpExample.java"]
         T["@Tools
 @greet, @calculate-total, @user-summary, @search-catalog, @validate-order, @format-address"]
         Res["@Resources
@@ -48,7 +48,7 @@ flowchart TB
     subgraph SDK["SDK — McpServer"]
         Reg["McpRegistry"]
         PH["McpProtocolHandler"]
-        T2["GrizzlyStreamableServerTransportProvider"]
+        T2["GrizzlyHttpTransportProvider"]
     end
 
     T --> Reg
