@@ -2,7 +2,7 @@ package io.github.vinhphan812.mcp.core;
 
 import io.github.vinhphan812.mcp.api.McpReflectionRegistrar;
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
-import io.github.vinhphan812.mcp.transport.GrizzlyStreamableServerTransportProvider;
+import io.github.vinhphan812.mcp.transport.HttpTransportProvider;
 
 import java.util.function.Supplier;
 
@@ -10,13 +10,13 @@ import java.util.function.Supplier;
 public final class McpServer implements AutoCloseable {
     private final McpRegistry registry;
     private final McpProtocolHandler protocolHandler;
-    private final GrizzlyStreamableServerTransportProvider transport;
+    private final HttpTransportProvider transport;
 
     private McpServer(Builder builder) {
         registry = builder.registry == null ? new McpRegistry() : builder.registry;
         protocolHandler = new McpProtocolHandler(registry,
                 builder.config == null ? McpServerConfig.builder().build() : builder.config);
-        transport = new GrizzlyStreamableServerTransportProvider(protocolHandler)
+        transport = new HttpTransportProvider(protocolHandler)
                 .host(builder.host).port(builder.port).endpoint(builder.endpoint);
         if (builder.apiKeySupplier != null) {
             transport.apiKeySupplier(builder.apiKeySupplier);
@@ -85,9 +85,10 @@ public final class McpServer implements AutoCloseable {
         return protocolHandler;
     }
 
-    /** Returns configured transport.
-     * @return Grizzly transport provider. */
-    public GrizzlyStreamableServerTransportProvider getTransport() {
+    /**
+     * Returns configured transport.
+     * @return transport provider. */
+    public HttpTransportProvider getTransport() {
         return transport;
     }
 

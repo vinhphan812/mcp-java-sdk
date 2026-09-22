@@ -1,0 +1,34 @@
+<problems>
+    <problem>
+        <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpRegistry.java</file>
+        <line>417</line>
+        <module>mcp-java-sdk.main</module>
+        <package>io.github.vinhphan812.mcp.core</package>
+        <entry_point TYPE="method"
+                     FQNAME="io.github.vinhphan812.mcp.core.McpRegistry java.lang.String findMimeType(java.util.List&lt;java.util.Map&lt;java.lang.String,java.lang.Object&gt;&gt; definitions, java.lang.String key, java.lang.String value)"/>
+        <problem_class id="SynchronizationOnLocalVariableOrMethodParameter" severity="WARNING"
+                       attribute_key="WARNING_ATTRIBUTES">Synchronization on local variable or method parameter
+        </problem_class>
+        <description>Synchronization on method parameter &lt;code&gt;definitions&lt;/code&gt; #loc</description>
+        <highlighted_element>definitions</highlighted_element>
+        <language>JAVA</language>
+        <offset>22</offset>
+        <length>11</length>
+    </problem>
+    <problem>
+        <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpRegistry.java</file>
+        <line>441</line>
+        <module>mcp-java-sdk.main</module>
+        <package>io.github.vinhphan812.mcp.core</package>
+        <entry_point TYPE="method"
+                     FQNAME="io.github.vinhphan812.mcp.core.McpRegistry java.util.List&lt;java.util.Map&lt;java.lang.String,java.lang.Object&gt;&gt; copyDefinitions(java.util.List&lt;java.util.Map&lt;java.lang.String,java.lang.Object&gt;&gt; source)"/>
+        <problem_class id="SynchronizationOnLocalVariableOrMethodParameter" severity="WARNING"
+                       attribute_key="WARNING_ATTRIBUTES">Synchronization on local variable or method parameter
+        </problem_class>
+        <description>Synchronization on method parameter &lt;code&gt;source&lt;/code&gt; #loc</description>
+        <highlighted_element>source</highlighted_element>
+        <language>JAVA</language>
+        <offset>22</offset>
+        <length>6</length>
+    </problem>
+</problems>

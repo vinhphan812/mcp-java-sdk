@@ -1,0 +1,36 @@
+<problems>
+    <problem>
+        <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpProtocolHandler.java</file>
+        <line>849</line>
+        <module>mcp-java-sdk.main</module>
+        <package>io.github.vinhphan812.mcp.core</package>
+        <entry_point TYPE="method"
+                     FQNAME="io.github.vinhphan812.mcp.core.McpProtocolHandler io.github.vinhphan812.mcp.api.dto.McpTask completeTask(java.lang.String taskId, java.lang.Object result)"/>
+        <problem_class id="UnusedReturnValue" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Method can be made
+            'void'
+        </problem_class>
+        <hints/>
+        <description>Return value of the method is never used</description>
+        <highlighted_element>completeTask</highlighted_element>
+        <language>JAVA</language>
+        <offset>19</offset>
+        <length>12</length>
+    </problem>
+    <problem>
+        <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpProtocolHandler.java</file>
+        <line>861</line>
+        <module>mcp-java-sdk.main</module>
+        <package>io.github.vinhphan812.mcp.core</package>
+        <entry_point TYPE="method"
+                     FQNAME="io.github.vinhphan812.mcp.core.McpProtocolHandler io.github.vinhphan812.mcp.api.dto.McpTask failTask(java.lang.String taskId, java.lang.String error)"/>
+        <problem_class id="UnusedReturnValue" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Method can be made
+            'void'
+        </problem_class>
+        <hints/>
+        <description>Return value of the method is never used</description>
+        <highlighted_element>failTask</highlighted_element>
+        <language>JAVA</language>
+        <offset>19</offset>
+        <length>8</length>
+    </problem>
+</problems>

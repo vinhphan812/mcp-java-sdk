@@ -1,0 +1,16 @@
+<problems>
+    <problem>
+        <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpProtocolHandler.java</file>
+        <line>962</line>
+        <module>mcp-java-sdk.main</module>
+        <package>io.github.vinhphan812.mcp.core</package>
+        <entry_point TYPE="method"
+                     FQNAME="io.github.vinhphan812.mcp.core.McpProtocolHandler java.lang.String pollPendingNotification(java.lang.String sessionId)"/>
+        <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Typo</problem_class>
+        <description>Typo: In word 'ndata'</description>
+        <highlighted_element>ndata</highlighted_element>
+        <language>JAVA</language>
+        <offset>53</offset>
+        <length>5</length>
+    </problem>
+</problems>

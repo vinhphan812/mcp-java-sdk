@@ -1,0 +1,100 @@
+<problems>
+    <problem>
+        <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpProtocolHandler.java</file>
+        <line>641</line>
+        <module>mcp-java-sdk.main</module>
+        <package>io.github.vinhphan812.mcp.core</package>
+        <entry_point TYPE="method"
+                     FQNAME="io.github.vinhphan812.mcp.core.McpProtocolHandler java.util.Map&lt;java.lang.String,java.lang.Object&gt; resourceContents(java.lang.String uri, java.lang.String text)"/>
+        <problem_class id="DuplicatedCode" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Duplicated code
+            fragment
+        </problem_class>
+        <description>Duplicate code: lines 641-645</description>
+        <highlighted_element>Map&lt;String, Object&gt; result = new LinkedHashMap&lt;&gt;();</highlighted_element>
+        <language>JAVA</language>
+        <offset>8</offset>
+        <length>51</length>
+    </problem>
+    <problem>
+        <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpProtocolHandler.java</file>
+        <line>653</line>
+        <module>mcp-java-sdk.main</module>
+        <package>io.github.vinhphan812.mcp.core</package>
+        <entry_point TYPE="method"
+                     FQNAME="io.github.vinhphan812.mcp.core.McpProtocolHandler java.util.Map&lt;java.lang.String,java.lang.Object&gt; blobContents(java.lang.String uri, io.github.vinhphan812.mcp.api.dto.McpBlobContent blob)"/>
+        <problem_class id="DuplicatedCode" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Duplicated code
+            fragment
+        </problem_class>
+        <description>Duplicate code: lines 653-657</description>
+        <highlighted_element>Map&lt;String, Object&gt; result = new LinkedHashMap&lt;&gt;();</highlighted_element>
+        <language>JAVA</language>
+        <offset>8</offset>
+        <length>51</length>
+    </problem>
+    <problem>
+        <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpRegistry.java</file>
+        <line>103</line>
+        <module>mcp-java-sdk.main</module>
+        <package>io.github.vinhphan812.mcp.core</package>
+        <entry_point TYPE="method"
+                     FQNAME="io.github.vinhphan812.mcp.core.McpRegistry void registerResource(java.lang.String uri, java.lang.String name, java.lang.String description, java.lang.String mimeType, io.github.vinhphan812.mcp.api.handler.McpResourceHandler handler)"/>
+        <problem_class id="DuplicatedCode" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Duplicated code
+            fragment
+        </problem_class>
+        <description>Duplicate code: lines 103-110</description>
+        <highlighted_element>requireUnique(uri, resourceHandlers, &quot;resource&quot;);</highlighted_element>
+        <language>JAVA</language>
+        <offset>8</offset>
+        <length>49</length>
+    </problem>
+    <problem>
+        <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpRegistry.java</file>
+        <line>127</line>
+        <module>mcp-java-sdk.main</module>
+        <package>io.github.vinhphan812.mcp.core</package>
+        <entry_point TYPE="method"
+                     FQNAME="io.github.vinhphan812.mcp.core.McpRegistry void registerBlobResource(java.lang.String uri, java.lang.String name, java.lang.String description, java.lang.String mimeType, io.github.vinhphan812.mcp.api.handler.McpBlobResourceHandler handler)"/>
+        <problem_class id="DuplicatedCode" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Duplicated code
+            fragment
+        </problem_class>
+        <description>Duplicate code: lines 127-134</description>
+        <highlighted_element>requireUnique(uri, resourceHandlers, &quot;resource&quot;);</highlighted_element>
+        <language>JAVA</language>
+        <offset>8</offset>
+        <length>49</length>
+    </problem>
+    <problem>
+        <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpRegistry.java</file>
+        <line>150</line>
+        <module>mcp-java-sdk.main</module>
+        <package>io.github.vinhphan812.mcp.core</package>
+        <entry_point TYPE="method"
+                     FQNAME="io.github.vinhphan812.mcp.core.McpRegistry void registerResourceTemplate(java.lang.String uriTemplate, java.lang.String name, java.lang.String description, java.lang.String mimeType, io.github.vinhphan812.mcp.api.handler.McpResourceHandler handler)"/>
+        <problem_class id="DuplicatedCode" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Duplicated code
+            fragment
+        </problem_class>
+        <description>Duplicate code: lines 150-157</description>
+        <highlighted_element>requireUnique(uriTemplate, resourceTemplateHandlers, &quot;resource template&quot;);
+        </highlighted_element>
+        <language>JAVA</language>
+        <offset>8</offset>
+        <length>74</length>
+    </problem>
+    <problem>
+        <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpRegistry.java</file>
+        <line>175</line>
+        <module>mcp-java-sdk.main</module>
+        <package>io.github.vinhphan812.mcp.core</package>
+        <entry_point TYPE="method"
+                     FQNAME="io.github.vinhphan812.mcp.core.McpRegistry void registerBlobResourceTemplate(java.lang.String uriTemplate, java.lang.String name, java.lang.String description, java.lang.String mimeType, io.github.vinhphan812.mcp.api.handler.McpBlobResourceHandler handler)"/>
+        <problem_class id="DuplicatedCode" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Duplicated code
+            fragment
+        </problem_class>
+        <description>Duplicate code: lines 175-182</description>
+        <highlighted_element>requireUnique(uriTemplate, resourceTemplateHandlers, &quot;resource template&quot;);
+        </highlighted_element>
+        <language>JAVA</language>
+        <offset>8</offset>
+        <length>74</length>
+    </problem>
+</problems>

@@ -10,9 +10,9 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 /**
- * Owns lifecycle of a Grizzly MCP Streamable HTTP server.
+ * Owns lifecycle of an HTTP transport server.
  */
-public final class GrizzlyStreamableServerTransportProvider implements AutoCloseable {
+public final class HttpTransportProvider implements AutoCloseable {
     private static final String LISTENER_NAME = "mcp-http";
     private final McpProtocolHandler handler;
     private String host = "127.0.0.1";
@@ -22,6 +22,7 @@ public final class GrizzlyStreamableServerTransportProvider implements AutoClose
     private Supplier<String> apiKeySupplier;
     private Set<String> allowedOrigins = new HashSet<>(Arrays.asList("http://localhost", "http://127.0.0.1", "https://localhost"));
     private int maxRequestBodyBytes = 1024 * 1024;
+    private TransportMode transportMode = TransportMode.AUTO;
     private HttpServer server;
 
     /**
@@ -30,7 +31,7 @@ public final class GrizzlyStreamableServerTransportProvider implements AutoClose
      * @param handler handler serving MCP requests.
      * @throws IllegalArgumentException if handler is null.
      */
-    public GrizzlyStreamableServerTransportProvider(McpProtocolHandler handler) {
+    public HttpTransportProvider(McpProtocolHandler handler) {
         if (handler == null) throw new IllegalArgumentException("handler cannot be null");
         this.handler = handler;
     }
@@ -42,7 +43,7 @@ public final class GrizzlyStreamableServerTransportProvider implements AutoClose
      * @return this provider.
      * @throws IllegalArgumentException if value is blank.
      */
-    public GrizzlyStreamableServerTransportProvider host(String value) {
+    public HttpTransportProvider host(String value) {
         if (value == null || value.trim().isEmpty()) throw new IllegalArgumentException("host cannot be empty");
         host = value.trim();
         return this;
@@ -55,7 +56,7 @@ public final class GrizzlyStreamableServerTransportProvider implements AutoClose
      * @return this provider.
      * @throws IllegalArgumentException if value is outside range.
      */
-    public GrizzlyStreamableServerTransportProvider port(int value) {
+    public HttpTransportProvider port(int value) {
         if (value < 0 || value > 65535) throw new IllegalArgumentException("port must be between 0 and 65535");
         port = value;
         return this;
@@ -68,7 +69,7 @@ public final class GrizzlyStreamableServerTransportProvider implements AutoClose
      * @return this provider.
      * @throws IllegalArgumentException if value is blank.
      */
-    public GrizzlyStreamableServerTransportProvider endpoint(String value) {
+    public HttpTransportProvider endpoint(String value) {
         if (value == null || value.trim().isEmpty()) throw new IllegalArgumentException("endpoint cannot be empty");
         endpoint = value.trim().startsWith("/") ? value.trim() : "/" + value.trim();
         return this;
@@ -77,13 +78,18 @@ public final class GrizzlyStreamableServerTransportProvider implements AutoClose
     /**
      * Sets the URL scheme used in {@link #getUrl()}.
      * Defaults to {@code "http"}. Set to {@code "https"} when the transport is
-     * behind TLS termination.
+     * behind a reverse proxy that handles TLS termination.
+     *
+     * <p>Calling {@code scheme("https")} does NOT enable TLS on this server.
+     * TLS must be terminated externally by a reverse proxy (e.g., nginx, HAProxy,
+     * cloud load balancer). The URL returned by {@link #getUrl()} reflects the
+     * external endpoint scheme, and clients should use that URL to connect.
      *
      * @param value scheme string, normally {@code "http"} or {@code "https"}.
      * @return this provider.
      * @throws IllegalArgumentException if value is blank.
      */
-    public GrizzlyStreamableServerTransportProvider scheme(String value) {
+    public HttpTransportProvider scheme(String value) {
         if (value == null || value.trim().isEmpty()) throw new IllegalArgumentException("scheme cannot be empty");
         urlScheme = value.trim().toLowerCase();
         return this;
@@ -96,7 +102,7 @@ public final class GrizzlyStreamableServerTransportProvider implements AutoClose
      * @return this provider.
      * @throws IllegalArgumentException if values is null.
      */
-    public GrizzlyStreamableServerTransportProvider allowedOrigins(java.util.Set<String> values) {
+    public HttpTransportProvider allowedOrigins(java.util.Set<String> values) {
         if (values == null) throw new IllegalArgumentException("allowedOrigins cannot be null");
         allowedOrigins = new java.util.HashSet<>(values);
         return this;
@@ -109,7 +115,7 @@ public final class GrizzlyStreamableServerTransportProvider implements AutoClose
      * @return this provider.
      * @throws IllegalArgumentException if value is not positive.
      */
-    public GrizzlyStreamableServerTransportProvider maxRequestBodyBytes(int value) {
+    public HttpTransportProvider maxRequestBodyBytes(int value) {
         if (value <= 0) throw new IllegalArgumentException("maxRequestBodyBytes must be positive");
         maxRequestBodyBytes = value;
         return this;
@@ -122,7 +128,7 @@ public final class GrizzlyStreamableServerTransportProvider implements AutoClose
      * @param value bearer key, or null to disable authentication.
      * @return this provider.
      */
-    public GrizzlyStreamableServerTransportProvider apiKey(String value) {
+    public HttpTransportProvider apiKey(String value) {
         apiKeySupplier = value == null ? null : () -> value;
         return this;
     }
@@ -136,27 +142,41 @@ public final class GrizzlyStreamableServerTransportProvider implements AutoClose
      * @param supplier bearer key supplier, or null to disable authentication.
      * @return this provider.
      */
-    public GrizzlyStreamableServerTransportProvider apiKeySupplier(Supplier<String> supplier) {
+    public HttpTransportProvider apiKeySupplier(Supplier<String> supplier) {
         apiKeySupplier = supplier;
         return this;
     }
 
     /**
-     * Starts Grizzly listener; repeated calls while running are no-ops.
+     * Sets the transport mode for HTTP handling.
+     * Default is {@link TransportMode#AUTO}.
+     *
+     * @param mode the transport mode to use.
+     * @return this provider.
+     * @throws IllegalArgumentException if mode is null.
+     */
+    public HttpTransportProvider transportMode(TransportMode mode) {
+        if (mode == null) throw new IllegalArgumentException("transportMode cannot be null");
+        transportMode = mode;
+        return this;
+    }
+
+    /**
+     * Starts HTTP listener; repeated calls while running are no-ops.
      *
      * @throws IOExceptionUnchecked if startup fails.
      */
     public synchronized void start() throws IOExceptionUnchecked {
         if (isRunning()) return;
         try {
-            McpGrizzlyHandler httpHandler = new McpGrizzlyHandler(handler, endpoint, apiKeySupplier, allowedOrigins, maxRequestBodyBytes, 4, handler.getConfig().trustXForwardedFor);
+            McpHttpHandler httpHandler = new McpHttpHandler(handler, endpoint, apiKeySupplier, allowedOrigins, maxRequestBodyBytes, 4, handler.getConfig().trustXForwardedFor, transportMode);
             server = new HttpServer();
             server.addListener(new NetworkListener(LISTENER_NAME, host, port));
             server.getServerConfiguration().addHttpHandler(httpHandler, endpoint);
             server.start();
         } catch (Exception e) {
             server = null;
-            throw new IOExceptionUnchecked("Unable to start MCP Grizzly transport", e);
+            throw new IOExceptionUnchecked("Unable to start MCP HTTP transport", e);
         }
     }
 

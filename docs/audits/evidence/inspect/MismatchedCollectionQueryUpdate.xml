@@ -1,0 +1,19 @@
+<problems>
+    <problem>
+        <file>file://$PROJECT_DIR$/src/main/java/io/github/vinhphan812/mcp/core/McpRegistry.java</file>
+        <line>34</line>
+        <module>mcp-java-sdk.main</module>
+        <package>io.github.vinhphan812.mcp.core</package>
+        <entry_point TYPE="field" FQNAME="io.github.vinhphan812.mcp.core.McpRegistry blobResourceHandlers"/>
+        <problem_class id="MismatchedCollectionQueryUpdate" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">
+            Mismatched query and update of collection
+        </problem_class>
+        <description>Contents of collection &lt;code&gt;blobResourceHandlers&lt;/code&gt; are updated, but never queried
+            #loc
+        </description>
+        <highlighted_element>blobResourceHandlers</highlighted_element>
+        <language>JAVA</language>
+        <offset>68</offset>
+        <length>20</length>
+    </problem>
+</problems>

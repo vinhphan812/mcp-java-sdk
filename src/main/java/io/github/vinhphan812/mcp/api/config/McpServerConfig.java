@@ -3,7 +3,6 @@ package io.github.vinhphan812.mcp.api.config;
 import io.github.vinhphan812.mcp.api.logging.JulMcpLogger;
 import io.github.vinhphan812.mcp.api.logging.McpLogger;
 import io.github.vinhphan812.mcp.api.spi.McpAuthorization;
-import io.github.vinhphan812.mcp.api.config.RateLimits;
 import io.github.vinhphan812.mcp.core.McpProtocolHandler;
 
 import java.util.Collections;
@@ -71,6 +70,19 @@ public final class McpServerConfig {
      * proxy address.
      */
     public final boolean bindSessionToIp;
+    /**
+     * Whether streaming (SSE) capability is enabled. When true, the server advertises
+     * {@code streaming: {}} in its initialize response, allowing MCP clients to discover
+     * SSE support. Default is true.
+     */
+    public final boolean streaming;
+    /**
+     * Whether Streamable HTTP mode is enabled. When true, the server uses modern
+     * Streamable HTTP transport (single POST endpoint with server-driven streaming).
+     * When false, uses legacy HTTP+SSE mode (POST + GET + DELETE endpoints).
+     * Default is true.
+     */
+    public final boolean streamableHttp;
 
     /**
      * Returns the configured queue overflow listener.
@@ -107,6 +119,8 @@ public final class McpServerConfig {
         rateLimits = builder.rateLimits == null ? RateLimits.defaults() : builder.rateLimits;
         trustXForwardedFor = builder.trustXForwardedFor;
         bindSessionToIp = builder.bindSessionToIp;
+        streaming = builder.streaming;
+        streamableHttp = builder.streamableHttp;
     }
 
     /** Creates a builder for server configuration.
@@ -144,6 +158,8 @@ public final class McpServerConfig {
         private RateLimits rateLimits;
         private boolean trustXForwardedFor = false;
         private boolean bindSessionToIp = false;
+        private boolean streaming = true;
+        private boolean streamableHttp = true;
 
         /** Sets maximum page size for paginated responses.
          * @param value positive maximum item count
@@ -287,6 +303,8 @@ public final class McpServerConfig {
          * When true, the transport layer extracts the client IP from the X-Forwarded-For header
          * instead of using the remote socket address. Only enable when the server runs behind a
          * trusted reverse proxy. Default is false.
+         * @param value true to trust the X-Forwarded-For header
+         * @return this builder
          */
         public Builder trustXForwardedFor(boolean value) {
             this.trustXForwardedFor = value;
@@ -305,9 +323,36 @@ public final class McpServerConfig {
          * <p><strong>Note:</strong> when the server is behind a reverse proxy you should also
          * set {@code trustXForwardedFor = true} so the real client IP is used instead of the
          * proxy address.
+         * @param value true to bind sessions to their originating IP address
+         * @return this builder
          */
         public Builder bindSessionToIp(boolean value) {
             this.bindSessionToIp = value;
+            return this;
+        }
+
+        /**
+         * Enables or disables streaming (SSE) capability advertisement in initialize response.
+         * When enabled, the server advertises {@code streaming: {}} to allow MCP clients
+         * to discover SSE support. Default is true.
+         * @param value whether streaming is enabled
+         * @return this builder
+         */
+        public Builder streaming(boolean value) {
+            this.streaming = value;
+            return this;
+        }
+
+        /**
+         * Enables or disables Streamable HTTP mode. When enabled, the server uses modern
+         * Streamable HTTP transport (single POST endpoint with server-driven streaming).
+         * When disabled, uses legacy HTTP+SSE mode (POST + GET + DELETE endpoints).
+         * Default is true.
+         * @param value whether Streamable HTTP mode is enabled
+         * @return this builder
+         */
+        public Builder streamableHttp(boolean value) {
+            this.streamableHttp = value;
             return this;
         }
 
