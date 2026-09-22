@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [ master ]
   pull_request:
-    branches: [master]
+    branches: [ master ]
 
 jobs:
   build:
@@ -18,12 +18,19 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Test and build
-        run: ./gradlew clean test build --console=plain
+      - name: Build SDK classes
+        run: ./gradlew clean classes --console=plain
+
+      - name: Compile examples (CI gate)
+        run: ./gradlew --no-daemon -p examples clean compileJava --console=plain
+
+      - name: Test
+        run: ./gradlew test --console=plain
       - name: Upload JAR artifacts
         uses: actions/upload-artifact@v4
         with:
           name: mcp-java-sdk-artifacts
           path: |
             build/libs/mcp-java-sdk-*.jar
+
           if-no-files-found: error

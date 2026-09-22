@@ -54,3 +54,8 @@ docs/inspect.claude/
 # OS
 .DS_Store
 Thumbs.db
+
+# Temporary files
+nul
+*.tmp
+*.log
