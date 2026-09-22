@@ -1,11 +1,10 @@
 package io.github.vinhphan812.mcp;
 
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
-import io.github.vinhphan812.mcp.api.security.AuthenticationContext;
 import io.github.vinhphan812.mcp.api.spi.McpAuthorization;
 import io.github.vinhphan812.mcp.core.McpProtocolHandler;
 import io.github.vinhphan812.mcp.core.McpRegistry;
-import io.github.vinhphan812.mcp.transport.GrizzlyStreamableServerTransportProvider;
+import io.github.vinhphan812.mcp.transport.HttpTransportProvider;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,14 +16,11 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.*;
 
 class McpIntegrationTest {
 
-    private GrizzlyStreamableServerTransportProvider transport;
+    private HttpTransportProvider transport;
     private String url;
 
     @BeforeEach
@@ -44,8 +40,8 @@ class McpIntegrationTest {
                         .protocolVersion("2025-11-25")
                         .authorization(auth)
                         .build());
-        
-        transport = new GrizzlyStreamableServerTransportProvider(handler).port(0).apiKey("secret");
+
+        transport = new HttpTransportProvider(handler).port(0).apiKey("secret");
         transport.start();
         url = transport.getUrl();
     }
@@ -69,30 +65,6 @@ class McpIntegrationTest {
         assertEquals(401, result.status);
     }
 
-    @Test
-    void testMiddlewareDenial() throws Exception {
-        // Test skipped - apiKeyMiddleware method not implemented
-        // transport.stop(); // Stop the default server
-        
-        // Setup with middleware that denies "deny-me"
-        // McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(),
-        //         McpServerConfig.builder()
-        //                 .protocolVersion("2025-11-25")
-        //                 .build());
-        //
-        // transport = new GrizzlyStreamableServerTransportProvider(handler)
-        //         .port(0)
-        //         .apiKeyMiddleware(ctx -> {
-        //             if ("deny-me".equals(ctx.getApiKey())) {
-        //                 throw new SecurityException("Denied by middleware");
-        //             }
-        //         });
-        // transport.start();
-        // url = transport.getUrl();
-        //
-        // Result result = request("POST", initialize(), null, "deny-me", "application/json", "application/json, text/event-stream", null);
-        // assertEquals(401, result.status);
-    }
 
     @Test
     void testAuthWithValidCredentials() throws Exception {
@@ -106,48 +78,48 @@ class McpIntegrationTest {
     @Test
     void testResourceListHitsReadCategoryLimit() throws Exception {
         // Setup with low read burst limit (5 requests)
-        io.github.vinhphan812.mcp.api.config.RateLimits lowLimits = 
+        io.github.vinhphan812.mcp.api.config.RateLimits lowLimits =
                 io.github.vinhphan812.mcp.api.config.RateLimits.builder()
                         .read(5, 10, 3)  // burst=5, sustained=10, concurrent=3
                         .build();
-        
+
         McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(),
                 McpServerConfig.builder()
                         .protocolVersion("2025-11-25")
                         .rateLimits(lowLimits)
                         .resources(true)  // Enable resources
                         .build());
-        
-        GrizzlyStreamableServerTransportProvider testTransport = 
-                new GrizzlyStreamableServerTransportProvider(handler).port(0).apiKey("secret");
+
+        HttpTransportProvider testTransport =
+                new HttpTransportProvider(handler).port(0).apiKey("secret");
         testTransport.start();
         String testUrl = testTransport.getUrl();
-        
+
         try {
             // Initialize to get a session
-            Result initResult = request(testUrl, "POST", initialize(), null, "secret", 
+            Result initResult = request(testUrl, "POST", initialize(), null, "secret",
                     "application/json", "application/json, text/event-stream", null);
             assertEquals(200, initResult.status);
             String session = initResult.session;
             assertNotNull(session);
-            
+
             // Make 5 resources/list requests - should all succeed
             for (int i = 0; i < 5; i++) {
-                Result listResult = request(testUrl, "POST", 
-                        "{\"jsonrpc\":\"2.0\",\"id\":" + (i+10) + ",\"method\":\"resources/list\",\"params\":{}}",
+                Result listResult = request(testUrl, "POST",
+                        "{\"jsonrpc\":\"2.0\",\"id\":" + (i + 10) + ",\"method\":\"resources/list\",\"params\":{}}",
                         session, "secret", "application/json", "application/json, text/event-stream", null);
-                assertEquals(200, listResult.status, "Request " + (i+1) + " should succeed");
-                assertFalse(listResult.body.contains("-32029"), 
-                        "Request " + (i+1) + " should not be rate limited");
+                assertEquals(200, listResult.status, "Request " + (i + 1) + " should succeed");
+                assertFalse(listResult.body.contains("-32029"),
+                        "Request " + (i + 1) + " should not be rate limited");
             }
-            
+
             // 6th request should be rate limited
-            Result limitedResult = request(testUrl, "POST", 
+            Result limitedResult = request(testUrl, "POST",
                     "{\"jsonrpc\":\"2.0\",\"id\":999,\"method\":\"resources/list\",\"params\":{}}",
                     session, "secret", "application/json", "application/json, text/event-stream", null);
             // Rate limit can return either HTTP 429 or HTTP 200 with error in body
-            assertTrue(limitedResult.status == 429 || 
-                      (limitedResult.status == 200 && (limitedResult.body.contains("-32029") || limitedResult.body.contains("burst limit"))),
+            assertTrue(limitedResult.status == 429 ||
+                            (limitedResult.status == 200 && (limitedResult.body.contains("-32029") || limitedResult.body.contains("burst limit"))),
                     "6th request should be rate limited (read category burst exceeded), got status=" + limitedResult.status + ", body=" + limitedResult.body);
         } finally {
             testTransport.stop();
@@ -157,48 +129,48 @@ class McpIntegrationTest {
     @Test
     void testPromptListHitsReadCategoryLimit() throws Exception {
         // Setup with low read burst limit
-        io.github.vinhphan812.mcp.api.config.RateLimits lowLimits = 
+        io.github.vinhphan812.mcp.api.config.RateLimits lowLimits =
                 io.github.vinhphan812.mcp.api.config.RateLimits.builder()
                         .read(3, 10, 3)  // burst=3 for quick test
                         .build();
-        
+
         McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(),
                 McpServerConfig.builder()
                         .protocolVersion("2025-11-25")
                         .rateLimits(lowLimits)
                         .prompts(true)  // Enable prompts
                         .build());
-        
-        GrizzlyStreamableServerTransportProvider testTransport = 
-                new GrizzlyStreamableServerTransportProvider(handler).port(0).apiKey("secret");
+
+        HttpTransportProvider testTransport =
+                new HttpTransportProvider(handler).port(0).apiKey("secret");
         testTransport.start();
         String testUrl = testTransport.getUrl();
-        
+
         try {
             // Initialize to get a session
-            Result initResult = request(testUrl, "POST", initialize(), null, "secret", 
+            Result initResult = request(testUrl, "POST", initialize(), null, "secret",
                     "application/json", "application/json, text/event-stream", null);
             assertEquals(200, initResult.status);
             String session = initResult.session;
             assertNotNull(session);
-            
+
             // Make 3 prompts/list requests - should all succeed
             for (int i = 0; i < 3; i++) {
-                Result listResult = request(testUrl, "POST", 
-                        "{\"jsonrpc\":\"2.0\",\"id\":" + (i+10) + ",\"method\":\"prompts/list\",\"params\":{}}",
+                Result listResult = request(testUrl, "POST",
+                        "{\"jsonrpc\":\"2.0\",\"id\":" + (i + 10) + ",\"method\":\"prompts/list\",\"params\":{}}",
                         session, "secret", "application/json", "application/json, text/event-stream", null);
-                assertEquals(200, listResult.status, "Request " + (i+1) + " should succeed");
-                assertFalse(listResult.body.contains("-32029"), 
-                        "Request " + (i+1) + " should not be rate limited");
+                assertEquals(200, listResult.status, "Request " + (i + 1) + " should succeed");
+                assertFalse(listResult.body.contains("-32029"),
+                        "Request " + (i + 1) + " should not be rate limited");
             }
-            
+
             // 4th request should be rate limited
-            Result limitedResult = request(testUrl, "POST", 
+            Result limitedResult = request(testUrl, "POST",
                     "{\"jsonrpc\":\"2.0\",\"id\":999,\"method\":\"prompts/list\",\"params\":{}}",
                     session, "secret", "application/json", "application/json, text/event-stream", null);
             // Rate limit can return either HTTP 429 or HTTP 200 with error in body
-            assertTrue(limitedResult.status == 429 || 
-                      (limitedResult.status == 200 && (limitedResult.body.contains("-32029") || limitedResult.body.contains("burst limit"))),
+            assertTrue(limitedResult.status == 429 ||
+                            (limitedResult.status == 200 && (limitedResult.body.contains("-32029") || limitedResult.body.contains("burst limit"))),
                     "4th request should be rate limited (read category burst exceeded), got status=" + limitedResult.status + ", body=" + limitedResult.body);
         } finally {
             testTransport.stop();
@@ -208,48 +180,48 @@ class McpIntegrationTest {
     @Test
     void testResourceSubscribeHitsWriteCategoryLimit() throws Exception {
         // Setup with low write burst limit
-        io.github.vinhphan812.mcp.api.config.RateLimits lowLimits = 
+        io.github.vinhphan812.mcp.api.config.RateLimits lowLimits =
                 io.github.vinhphan812.mcp.api.config.RateLimits.builder()
                         .write(3, 10, 2)  // burst=3, sustained=10, concurrent=2
                         .build();
-        
+
         McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(),
                 McpServerConfig.builder()
                         .protocolVersion("2025-11-25")
                         .rateLimits(lowLimits)
                         .resources(true)
                         .build());
-        
-        GrizzlyStreamableServerTransportProvider testTransport = 
-                new GrizzlyStreamableServerTransportProvider(handler).port(0).apiKey("secret");
+
+        HttpTransportProvider testTransport =
+                new HttpTransportProvider(handler).port(0).apiKey("secret");
         testTransport.start();
         String testUrl = testTransport.getUrl();
-        
+
         try {
             // Initialize to get a session
-            Result initResult = request(testUrl, "POST", initialize(), null, "secret", 
+            Result initResult = request(testUrl, "POST", initialize(), null, "secret",
                     "application/json", "application/json, text/event-stream", null);
             assertEquals(200, initResult.status);
             String session = initResult.session;
             assertNotNull(session);
-            
+
             // Make 3 resources/subscribe requests - should all succeed
             for (int i = 0; i < 3; i++) {
-                Result subResult = request(testUrl, "POST", 
-                        "{\"jsonrpc\":\"2.0\",\"id\":" + (i+10) + ",\"method\":\"resources/subscribe\",\"params\":{\"uri\":\"test://resource" + i + "\"}}",
+                Result subResult = request(testUrl, "POST",
+                        "{\"jsonrpc\":\"2.0\",\"id\":" + (i + 10) + ",\"method\":\"resources/subscribe\",\"params\":{\"uri\":\"test://resource" + i + "\"}}",
                         session, "secret", "application/json", "application/json, text/event-stream", null);
-                assertEquals(200, subResult.status, "Request " + (i+1) + " should succeed");
-                assertFalse(subResult.body.contains("-32029"), 
-                        "Request " + (i+1) + " should not be rate limited");
+                assertEquals(200, subResult.status, "Request " + (i + 1) + " should succeed");
+                assertFalse(subResult.body.contains("-32029"),
+                        "Request " + (i + 1) + " should not be rate limited");
             }
-            
+
             // 4th request should be rate limited (write category)
-            Result limitedResult = request(testUrl, "POST", 
+            Result limitedResult = request(testUrl, "POST",
                     "{\"jsonrpc\":\"2.0\",\"id\":999,\"method\":\"resources/subscribe\",\"params\":{\"uri\":\"test://resource4\"}}",
                     session, "secret", "application/json", "application/json, text/event-stream", null);
             // Rate limit can return either HTTP 429 or HTTP 200 with error in body
-            assertTrue(limitedResult.status == 429 || 
-                      (limitedResult.status == 200 && (limitedResult.body.contains("-32029") || limitedResult.body.contains("burst limit"))),
+            assertTrue(limitedResult.status == 429 ||
+                            (limitedResult.status == 200 && (limitedResult.body.contains("-32029") || limitedResult.body.contains("burst limit"))),
                     "4th request should be rate limited (write category burst exceeded), got status=" + limitedResult.status + ", body=" + limitedResult.body);
         } finally {
             testTransport.stop();
@@ -264,33 +236,33 @@ class McpIntegrationTest {
                         .protocolVersion("2025-11-25")
                         .trustXForwardedFor(true)
                         .build());
-        
-        GrizzlyStreamableServerTransportProvider testTransport = 
-                new GrizzlyStreamableServerTransportProvider(handler).port(0).apiKey("secret");
+
+        HttpTransportProvider testTransport =
+                new HttpTransportProvider(handler).port(0).apiKey("secret");
         testTransport.start();
         String testUrl = testTransport.getUrl();
-        
+
         try {
             // Initialize without X-Forwarded-For - should work
-            Result initResult = request(testUrl, "POST", initialize(), null, "secret", 
+            Result initResult = request(testUrl, "POST", initialize(), null, "secret",
                     "application/json", "application/json, text/event-stream", null);
             assertEquals(200, initResult.status);
-            
+
             // Request with X-Forwarded-For header - should also work when trustXForwardedFor=true
             String xffRequest = "{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"ping\"}";
-            Result xffResult = request(testUrl, "POST", xffRequest, null, "secret", 
+            Result xffResult = request(testUrl, "POST", xffRequest, null, "secret",
                     "application/json", "application/json, text/event-stream", "203.0.113.1, 198.51.100.1");
             assertEquals(200, xffResult.status, "Request with X-Forwarded-For should succeed when trustXForwardedFor=true");
-            
+
             // Initialize with session for rate limit testing
-            initResult = request(testUrl, "POST", initialize(), null, "secret", 
+            initResult = request(testUrl, "POST", initialize(), null, "secret",
                     "application/json", "application/json, text/event-stream", "10.0.0.1");
             assertEquals(200, initResult.status);
             String session = initResult.session;
-            
+
             // Request from different XFF IPs should be tracked separately when trustXForwardedFor=true
             // Note: The IP is used for rate limiting - different IPs = different rate limit buckets
-            Result differentIpResult = request(testUrl, "POST", 
+            Result differentIpResult = request(testUrl, "POST",
                     "{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"ping\"}",
                     session, "secret", "application/json", "application/json, text/event-stream", "192.168.1.1");
             assertEquals(200, differentIpResult.status, "Request with different X-Forwarded-For IP should succeed");
@@ -307,16 +279,16 @@ class McpIntegrationTest {
                         .protocolVersion("2025-11-25")
                         .trustXForwardedFor(false)  // Default is false
                         .build());
-        
-        GrizzlyStreamableServerTransportProvider testTransport = 
-                new GrizzlyStreamableServerTransportProvider(handler).port(0).apiKey("secret");
+
+        HttpTransportProvider testTransport =
+                new HttpTransportProvider(handler).port(0).apiKey("secret");
         testTransport.start();
         String testUrl = testTransport.getUrl();
-        
+
         try {
             // Even with X-Forwarded-For header, should use actual remote IP when trustXForwardedFor=false
             String xffRequest = "{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"ping\"}";
-            Result xffResult = request(testUrl, "POST", xffRequest, null, "secret", 
+            Result xffResult = request(testUrl, "POST", xffRequest, null, "secret",
                     "application/json", "application/json, text/event-stream", "203.0.113.1");
             assertEquals(200, xffResult.status, "Request should succeed regardless of X-Forwarded-For when disabled");
         } finally {
@@ -342,7 +314,7 @@ class McpIntegrationTest {
         if (origin != null) connection.setRequestProperty("X-Forwarded-For", origin);
         if (body != null && !body.isEmpty()) connection.getOutputStream().write(body.getBytes(StandardCharsets.UTF_8));
         int status = connection.getResponseCode();
-        
+
         InputStream input = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         if (input != null) {
