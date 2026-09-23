@@ -4,7 +4,7 @@ import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.api.spi.McpAuthorization;
 import io.github.vinhphan812.mcp.core.McpProtocolHandler;
 import io.github.vinhphan812.mcp.core.McpRegistry;
-import io.github.vinhphan812.mcp.transport.GrizzlyStreamableServerTransportProvider;
+import io.github.vinhphan812.mcp.transport.HttpTransportProvider;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class McpIntegrationTest {
 
-    private GrizzlyStreamableServerTransportProvider transport;
+    private HttpTransportProvider transport;
     private String url;
 
     @BeforeEach
@@ -41,7 +41,7 @@ class McpIntegrationTest {
                         .authorization(auth)
                         .build());
 
-        transport = new GrizzlyStreamableServerTransportProvider(handler).port(0).apiKey("secret");
+        transport = new HttpTransportProvider(handler).port(0).apiKey("secret");
         transport.start();
         url = transport.getUrl();
     }
@@ -76,7 +76,7 @@ class McpIntegrationTest {
         //                 .protocolVersion("2025-11-25")
         //                 .build());
         //
-        // transport = new GrizzlyStreamableServerTransportProvider(handler)
+        // transport = new HttpTransportProvider(handler)
         //         .port(0)
         //         .apiKeyMiddleware(ctx -> {
         //             if ("deny-me".equals(ctx.getApiKey())) {
@@ -114,8 +114,8 @@ class McpIntegrationTest {
                         .resources(true)  // Enable resources
                         .build());
 
-        GrizzlyStreamableServerTransportProvider testTransport =
-                new GrizzlyStreamableServerTransportProvider(handler).port(0).apiKey("secret");
+        HttpTransportProvider testTransport =
+                new HttpTransportProvider(handler).port(0).apiKey("secret");
         testTransport.start();
         String testUrl = testTransport.getUrl();
 
@@ -165,8 +165,8 @@ class McpIntegrationTest {
                         .prompts(true)  // Enable prompts
                         .build());
 
-        GrizzlyStreamableServerTransportProvider testTransport =
-                new GrizzlyStreamableServerTransportProvider(handler).port(0).apiKey("secret");
+        HttpTransportProvider testTransport =
+                new HttpTransportProvider(handler).port(0).apiKey("secret");
         testTransport.start();
         String testUrl = testTransport.getUrl();
 
@@ -216,8 +216,8 @@ class McpIntegrationTest {
                         .resources(true)
                         .build());
 
-        GrizzlyStreamableServerTransportProvider testTransport =
-                new GrizzlyStreamableServerTransportProvider(handler).port(0).apiKey("secret");
+        HttpTransportProvider testTransport =
+                new HttpTransportProvider(handler).port(0).apiKey("secret");
         testTransport.start();
         String testUrl = testTransport.getUrl();
 
@@ -261,8 +261,8 @@ class McpIntegrationTest {
                         .trustXForwardedFor(true)
                         .build());
 
-        GrizzlyStreamableServerTransportProvider testTransport =
-                new GrizzlyStreamableServerTransportProvider(handler).port(0).apiKey("secret");
+        HttpTransportProvider testTransport =
+                new HttpTransportProvider(handler).port(0).apiKey("secret");
         testTransport.start();
         String testUrl = testTransport.getUrl();
 
@@ -304,8 +304,8 @@ class McpIntegrationTest {
                         .trustXForwardedFor(false)  // Default is false
                         .build());
 
-        GrizzlyStreamableServerTransportProvider testTransport =
-                new GrizzlyStreamableServerTransportProvider(handler).port(0).apiKey("secret");
+        HttpTransportProvider testTransport =
+                new HttpTransportProvider(handler).port(0).apiKey("secret");
         testTransport.start();
         String testUrl = testTransport.getUrl();
 

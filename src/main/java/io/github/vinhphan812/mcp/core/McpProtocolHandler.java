@@ -893,14 +893,20 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
      * @param sessionId session identifier
      * @return true if blocked
      */
-    /**
-     * @param sessionId session identifier
-     * @return true if the session has been blocked due to abuse scoring
-     */
     public boolean isSessionBlocked(String sessionId) {
         if (sessionId == null) return false;
         SessionState state = sessions.get(sessionId);
         return state != null && state.categoryLimits.blocked;
+    }
+
+    /**
+     * Returns true if there are pending notifications for the given session.
+     * @param sessionId session identifier
+     * @return true when pending notifications exist
+     */
+    public boolean hasPendingNotifications(String sessionId) {
+        SessionState state = sessions.get(sessionId);
+        return state != null && !state.pendingNotifications.isEmpty();
     }
 
     // ==================== Rate Limiting (ADR-0011) ====================

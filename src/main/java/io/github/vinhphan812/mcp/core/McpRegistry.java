@@ -16,10 +16,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * protocol handler is started.
  */
 public class McpRegistry implements McpRegistrar {
-    private final List<Map<String, Object>> registeredTools = new ArrayList<>();
-    private final List<Map<String, Object>> registeredResources = new ArrayList<>();
-    private final List<Map<String, Object>> registeredResourceTemplates = new ArrayList<>();
-    private final List<Map<String, Object>> registeredPrompts = new ArrayList<>();
+    private final List<Map<String, Object>> registeredTools = new CopyOnWriteArrayList<>();
+    private final List<Map<String, Object>> registeredResources = new CopyOnWriteArrayList<>();
+    private final List<Map<String, Object>> registeredResourceTemplates = new CopyOnWriteArrayList<>();
+    private final List<Map<String, Object>> registeredPrompts = new CopyOnWriteArrayList<>();
 
     private final ConcurrentHashMap<String, McpToolHandler> toolHandlers = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, McpResourceHandler> resourceHandlers = new ConcurrentHashMap<>();
@@ -344,7 +344,13 @@ public class McpRegistry implements McpRegistrar {
     }
 
     private void notifyRegistryChanged(String listType) {
-        for (McpRegistryChangeListener listener : changeListeners) listener.onRegistryChanged(listType);
+        for (McpRegistryChangeListener listener : changeListeners) {
+            try {
+                listener.onRegistryChanged(listType);
+            } catch (RuntimeException e) {
+                // Listener failures should not propagate to the registrar.
+            }
+        }
     }
 
     /** Forwards resource update notification to configured target.
@@ -398,9 +404,9 @@ public class McpRegistry implements McpRegistrar {
      * @return tool definition Map (with name, description, inputSchema, requiredScopes, confirmationRequired)
      *         or {@code null} when absent
      */
-    public Map<String, Object> getToolDefinition(String name) {
+    public synchronized Map<String, Object> getToolDefinition(String name) {
         for (Map<String, Object> tool : registeredTools) {
-            if (name.equals(tool.get("name"))) return tool;
+            if (name.equals(tool.get("name"))) return copyMap(tool);
         }
         return null;
     }
