@@ -2,12 +2,9 @@ package io.github.vinhphan812.mcp;
 
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.api.handler.McpResourceHandler;
-import io.github.vinhphan812.mcp.api.handler.McpToolHandler;
 import io.github.vinhphan812.mcp.core.McpProtocolHandler;
 import io.github.vinhphan812.mcp.core.McpRegistry;
 import org.junit.jupiter.api.Test;
-
-import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -38,7 +35,11 @@ class McpQueueOverflowTest {
                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}", null).getSessionId();
 
         // Subscribe to a resource
-        registry.registerResource("demo://test", "Test", "Test resource", new McpResourceHandler() { public String read(String uri) { return "{}"; } });
+        registry.registerResource("demo://test", "Test", "Test resource", new McpResourceHandler() {
+            public String read(String uri) {
+                return "{}";
+            }
+        });
         handler.handleRequest(
                 "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"resources/subscribe\",\"params\":{\"uri\":\"demo://test\"}}",
                 sessionId);
@@ -67,7 +68,11 @@ class McpQueueOverflowTest {
         String sessionId = handler.handleRequestResponse(
                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}", null).getSessionId();
 
-        registry.registerResource("demo://test", "Test", "Test resource", new McpResourceHandler() { public String read(String uri) { return "{}"; } });
+        registry.registerResource("demo://test", "Test", "Test resource", new McpResourceHandler() {
+            public String read(String uri) {
+                return "{}";
+            }
+        });
         handler.handleRequest(
                 "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"resources/subscribe\",\"params\":{\"uri\":\"demo://test\"}}",
                 sessionId);
@@ -99,7 +104,11 @@ class McpQueueOverflowTest {
         String sessionId = handler.handleRequestResponse(
                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}", null).getSessionId();
 
-        registry.registerResource("demo://test", "Test", "Test resource", new McpResourceHandler() { public String read(String uri) { return "{}"; } });
+        registry.registerResource("demo://test", "Test", "Test resource", new McpResourceHandler() {
+            public String read(String uri) {
+                return "{}";
+            }
+        });
         handler.handleRequest(
                 "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"resources/subscribe\",\"params\":{\"uri\":\"demo://test\"}}",
                 sessionId);

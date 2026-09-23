@@ -1,6 +1,8 @@
 # MCP Java SDK
 
-Portable Java 8 library for hosting an [MCP](https://modelcontextprotocol.io) server inside any Java application — including Android apps, Android/ROSA robots, desktop services, and backend servers. A phone or robot can act as an MCP server, exposing tools, resources, and prompts over HTTP to MCP clients on the same device or network.
+Portable Java 8 library for hosting an [MCP](https://modelcontextprotocol.io) server inside any Java application —
+including Android apps, Android/ROSA robots, desktop services, and backend servers. A phone or robot can act as an MCP
+server, exposing tools, resources, and prompts over HTTP to MCP clients on the same device or network.
 
 [![CI](https://github.com/vinhphan812/mcp-java-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/vinhphan812/mcp-java-sdk/actions)
 [![Release](https://img.shields.io/github/v/release/vinhphan812/mcp-java-sdk?label=latest)](https://github.com/vinhphan812/mcp-java-sdk/releases/latest)
@@ -29,7 +31,8 @@ Portable Java 8 library for hosting an [MCP](https://modelcontextprotocol.io) se
 
 ### Gradle (GitHub Packages)
 
-The SDK is published to [GitHub Packages](https://github.com/vinhphan812/mcp-java-sdk/packages). You need a GitHub token with `read:packages` scope.
+The SDK is published to [GitHub Packages](https://github.com/vinhphan812/mcp-java-sdk/packages). You need a GitHub token
+with `read:packages` scope.
 
 ```groovy
 // settings.gradle.kts  (or settings.gradle)
@@ -360,29 +363,29 @@ stateDiagram-v2
 
 ### Core documentation
 
-| Document | Description |
-|---|---|
-| [PROJECT-GUIDE.md](docs/PROJECT-GUIDE.md) | Architecture, API, protocol, transport, and usage guide |
-| [API-REFERENCE.md](docs/API-REFERENCE.md) | Complete public API surface |
-| [IMPLEMENTATION-STATUS.md](docs/IMPLEMENTATION-STATUS.md) | Completed, incomplete, and unverified areas |
-| [GRIZZLY-EXAMPLE.md](docs/GRIZZLY-EXAMPLE.md) | Standalone example and HTTP request samples |
-| [MCP-COMPATIBILITY-2026.md](docs/MCP-COMPATIBILITY-2026.md) | MCP baseline and P0/P1/P2 compatibility |
-| [MCP-PORTING-PLAN.md](docs/MCP-PORTING-PLAN.md) | Package inventory and porting notes |
+| Document                                                    | Description                                             |
+|-------------------------------------------------------------|---------------------------------------------------------|
+| [PROJECT-GUIDE.md](docs/PROJECT-GUIDE.md)                   | Architecture, API, protocol, transport, and usage guide |
+| [API-REFERENCE.md](docs/API-REFERENCE.md)                   | Complete public API surface                             |
+| [IMPLEMENTATION-STATUS.md](docs/IMPLEMENTATION-STATUS.md)   | Completed, incomplete, and unverified areas             |
+| [GRIZZLY-EXAMPLE.md](docs/GRIZZLY-EXAMPLE.md)               | Standalone example and HTTP request samples             |
+| [MCP-COMPATIBILITY-2026.md](docs/MCP-COMPATIBILITY-2026.md) | MCP baseline and P0/P1/P2 compatibility                 |
+| [MCP-PORTING-PLAN.md](docs/MCP-PORTING-PLAN.md)             | Package inventory and porting notes                     |
 
 ### Architecture Decision Records
 
-| ADR | Title | Status |
-|---|---|---|
-| [ADR-0001](docs/adr/ADR-0001-portable-java8-core.md) | Portable Java 8 core without Android SDK | Accepted |
-| [ADR-0002](docs/adr/ADR-0002-grizzly-transport-isolation.md) | Grizzly isolated in transport layer | Accepted |
-| [ADR-0003](docs/adr/ADR-0003-json-rpc-envelope-protocol-versioning.md) | JSON-RPC 2.0 and versioning | Accepted |
-| [ADR-0004](docs/adr/ADR-0004-session-management.md) | Session management | Accepted |
-| [ADR-0005](docs/adr/ADR-0005-sse-notifications-event-queue.md) | SSE event queue | Accepted |
-| [ADR-0006](docs/adr/ADR-0006-security-model.md) | Security: Origin, Bearer, CRLF | Accepted |
-| [ADR-0007](docs/adr/ADR-0007-annotation-registration.md) | Annotation-based registration | Accepted |
-| [ADR-0008](docs/adr/ADR-0008-protocol-baseline-compatibility.md) | Protocol baseline 2025-11-25 | Accepted |
-| [ADR-0009](docs/adr/ADR-0009-code-audit-2026-09-11.md) | Source audit 2026-09-11 | Accepted |
-| [ADR-0010](docs/adr/ADR-0010-api-package-restructure.md) | API package restructure | Accepted |
+| ADR                                                                    | Title                                    | Status   |
+|------------------------------------------------------------------------|------------------------------------------|----------|
+| [ADR-0001](docs/adr/ADR-0001-portable-java8-core.md)                   | Portable Java 8 core without Android SDK | Accepted |
+| [ADR-0002](docs/adr/ADR-0002-grizzly-transport-isolation.md)           | Grizzly isolated in transport layer      | Accepted |
+| [ADR-0003](docs/adr/ADR-0003-json-rpc-envelope-protocol-versioning.md) | JSON-RPC 2.0 and versioning              | Accepted |
+| [ADR-0004](docs/adr/ADR-0004-session-management.md)                    | Session management                       | Accepted |
+| [ADR-0005](docs/adr/ADR-0005-sse-notifications-event-queue.md)         | SSE event queue                          | Accepted |
+| [ADR-0006](docs/adr/ADR-0006-security-model.md)                        | Security: Origin, Bearer, CRLF           | Accepted |
+| [ADR-0007](docs/adr/ADR-0007-annotation-registration.md)               | Annotation-based registration            | Accepted |
+| [ADR-0008](docs/adr/ADR-0008-protocol-baseline-compatibility.md)       | Protocol baseline 2025-11-25             | Accepted |
+| [ADR-0009](docs/adr/ADR-0009-code-audit-2026-09-11.md)                 | Source audit 2026-09-11                  | Accepted |
+| [ADR-0010](docs/adr/ADR-0010-api-package-restructure.md)               | API package restructure                  | Accepted |
 
 See [docs/adr/README.md](docs/adr/README.md) for the ADR index.
 
@@ -396,10 +399,10 @@ See [docs/adr/README.md](docs/adr/README.md) for the ADR index.
 
 Outputs:
 
-| File | Description |
-|---|---|
-| `build/libs/mcp-java-sdk-1.0.0.jar` | Main artifact |
-| `build/libs/mcp-java-sdk-1.0.0-sources.jar` | Source code |
+| File                                        | Description       |
+|---------------------------------------------|-------------------|
+| `build/libs/mcp-java-sdk-1.0.0.jar`         | Main artifact     |
+| `build/libs/mcp-java-sdk-1.0.0-sources.jar` | Source code       |
 | `build/libs/mcp-java-sdk-1.0.0-javadoc.jar` | API documentation |
 
 Override version for local build:
@@ -465,7 +468,8 @@ Releases: https://github.com/vinhphan812/mcp-java-sdk/releases
 
 ### Android and robot hosting
 
-The library runs inside an Android app or robot service process. A phone or robot can act as an MCP server — no separate backend needed. Android API 21+ is the typical target; verify Grizzly compatibility on the target runtime.
+The library runs inside an Android app or robot service process. A phone or robot can act as an MCP server — no separate
+backend needed. Android API 21+ is the typical target; verify Grizzly compatibility on the target runtime.
 
 See [docs/PROJECT-GUIDE.md](docs/PROJECT-GUIDE.md) for Android hosting guidance and runtime verification checklist.
 
@@ -480,10 +484,10 @@ See [docs/PROJECT-GUIDE.md](docs/PROJECT-GUIDE.md) for Android hosting guidance 
 
 ### Dependencies
 
-| Library | Version | License |
-|---|---|---|
-| [Gson](https://github.com/google/gson) | 2.11.0 | Apache 2.0 |
-| [Grizzly HTTP Server](https://github.com/eclipse-ee4j/grizzly) | 4.0.2 | CDDL/GPL |
+| Library                                                        | Version | License    |
+|----------------------------------------------------------------|---------|------------|
+| [Gson](https://github.com/google/gson)                         | 2.11.0  | Apache 2.0 |
+| [Grizzly HTTP Server](https://github.com/eclipse-ee4j/grizzly) | 4.0.2   | CDDL/GPL   |
 
 Review upstream notices before redistribution.
 

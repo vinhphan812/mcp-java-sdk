@@ -5,7 +5,8 @@ import io.github.vinhphan812.mcp.api.spi.McpAuthorization;
 import io.github.vinhphan812.mcp.core.McpProtocolHandler;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
  * Tests for ADR-0011 security configuration options.
@@ -15,7 +16,8 @@ class McpSecurityConfigTest {
 
     @Test
     void testOverflowListenerSetAndRetrieved() {
-        McpProtocolHandler.QueueOverflowListener listener = sessionId -> { };
+        McpProtocolHandler.QueueOverflowListener listener = sessionId -> {
+        };
         McpServerConfig config = McpServerConfig.builder()
                 .overflowListener(listener)
                 .build();

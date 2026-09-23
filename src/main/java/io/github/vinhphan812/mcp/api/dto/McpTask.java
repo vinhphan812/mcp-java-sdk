@@ -169,7 +169,7 @@ public final class McpTask {
      *  @return new working task
      */
     public static McpTask create(String name, String sessionId, String requestId,
-                                  Map<String, Object> input, Map<String, Object> inputSchema) {
+                                 Map<String, Object> input, Map<String, Object> inputSchema) {
         long now = System.currentTimeMillis();
         String taskId = "task-" + UUID.randomUUID();
         return new McpTask(taskId, Status.WORKING, name, sessionId, requestId, input, inputSchema, now, now);

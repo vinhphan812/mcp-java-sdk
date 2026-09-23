@@ -5,7 +5,7 @@ package io.github.vinhphan812.mcp.api.utils;
  */
 public interface Clock {
     long currentTimeMillis();
-    
+
     /** Default implementation using System clock. */
     Clock SYSTEM = System::currentTimeMillis;
 }

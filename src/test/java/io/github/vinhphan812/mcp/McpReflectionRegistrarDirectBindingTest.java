@@ -1,5 +1,6 @@
 package io.github.vinhphan812.mcp;
 
+import com.google.gson.annotations.SerializedName;
 import io.github.vinhphan812.mcp.annotations.McpParam;
 import io.github.vinhphan812.mcp.annotations.McpTool;
 import io.github.vinhphan812.mcp.annotations.Tools;
@@ -9,7 +10,6 @@ import io.github.vinhphan812.mcp.api.handler.McpPromptHandler;
 import io.github.vinhphan812.mcp.api.handler.McpResourceHandler;
 import io.github.vinhphan812.mcp.api.handler.McpToolHandler;
 import io.github.vinhphan812.mcp.api.spi.McpRegistrar;
-import com.google.gson.annotations.SerializedName;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
@@ -114,9 +114,17 @@ class McpReflectionRegistrarDirectBindingTest {
             this.country = country;
         }
 
-        String getStreet() { return street; }
-        String getCity() { return city; }
-        String getCountry() { return country; }
+        String getStreet() {
+            return street;
+        }
+
+        String getCity() {
+            return city;
+        }
+
+        String getCountry() {
+            return country;
+        }
     }
 
     private static final class CapturingRegistrar implements McpRegistrar {

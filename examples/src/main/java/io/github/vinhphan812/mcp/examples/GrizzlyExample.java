@@ -26,7 +26,8 @@ import java.util.logging.Logger;
 public final class GrizzlyExample {
     private static final Logger LOGGER = Logger.getLogger(GrizzlyExample.class.getName());
 
-    private GrizzlyExample() { }
+    private GrizzlyExample() {
+    }
 
     @Tools
     public static final class DemoTools {

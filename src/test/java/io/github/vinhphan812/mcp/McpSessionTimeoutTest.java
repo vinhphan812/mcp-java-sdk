@@ -1,6 +1,5 @@
 package io.github.vinhphan812.mcp;
 
-import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.core.McpProtocolHandler;
 import io.github.vinhphan812.mcp.core.McpRegistry;
 import org.junit.jupiter.api.Disabled;

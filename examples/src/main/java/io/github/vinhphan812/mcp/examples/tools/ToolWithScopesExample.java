@@ -3,6 +3,7 @@ package io.github.vinhphan812.mcp.examples.tools;
 import com.google.gson.annotations.SerializedName;
 import io.github.vinhphan812.mcp.annotations.McpParam;
 import io.github.vinhphan812.mcp.annotations.McpTool;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,8 +44,16 @@ public final class ToolWithScopesExample {
             this.country = country;
         }
 
-        public String getStreet() { return street; }
-        public String getCity() { return city; }
-        public String getCountry() { return country; }
+        public String getStreet() {
+            return street;
+        }
+
+        public String getCity() {
+            return city;
+        }
+
+        public String getCountry() {
+            return country;
+        }
     }
 }

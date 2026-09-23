@@ -3,6 +3,7 @@ package io.github.vinhphan812.mcp.examples;
 import io.github.vinhphan812.mcp.annotations.McpTool;
 import io.github.vinhphan812.mcp.annotations.McpParam;
 import io.github.vinhphan812.mcp.annotations.Tools;
+
 import java.util.Map;
 import java.util.LinkedHashMap;
 
@@ -13,16 +14,29 @@ public final class DtoExample {
         private String name;
         private int age;
 
-        public UserDto() {}
+        public UserDto() {
+        }
+
         public UserDto(String name, int age) {
             this.name = name;
             this.age = age;
         }
 
-        public String getName() { return name; }
-        public void setName(String name) { this.name = name; }
-        public int getAge() { return age; }
-        public void setAge(int age) { this.age = age; }
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public int getAge() {
+            return age;
+        }
+
+        public void setAge(int age) {
+            this.age = age;
+        }
     }
 
     @McpTool(name = "process-user", description = "Process a user DTO")

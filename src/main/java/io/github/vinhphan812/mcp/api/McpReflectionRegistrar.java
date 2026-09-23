@@ -147,9 +147,9 @@ public final class McpReflectionRegistrar {
         if (documentedCount > 0 && documentedCount != paramCount) {
             throw new IllegalArgumentException(
                     "Method " + method + " has " + paramCount
-                    + " parameters but only " + documentedCount
-                    + " are annotated with @McpParam. "
-                    + "Either annotate all parameters or use a single Map<String,Object> argument.");
+                            + " parameters but only " + documentedCount
+                            + " are annotated with @McpParam. "
+                            + "Either annotate all parameters or use a single Map<String,Object> argument.");
         }
     }
 
@@ -286,7 +286,9 @@ public final class McpReflectionRegistrar {
         if (List.class.isAssignableFrom(target) && raw instanceof Iterable) {
             @SuppressWarnings("unchecked")
             List<Object> list = new ArrayList<>();
-            for (Object item : (Iterable<?>) raw) { list.add(item); }
+            for (Object item : (Iterable<?>) raw) {
+                list.add(item);
+            }
             return list;
         }
         // Array support: JSON array -> typed array (serialise to JSON then parse to target element type)

@@ -2,6 +2,7 @@ package io.github.vinhphan812.mcp.examples.tools;
 
 import io.github.vinhphan812.mcp.annotations.McpParam;
 import io.github.vinhphan812.mcp.annotations.McpTool;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,7 +41,7 @@ public final class ToolWithInputSchemaExample {
         structured.put("message", valid ? "Order values are valid." : "Quantity must be positive and unit price must not be negative.");
         return structuredTextResult(valid ? "Order is valid." : "Order is invalid.", structured);
     }
-    
+
     private static Map<String, Object> textResult(String text) {
         Map<String, Object> result = new LinkedHashMap<>();
         Map<String, Object> content = new LinkedHashMap<>();

@@ -6,11 +6,7 @@ import io.github.vinhphan812.mcp.api.spi.McpRegistrar;
 import io.github.vinhphan812.mcp.api.spi.McpRegistryChangeListener;
 import io.github.vinhphan812.mcp.api.spi.McpResourceUpdateListener;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -88,8 +84,8 @@ public class McpRegistry implements McpRegistrar {
      * @param handler tool handler
      */
     public synchronized void registerTool(String name, String description, Map<String, Object> inputSchema,
-                                         List<String> required, List<String> requiredScopes,
-                                         boolean confirmationRequired, McpToolHandler handler) {
+                                          List<String> required, List<String> requiredScopes,
+                                          boolean confirmationRequired, McpToolHandler handler) {
         requireUnique(name, toolHandlers, "tool");
         Map<String, Object> tool = new LinkedHashMap<>();
         tool.put("name", name);

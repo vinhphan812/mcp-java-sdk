@@ -2,6 +2,7 @@ package io.github.vinhphan812.mcp.examples;
 
 import io.github.vinhphan812.mcp.annotations.McpResource;
 import io.github.vinhphan812.mcp.annotations.Resources;
+
 import java.util.Base64;
 
 @Resources

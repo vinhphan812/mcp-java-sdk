@@ -20,7 +20,8 @@ import java.util.logging.Logger;
 public final class MainExample {
     private static final Logger LOGGER = Logger.getLogger(MainExample.class.getName());
 
-    private MainExample() { }
+    private MainExample() {
+    }
 
     private static McpCompletionProvider demoCompletionProvider() {
         return (reference, argument) -> {
@@ -51,18 +52,18 @@ public final class MainExample {
         experimental.put("grizzly-example", Collections.singletonMap("demo", true));
 
         McpServerConfig.Builder configBuilder = McpServerConfig.builder()
-                        .serverName("grizzly-example")
-                        .serverVersion("1.0.0")
-                        .protocolVersion("2025-11-25")
-                        .tools(true).resources(true).prompts(true)
-                        .logging(true).completions(true).tasks(true)
-                        .experimental(experimental)
-                        .resourceSubscriptions(true);
-        
+                .serverName("grizzly-example")
+                .serverVersion("1.0.0")
+                .protocolVersion("2025-11-25")
+                .tools(true).resources(true).prompts(true)
+                .logging(true).completions(true).tasks(true)
+                .experimental(experimental)
+                .resourceSubscriptions(true);
+
         RateLimitExample.configure(configBuilder);
         MiddlewareExample.configure(configBuilder);
         ApiKeyStoreExample.configure(configBuilder);
-        AuthorizationExample.configure(configBuilder);                
+        AuthorizationExample.configure(configBuilder);
 
         McpServer server = McpServer.builder()
                 .registry(registry)

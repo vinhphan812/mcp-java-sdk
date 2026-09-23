@@ -414,7 +414,26 @@ public interface McpToolHandler {
 }
 ```
 
-Receives the JSON arguments map and returns the MCP result. Throw an exception to produce a JSON-RPC error response.
+Receives the JSON arguments map and returns the MCP result.
+
+**Error handling:** Throw an exception (or return a map containing `isError: true`) to produce a **tool error result** —
+a successful JSON-RPC response with `isError: true` in the result object. This is the MCP-designed mechanism for tool
+failures that the model should see and recover from. For protocol-level errors (invalid request, unknown method), throw
+`io.github.vinhphan812.mcp.exception.McpErrorException` to produce a JSON-RPC error envelope.
+
+Example (tool error):
+
+```java
+// Thrown exception → {result: {isError: true, content: [...]}}
+throw new RuntimeException("Authorization denied");
+```
+
+Example (protocol error):
+
+```java
+// McpErrorException → {error: {code: -32600, message: "Invalid JSON-RPC"}}
+throw new McpErrorException(-32600, "Invalid JSON-RPC");
+```
 
 ### `McpResourceHandler`
 
@@ -1050,7 +1069,26 @@ public interface McpToolHandler {
 }
 ```
 
-Receives the JSON arguments map and returns the MCP result. Throw an exception to produce a JSON-RPC error response.
+Receives the JSON arguments map and returns the MCP result.
+
+**Error handling:** Throw an exception (or return a map containing `isError: true`) to produce a **tool error result** —
+a successful JSON-RPC response with `isError: true` in the result object. This is the MCP-designed mechanism for tool
+failures that the model should see and recover from. For protocol-level errors (invalid request, unknown method), throw
+`io.github.vinhphan812.mcp.exception.McpErrorException` to produce a JSON-RPC error envelope.
+
+Example (tool error):
+
+```java
+// Thrown exception → {result: {isError: true, content: [...]}}
+throw new RuntimeException("Authorization denied");
+```
+
+Example (protocol error):
+
+```java
+// McpErrorException → {error: {code: -32600, message: "Invalid JSON-RPC"}}
+throw new McpErrorException(-32600, "Invalid JSON-RPC");
+```
 
 ### `McpResourceHandler`
 

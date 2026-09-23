@@ -45,11 +45,20 @@ public final class RateLimits {
         maxPendingNotificationsPerSession = b.maxPendingNotificationsPerSession;
         maxRequestsPerIpPerMinute = b.maxRequestsPerIpPerMinute;
         maxRequestsPerSessionPerMinute = b.maxRequestsPerSessionPerMinute;
-        readBurst = b.readBurst; readSustained = b.readSustained; readConcurrent = b.readConcurrent;
-        writeBurst = b.writeBurst; writeSustained = b.writeSustained; writeConcurrent = b.writeConcurrent;
-        adminBurst = b.adminBurst; adminSustained = b.adminSustained; adminConcurrent = b.adminConcurrent;
-        shutdownCap = b.shutdownCap; deleteCap = b.deleteCap; uploadCap = b.uploadCap;
-        shutdownCooldownMs = b.shutdownCooldownMs; deleteCooldownMs = b.deleteCooldownMs;
+        readBurst = b.readBurst;
+        readSustained = b.readSustained;
+        readConcurrent = b.readConcurrent;
+        writeBurst = b.writeBurst;
+        writeSustained = b.writeSustained;
+        writeConcurrent = b.writeConcurrent;
+        adminBurst = b.adminBurst;
+        adminSustained = b.adminSustained;
+        adminConcurrent = b.adminConcurrent;
+        shutdownCap = b.shutdownCap;
+        deleteCap = b.deleteCap;
+        uploadCap = b.uploadCap;
+        shutdownCooldownMs = b.shutdownCooldownMs;
+        deleteCooldownMs = b.deleteCooldownMs;
         uploadCooldownMs = b.uploadCooldownMs;
         abuseScoreBlockThreshold = b.abuseScoreBlockThreshold;
         rateLimitWindowMs = b.rateLimitWindowMs;
@@ -114,23 +123,103 @@ public final class RateLimits {
                 "shutdown", "delete_action", "delete_prompt", "set_mcp_api_key",
                 "revoke_mcp_api_key", "upload_file"));
 
-        public Builder maxConcurrentSessions(int v) { maxConcurrentSessions = positive(v, "maxConcurrentSessions"); return this; }
-        public Builder sessionTimeoutMs(long v) { sessionTimeoutMs = positive(v, "sessionTimeoutMs"); return this; }
-        public Builder sessionCleanupIntervalMs(long v) { sessionCleanupIntervalMs = positive(v, "sessionCleanupIntervalMs"); return this; }
-        public Builder maxPendingNotificationsPerSession(int v) { maxPendingNotificationsPerSession = positive(v, "maxPendingNotificationsPerSession"); return this; }
-        public Builder maxRequestsPerIpPerMinute(int v) { maxRequestsPerIpPerMinute = positive(v, "maxRequestsPerIpPerMinute"); return this; }
-        public Builder maxRequestsPerSessionPerMinute(int v) { maxRequestsPerSessionPerMinute = positive(v, "maxRequestsPerSessionPerMinute"); return this; }
-        public Builder read(int burst, int sustained, int concurrent) { readBurst = positive(burst,"readBurst"); readSustained = positive(sustained,"readSustained"); readConcurrent = positive(concurrent,"readConcurrent"); return this; }
-        public Builder write(int burst, int sustained, int concurrent) { writeBurst = positive(burst,"writeBurst"); writeSustained = positive(sustained,"writeSustained"); writeConcurrent = positive(concurrent,"writeConcurrent"); return this; }
-        public Builder admin(int burst, int sustained, int concurrent) { adminBurst = positive(burst,"adminBurst"); adminSustained = positive(sustained,"adminSustained"); adminConcurrent = positive(concurrent,"adminConcurrent"); return this; }
-        public Builder shutdown(int cap, long cooldown) { shutdownCap = positive(cap,"shutdownCap"); shutdownCooldownMs = positive(cooldown,"shutdownCooldownMs"); return this; }
-        public Builder delete(int cap, long cooldown) { deleteCap = positive(cap,"deleteCap"); deleteCooldownMs = positive(cooldown,"deleteCooldownMs"); return this; }
-        public Builder upload(int cap, long cooldown) { uploadCap = positive(cap,"uploadCap"); uploadCooldownMs = positive(cooldown,"uploadCooldownMs"); return this; }
-        public Builder abuseScoreBlockThreshold(int v) { abuseScoreBlockThreshold = positive(v,"abuseScoreBlockThreshold"); return this; }
-        public Builder rateLimitWindows(long window, long sustained) { rateLimitWindowMs = positive(window,"rateLimitWindowMs"); rateLimitSustainedWindowMs = positive(sustained,"rateLimitSustainedWindowMs"); return this; }
-        public Builder destructiveTools(Set<String> tools) { destructiveTools = tools == null ? new LinkedHashSet<String>() : new LinkedHashSet<>(tools); return this; }
-        public RateLimits build() { return new RateLimits(this); }
-        private static int positive(int v, String name) { if (v <= 0) throw new IllegalArgumentException(name + " must be positive"); return v; }
-        private static long positive(long v, String name) { if (v <= 0) throw new IllegalArgumentException(name + " must be positive"); return v; }
+        public Builder maxConcurrentSessions(int v) {
+            maxConcurrentSessions = positive(v, "maxConcurrentSessions");
+            return this;
+        }
+
+        public Builder sessionTimeoutMs(long v) {
+            sessionTimeoutMs = positive(v, "sessionTimeoutMs");
+            return this;
+        }
+
+        public Builder sessionCleanupIntervalMs(long v) {
+            sessionCleanupIntervalMs = positive(v, "sessionCleanupIntervalMs");
+            return this;
+        }
+
+        public Builder maxPendingNotificationsPerSession(int v) {
+            maxPendingNotificationsPerSession = positive(v, "maxPendingNotificationsPerSession");
+            return this;
+        }
+
+        public Builder maxRequestsPerIpPerMinute(int v) {
+            maxRequestsPerIpPerMinute = positive(v, "maxRequestsPerIpPerMinute");
+            return this;
+        }
+
+        public Builder maxRequestsPerSessionPerMinute(int v) {
+            maxRequestsPerSessionPerMinute = positive(v, "maxRequestsPerSessionPerMinute");
+            return this;
+        }
+
+        public Builder read(int burst, int sustained, int concurrent) {
+            readBurst = positive(burst, "readBurst");
+            readSustained = positive(sustained, "readSustained");
+            readConcurrent = positive(concurrent, "readConcurrent");
+            return this;
+        }
+
+        public Builder write(int burst, int sustained, int concurrent) {
+            writeBurst = positive(burst, "writeBurst");
+            writeSustained = positive(sustained, "writeSustained");
+            writeConcurrent = positive(concurrent, "writeConcurrent");
+            return this;
+        }
+
+        public Builder admin(int burst, int sustained, int concurrent) {
+            adminBurst = positive(burst, "adminBurst");
+            adminSustained = positive(sustained, "adminSustained");
+            adminConcurrent = positive(concurrent, "adminConcurrent");
+            return this;
+        }
+
+        public Builder shutdown(int cap, long cooldown) {
+            shutdownCap = positive(cap, "shutdownCap");
+            shutdownCooldownMs = positive(cooldown, "shutdownCooldownMs");
+            return this;
+        }
+
+        public Builder delete(int cap, long cooldown) {
+            deleteCap = positive(cap, "deleteCap");
+            deleteCooldownMs = positive(cooldown, "deleteCooldownMs");
+            return this;
+        }
+
+        public Builder upload(int cap, long cooldown) {
+            uploadCap = positive(cap, "uploadCap");
+            uploadCooldownMs = positive(cooldown, "uploadCooldownMs");
+            return this;
+        }
+
+        public Builder abuseScoreBlockThreshold(int v) {
+            abuseScoreBlockThreshold = positive(v, "abuseScoreBlockThreshold");
+            return this;
+        }
+
+        public Builder rateLimitWindows(long window, long sustained) {
+            rateLimitWindowMs = positive(window, "rateLimitWindowMs");
+            rateLimitSustainedWindowMs = positive(sustained, "rateLimitSustainedWindowMs");
+            return this;
+        }
+
+        public Builder destructiveTools(Set<String> tools) {
+            destructiveTools = tools == null ? new LinkedHashSet<String>() : new LinkedHashSet<>(tools);
+            return this;
+        }
+
+        public RateLimits build() {
+            return new RateLimits(this);
+        }
+
+        private static int positive(int v, String name) {
+            if (v <= 0) throw new IllegalArgumentException(name + " must be positive");
+            return v;
+        }
+
+        private static long positive(long v, String name) {
+            if (v <= 0) throw new IllegalArgumentException(name + " must be positive");
+            return v;
+        }
     }
 }

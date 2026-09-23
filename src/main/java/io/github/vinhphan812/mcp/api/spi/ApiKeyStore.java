@@ -7,7 +7,7 @@ package io.github.vinhphan812.mcp.api.spi;
  * {@link #rotateKey()}, and {@link #setKey(String)} methods.
  */
 public interface ApiKeyStore {
-    /** 
+    /**
      * Returns the currently active API key. 
      * @return the currently active API key
      */
@@ -16,13 +16,13 @@ public interface ApiKeyStore {
     /** Rotates to the next API key. */
     void rotateKey();
 
-    /** 
+    /**
      * Sets a specific API key. 
      * @param key the API key to set
      */
     void setKey(String key);
 
-    /** 
+    /**
      * Validates an API key. 
      * @param key the API key to validate
      * @return true if valid, false otherwise

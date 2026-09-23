@@ -33,5 +33,6 @@ public final class McpSecurityDefaults {
     public static final int ABUSE_SCORE_BLOCK_THRESHOLD = 10;
     public static final int ABUSE_SCORE_DECAY_PER_MINUTE = 1;
 
-    private McpSecurityDefaults() {}
+    private McpSecurityDefaults() {
+    }
 }
