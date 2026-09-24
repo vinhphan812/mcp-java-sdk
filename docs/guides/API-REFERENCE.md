@@ -42,8 +42,8 @@ io.github.vinhphan812.mcp
 │   ├── McpRegistry         — tool/resource/prompt/task registry
 │   └── McpProtocolHandler  — JSON-RPC protocol dispatcher
 └── transport/
-    ├── GrizzlyStreamableServerTransportProvider — HTTP server lifecycle
-    └── McpGrizzlyHandler   — HTTP request handler
+    ├── HttpTransportProvider — HTTP server lifecycle
+    └── McpHttpHandler   — HTTP request handler
 
 ```
 
@@ -516,9 +516,9 @@ String prompt = caps.getSamplingPrompt();
 
 ## Transport
 
-### `GrizzlyStreamableServerTransportProvider`
+### `HttpTransportProvider`
 
-Provides `McpGrizzlyHandler` lifecycle management.
+Provides `McpHttpHandler` lifecycle management.
 
 | Method            | Description                                         |
 |-------------------|-----------------------------------------------------|
@@ -527,11 +527,11 @@ Provides `McpGrizzlyHandler` lifecycle management.
 | `isRunning()`     | `true` if the server is accepting connections       |
 | `getActualPort()` | Returns the actual port (useful with ephemeral `0`) |
 | `getUrl()`        | Returns the server URL when running                 |
-| `getHandler()`    | Returns the `McpGrizzlyHandler` instance            |
+| `getHandler()`    | Returns the `McpHttpHandler` instance            |
 
-### `McpGrizzlyHandler`
+### `McpHttpHandler`
 
-Internal transport handler. Access via `GrizzlyStreamableServerTransportProvider.getHandler()`.
+Internal transport handler. Access via `HttpTransportProvider.getHandler()`.
 
 ---
 
@@ -539,7 +539,7 @@ Internal transport handler. Access via `GrizzlyStreamableServerTransportProvider
 
 ### `McpProtocolHandler`
 
-Protocol dispatch layer. Access via `McpServer` or through `McpGrizzlyHandler`.
+Protocol dispatch layer. Access via `McpServer` or through `McpHttpHandler`.
 
 | Method                                  | Description                                  |
 |-----------------------------------------|----------------------------------------------|

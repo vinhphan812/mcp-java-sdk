@@ -2,23 +2,33 @@
 
 **Status:** Accepted
 **Date:** 2026-09-01
+**Updated:** 2026-09-23
 **Authors:** MCP Java SDK team
 
 ## Context
 
-The SDK provides an MCP server that communicates over HTTP using the Model Context Protocol Streamable HTTP transport.
-Grizzly was chosen because it supports Java 8 and does not require external native dependencies. However, Grizzly is a
-server-oriented dependency; it may not be suitable for all runtime environments, particularly Android.
+The SDK provides an MCP server that communicates over HTTP using the Model Context Protocol. Grizzly was chosen
+because it supports Java 8 and does not require external native dependencies. However, Grizzly is a server-oriented
+dependency; it may not be suitable for all runtime environments, particularly Android.
 
 ## Decision
 
-The `transport/` package is isolated from `core/`. The `McpServer` composes:
+The `transport/` package is isolated from `core/`. The architecture consists of:
+
+- **`HttpTransportProvider`** — public entry point, `AutoCloseable`. Exposes a builder API for configuration
+  (host, port, endpoint, API key, CORS, transport mode). Creates and manages the Grizzly HTTP server lifecycle.
+- **`McpHttpHandler`** — HTTP adapter (extends Grizzly `HttpHandler`). Handles POST (JSON-RPC), GET (SSE replay),
+  and DELETE (session close) at the Grizzly layer. Delegates to `McpProtocolHandler` for protocol logic.
+- **`McpGrizzlyHandler`** — legacy HTTP adapter (extends Grizzly `HttpHandler`). Kept for backward compatibility
+  but **`HttpTransportProvider` uses `McpHttpHandler` by default**.
+- **`TransportMode`** — enum selecting between `AUTO` (protocol-driven), `HTTP_SSE` (legacy dual-endpoint),
+  and `STREAMABLE_HTTP` (modern single-endpoint).
 
 ```mermaid
 graph TD
     subgraph application["Application"]
         Server["McpServer"]
-        Provider["GrizzlyStreamableServerTransportProvider"]
+        Provider["HttpTransportProvider"]
     end
 
     subgraph core["core/ (transport-neutral)"]
@@ -27,13 +37,17 @@ graph TD
     end
 
     subgraph transport["transport/ (Grizzly-specific)"]
-        GrizzlyHandler["McpGrizzlyHandler<br/>(HTTP adapter)"]
+        HttpHandler["McpHttpHandler<br/>(main HTTP adapter)"]
+        GrizzlyHandler["McpGrizzlyHandler<br/>(legacy adapter)"]
         GrizzlyServer["Grizzly HTTP Server"]
     end
 
     Server --> Registry
     Server --> Protocol
     Server --> Provider
+    Provider --> HttpHandler
+    HttpHandler --> Protocol
+    HttpHandler --> GrizzlyServer
     Provider --> GrizzlyHandler
     GrizzlyHandler --> Protocol
     GrizzlyHandler --> GrizzlyServer
@@ -43,25 +57,34 @@ graph TD
     classDef application fill:#e3f2fd,stroke:#1565c0
     classDef protocol fill:#f3e5f5,stroke:#7b1fa2
     class Registry,Protocol core
-    class GrizzlyHandler,GrizzlyServer transport
+    class HttpHandler,GrizzlyHandler,GrizzlyServer transport
     class Server,Provider application
 ```
 
 The public `McpRegistrar` SPI is the boundary between application code and the protocol layer. Any transport
 implementation can consume the same registry and protocol handler without importing Grizzly.
 
-## Request/response flow
+## Class Reference
+
+| Class | Package | Role |
+|-------|---------|------|
+| `HttpTransportProvider` | `transport/` | Public entry point, builder API, server lifecycle |
+| `McpHttpHandler` | `transport/` | Main HTTP adapter (POST/GET/DELETE); SSE streaming in `handleGet()` |
+| `McpGrizzlyHandler` | `transport/` | Legacy HTTP adapter; kept for backward compatibility |
+| `TransportMode` | `transport/` | Enum: `AUTO`, `HTTP_SSE`, `STREAMABLE_HTTP` |
+
+## Request/response flow (McpHttpHandler)
 
 ```mermaid
 sequenceDiagram
     participant C as MCP Client
     participant G as Grizzly HTTP<br/>Server
-    participant H as McpGrizzlyHandler<br/>(transport/)
+    participant H as McpHttpHandler<br/>(transport/)
     participant P as McpProtocolHandler<br/>(core/)
     participant R as McpRegistry
 
-    Note over C,G: POST /mcp — JSON-RPC request
-    C->>G: HTTP POST /mcp<br/>Content-Type: application/json
+    Note over C,G: POST /endpoint — JSON-RPC request
+    C->>G: HTTP POST /endpoint<br/>Content-Type: application/json
     G->>H: HTTP request
     H->>H: Parse HTTP headers,<br/>extract body & sessionId
     H->>P: handleRequestResponse(body, sessionId)
@@ -74,36 +97,35 @@ sequenceDiagram
     P-->>H: McpResponse
     H->>H: Wrap in HTTP 200
     H-->>G: HTTP response
-    G-->>C: HTTP 200<br/>Mcp-Session-Id: <id>
+    G-->>C: HTTP 200<br/>Mcp-Session-Id: &lt;id&gt;
 
-    Note over C,G: SSE — Server-sent notifications
-    Note over C: GET /mcp with<br/>Accept: text/event-stream
-    C->>G: HTTP GET /mcp<br/>Accept: text/event-stream<br/>Mcp-Session-Id: <id>
+    Note over C,G: GET /endpoint — SSE event stream
+    C->>G: HTTP GET /endpoint<br/>Accept: text/event-stream<br/>Mcp-Session-Id: &lt;id&gt;<br/>Last-Event-ID: &lt;id&gt;
     G->>H: HTTP request
+    H->>H: Validate session,<br/>extract Last-Event-ID
     H->>P: handleServerSentEvent(sessionId)
-    P-->>H: SSE event stream
+    P-->>H: SSE event stream (id, data, retry)
     loop Every notification
         P-->>H: Event data
-        H-->>G: data: <json>\n\n
+        H-->>G: data: &lt;json&gt;\n\n
         G-->>C: SSE frame
     end
 ```
 
 ### Flow explanation
 
-| Step | Layer        | What happens                                                            |
-|------|--------------|-------------------------------------------------------------------------|
-| 1    | `transport/` | `GrizzlyServer` receives HTTP request                                   |
-| 2    | `transport/` | `McpGrizzlyHandler` parses HTTP: headers, body, session ID              |
-| 3    | `core/`      | `McpProtocolHandler` parses JSON-RPC envelope, routes by method         |
-| 4    | `core/`      | `McpRegistry` looks up the registered tool, resource, or prompt handler |
-| 5    | `core/`      | Handler executes; result is a `Map<String, Object>`                     |
-| 6    | `core/`      | `McpProtocolHandler` wraps result in a JSON-RPC 2.0 response            |
-| 7    | `transport/` | `McpGrizzlyHandler` wraps `McpResponse` in an HTTP response             |
-| 8    | `transport/` | `GrizzlyServer` sends HTTP response to client                           |
+| Step | Layer | What happens |
+|------|-------|--------------|
+| 1 | `transport/` | `GrizzlyServer` receives HTTP request |
+| 2 | `transport/` | `McpHttpHandler` parses HTTP: headers, body, session ID |
+| 3 | `core/` | `McpProtocolHandler` parses JSON-RPC envelope, routes by method |
+| 4 | `core/` | `McpRegistry` looks up the registered tool, resource, or prompt handler |
+| 5 | `core/` | Handler executes; result is a `Map<String, Object>` |
+| 6 | `core/` | `McpProtocolHandler` wraps result in a JSON-RPC 2.0 response |
+| 7 | `transport/` | `McpHttpHandler` wraps `McpResponse` in an HTTP response |
+| 8 | `transport/` | `GrizzlyServer` sends HTTP response to client |
 
-For SSE, `McpGrizzlyHandler` calls `handleServerSentEvent` which streams `data: <json>\n\n` frames
-back through the Grizzly server to the client.
+For SSE, `McpHttpHandler.handleGet()` streams `data: <json>\n\n` frames through the Grizzly server to the client.
 
 ## Consequences
 
@@ -112,8 +134,8 @@ back through the Grizzly server to the client.
 - A consumer can replace Grizzly with STDIO, Netty, a custom HTTP server, or an Android-specific transport by providing
   an alternative adapter that consumes `McpRegistrar`.
 - The `core/` package is transport-neutral and can be tested in isolation.
-- The Grizzly transport is pluggable: it is constructed and injected by `McpServer`, not hard-coded into the protocol
-  handler.
+- The HTTP transport is pluggable: `HttpTransportProvider` is constructed and injected by `McpServer`, not hard-coded into the protocol handler.
+- The `TransportMode` enum allows gradual migration from legacy HTTP+SSE to modern Streamable HTTP.
 
 **Negative:**
 

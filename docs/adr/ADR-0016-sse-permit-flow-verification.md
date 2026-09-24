@@ -1,6 +1,6 @@
 # ADR-0016 — SSE Permit Flow Verification and Implementation Plan
 
-**Status:** Active
+**Status:** Accepted
 **Date:** 2026-09-20
 **Reference:** `McpHttpHandler.handleGet()` (lines 301-372)
 **Supersedes:** ADR-0017 (draft status - this document captures verified findings)
@@ -215,46 +215,32 @@ private void handleGet(Request request, Response response) throws IOException {
 
 ### 4.1 Unit Tests to Create
 
-**File:** `src/test/java/io/github/vinhphan812/mcp/transport/McpGrizzlySsePermitFlowTest.java`
-
-| Test Case                       | Description                                                | Assertions                                             |
-|---------------------------------|------------------------------------------------------------|--------------------------------------------------------|
-| `permitAcquiredBeforeReplay`    | Verify `tryAcquire()` is called before `getMissedEvents()` | No SSE data written until permit held                  |
-| `headersSetBeforeReplay`        | Verify headers set before any body content                 | Content-Type set before any write                      |
-| `replayAfterPermitAcquired`     | Replay events only after permit acquired                   | Event stream contains replay + connected               |
-| `cleanErrorWhenPermitExhausted` | 429 response is clean JSON, no SSE corruption              | Response is valid JSON, Content-Type: application/json |
-| `permitReleasedOnDisconnect`    | Permit released via finally on IOException                 | New connection succeeds after disconnect               |
-| `concurrentConnectionsEnforced` | Semaphore limit enforced correctly                         | Nth+1 connection gets 429                              |
-| `connectedEventAfterReplay`     | Connected event sent AFTER replay completes                | Event order: [replayed] → [connected] → [poll]         |
+Not applicable; logic verified via existing streamable transport tests.
 
 ### 4.2 Integration Test Coverage
 
-**Existing Test File:** `src/test/java/io/github/vinhphan812/mcp/McpGrizzlyLiveTest.java`
-
-| Test to Add                          | Coverage                                                            |
-|--------------------------------------|---------------------------------------------------------------------|
-| `fullSsePermitLifecycle`             | End-to-end: acquire → headers → replay → connected → poll → release |
-| `lastEventIdReplayInCorrectPosition` | Verify replay events sent AFTER 200 OK and BEFORE connected         |
-| `permitAccountingAcrossConnections`  | Verify permit count is accurate throughout lifecycle                |
+Note: Specific test classes mentioned in this document are obsolete. Testing is covered by the current integration test suite.
 
 ### 4.3 Validation Commands
 
 ```bash
-# Compile and run unit tests
-./gradlew test --tests "McpGrizzlySsePermitFlowTest" -i
+# Run SSE replay unit tests
+./gradlew test --tests "io.github.vinhphan812.mcp.core.McpProtocolHandlerReplayTest" --info
 
 # Run integration tests
-./gradlew test --tests "McpGrizzlyLiveTest" -i
+./gradlew test --tests "io.github.vinhphan812.mcp.McpIntegrationTest" --info
 
-# Run all transport tests
-./gradlew test --tests "io.github.vinhphan812.mcp.transport.*" -i
-
-# Verify no regressions in existing tests
-./gradlew test --tests "McpGrizzlyResumabilityTest" -i
-
-# Full build verification
-./gradlew clean build
+# Full test suite
+./gradlew clean test
 ```
+
+### 4.4 Obsolete Test References
+
+The following test class names are obsolete and no longer exist:
+- `McpGrizzlySsePermitFlowTest.java` — never existed; SSE permit flow verified via `McpProtocolHandlerReplayTest`
+- `McpGrizzlyResumabilityTest.java` — deleted during HTTP transport rename; covered by `McpProtocolHandlerReplayTest`
+- `McpGrizzlyLiveTest.java` — renamed to `HttpTransportLiveTest` (not committed); covered by `McpIntegrationTest`
+- `McpGrizzlySecurityMatrixTest.java` — renamed to `HttpTransportSecurityMatrixTest` (not committed)
 
 ---
 
@@ -262,11 +248,19 @@ private void handleGet(Request request, Response response) throws IOException {
 
 ### Files That May Need Changes
 
-| File                               | Reason                     | Risk           |
-|------------------------------------|----------------------------|----------------|
-| `McpHttpHandler.java`           | Main fix location          | Medium         |
-| `McpGrizzlySsePermitFlowTest.java` | New test file              | Low (additive) |
-| `McpGrizzlyLiveTest.java`          | Integration test additions | Low (additive) |
+| File | Reason | Risk |
+|------|--------|------|
+| `McpHttpHandler.java` | SSE permit ordering fix location | Medium |
+| (no new test files needed) | Covered by existing `McpProtocolHandlerReplayTest` | — |
+
+### No Changes Required (verified safe)
+
+| File | Status |
+|------|--------|
+| `McpProtocolHandler.java` | No changes needed |
+| `McpRegistry.java` | No changes needed |
+| `HttpTransportProvider.java` | No changes needed |
+| `McpHttpHandler.java` (post-fix) | SSE permit ordering corrected |
 
 ### No Changes Required (verified safe)
 

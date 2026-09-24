@@ -7,7 +7,7 @@
 ## Overview
 
 This document specifies integration tests for validating the correct behavior of SSE connection permit management and
-streaming in `McpGrizzlyHandler.handleGet()`. The tests verify the 7-step flow defined in ADR-0017.
+streaming in `McpHttpHandler.handleGet()`. The tests verify the 7-step flow defined in ADR-0017.
 
 ---
 
@@ -24,7 +24,7 @@ src/test/java/io/github/vinhphan812/mcp/transport/
 
 - JUnit 5
 - Grizzly HTTP Server (for test transport)
-- McpGrizzlyHandler (under test)
+- McpHttpHandler (under test)
 - McpProtocolHandler + McpRegistry
 
 ---
@@ -46,7 +46,7 @@ void permitReleasedOnNormalConnectionClose() throws Exception
 ### Setup
 
 1. Create McpProtocolHandler with McpRegistry
-2. Create McpGrizzlyHandler with custom maxSseConnections=2
+2. Create McpHttpHandler with custom maxSseConnections=2
 3. Start Grizzly transport on available port
 4. Initialize a session via POST /mcp with initialize request
 
@@ -72,7 +72,7 @@ void permitReleasedOnNormalConnectionClose() throws Exception
 Use reflection to check `sseConnections.availablePermits()` after closing:
 
 ```java
-Field field = McpGrizzlyHandler.class.getDeclaredField("sseConnections");
+Field field = McpHttpHandler.class.getDeclaredField("sseConnections");
 field.setAccessible(true);
 Semaphore semaphore = (Semaphore) field.get(handler);
 assertEquals(2, semaphore.availablePermits()); // Should be 2 (max - used)
@@ -201,7 +201,7 @@ void concurrentConnectionHandlingWithMultipleClients() throws Exception
 
 ### Setup
 
-- Create McpGrizzlyHandler with maxSseConnections=2 (small limit for testing)
+- Create McpHttpHandler with maxSseConnections=2 (small limit for testing)
 - Create multiple session IDs (one per client)
 
 ### Test Steps
@@ -350,7 +350,7 @@ void fullConnectionLifecycle() throws Exception
 ### Helper: Create Session
 
 ```java
-private String createSession(GrizzlyStreamableServerTransportProvider transport) throws Exception {
+private String createSession(HttpTransportProvider transport) throws Exception {
     String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\","
             + "\"params\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{},"
             + "\"clientInfo\":{\"name\":\"test\",\"version\":\"1\"}}}";

@@ -9,7 +9,7 @@
 
 ## Overview
 
-This document provides a comprehensive validation plan to verify the SSE fix for `McpGrizzlyHandler.handleGet()`. The
+This document provides a comprehensive validation plan to verify the SSE fix for `McpHttpHandler.handleGet()`. The
 fix corrects the ordering of:
 
 1. Permit acquisition
@@ -268,7 +268,7 @@ For existing MCP server deployments:
 
 - ADR-0017: SSE Permit Acquisition and Response Flow
 - TEST-0001: SSE Connection Release and Streaming Test Specifications
-- Source: `McpGrizzlyHandler.java` (lines 301-372)
+- Source: `McpHttpHandler.java` (lines 301-372)
 
 ---
 

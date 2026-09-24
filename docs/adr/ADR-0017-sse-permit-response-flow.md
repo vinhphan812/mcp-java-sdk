@@ -1,19 +1,24 @@
 # ADR-0017 — SSE Permit Acquisition and Response Flow
 
-**Status:** Draft
+**Status:** Superseded by ADR-0016
 **Date:** 2026-09-20
-**Reference:** `McpGrizzlyHandler.handleGet()`
+**Reference:** `McpHttpHandler.handleGet()` (SSE management is in `McpHttpHandler`, not `McpGrizzlyHandler`)
+
+> **Note (2026-09-23):** This ADR is superseded. SSE permit ordering is implemented in `McpHttpHandler`
+> (the main HTTP adapter used by `HttpTransportProvider`). `McpGrizzlyHandler` is the legacy adapter.
+> See ADR-0016 for the current verified implementation status.
 
 ## Context
 
-The MCP Java SDK uses Server-Sent Events (SSE) for server-to-client notification streaming. The `McpGrizzlyHandler`
-class manages SSE connections using a `Semaphore` to limit concurrent connections (`DEFAULT_MAX_SSE_CONNECTIONS = 4`).
+The MCP Java SDK uses Server-Sent Events (SSE) for server-to-client notification streaming.
+`McpHttpHandler` (the main HTTP adapter) manages SSE connections using a permit-based approach to limit concurrent
+connections (`DEFAULT_MAX_SSE_CONNECTIONS = 4`).
 The current implementation has an ordering problem that causes resource leaks and incorrect behavior.
 
 ## Current Implementation (INCORRECT)
 
 ```java
-// Lines 301-372 in McpGrizzlyHandler.java
+// Lines 301-372 in McpHttpHandler.java
 private void handleGet(Request request, Response response) throws IOException {
     // 1. Validate request (origin, auth, session)
     if (isInvalidOrigin(request)) { ...}

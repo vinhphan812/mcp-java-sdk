@@ -1,6 +1,6 @@
 # Test Specification: Permit Exhaustion and 429 Response Behavior
 
-**Reference:** `McpGrizzlyHandler.handleGet()` (lines 301-372)
+**Reference:** `McpHttpHandler.handleGet()` (lines 301-372)
 **Date:** 2026-09-20
 **Status:** Draft
 **Parent ADR:** ADR-0017 — SSE Permit Acquisition and Response Flow
@@ -13,7 +13,7 @@ response output, ensuring clean error responses without body corruption.
 
 ## Background
 
-The SSE endpoint at `McpGrizzlyHandler.handleGet()` uses a `Semaphore` to limit concurrent connections (
+The SSE endpoint at `McpHttpHandler.handleGet()` uses a `Semaphore` to limit concurrent connections (
 `DEFAULT_MAX_SSE_CONNECTIONS = 4`). According to ADR-0017:
 
 1. Permits MUST be acquired BEFORE any response output
@@ -37,7 +37,7 @@ written. This ensures the error response is properly formatted.
 void429ResponseSentBeforeAnyBodyOutput() throws Exception {
     // 1. Setup server with max 1 concurrent SSE connection
     int maxConnections = 1;
-    GrizzlyStreamableServerTransportProvider transport = createTransport(maxConnections);
+    HttpTransportProvider transport = createTransport(maxConnections);
     transport.start();
 
     // 2. Initialize session
@@ -101,7 +101,7 @@ Verify that when permits are exhausted, the 429 response includes all required h
 @Test
 void429ResponseIncludesCorrectHeaders() throws Exception {
     // 1. Setup with max 2 connections
-    GrizzlyStreamableServerTransportProvider transport = createTransport(2);
+    HttpTransportProvider transport = createTransport(2);
     transport.start();
     String sessionId = createSession(transport);
 
@@ -194,7 +194,7 @@ attempting to replay missed events. This ensures:
 @Test
 void replayDoesNotHappenWhenPermitsExhausted() throws Exception {
     // 1. Setup with max 1 connection
-    GrizzlyStreamableServerTransportProvider transport = createTransport(1);
+    HttpTransportProvider transport = createTransport(1);
     transport.start();
     String sessionId = createSession(transport);
 
@@ -263,7 +263,7 @@ The CORRECT implementation:
 void replayDoesNotHappenWithRapidReconnection() throws Exception {
     // Test that even with rapid retry, replay never happens
     // when permits are exhausted
-    GrizzlyStreamableServerTransportProvider transport = createTransport(1);
+    HttpTransportProvider transport = createTransport(1);
     transport.start();
     String sessionId = createSession(transport);
     sendNotifications(transport, sessionId, 3);
@@ -300,7 +300,7 @@ to be accepted.
 @Test
 void permitReleasedOnConnectionClose() throws Exception {
     // 1. Setup with max 2 connections
-    GrizzlyStreamableServerTransportProvider transport = createTransport(2);
+    HttpTransportProvider transport = createTransport(2);
     transport.start();
     String sessionId = createSession(transport);
 
@@ -342,8 +342,8 @@ void permitReleasedOnConnectionClose() throws Exception {
 ### Helper: Get Semaphore via Reflection
 
 ```java
-private Semaphore getSseSemaphore(McpGrizzlyHandler handler) throws Exception {
-    Field field = McpGrizzlyHandler.class.getDeclaredField("sseConnections");
+private Semaphore getSseSemaphore(McpHttpHandler handler) throws Exception {
+    Field field = McpHttpHandler.class.getDeclaredField("sseConnections");
     field.setAccessible(true);
     return (Semaphore) field.get(handler);
 }
@@ -354,7 +354,7 @@ private Semaphore getSseSemaphore(McpGrizzlyHandler handler) throws Exception {
 ```java
 @Test
 void permitReleasedOnAbruptDisconnect() throws Exception {
-    GrizzlyStreamableServerTransportProvider transport = createTransport(2);
+    HttpTransportProvider transport = createTransport(2);
     transport.start();
     String sessionId = createSession(transport);
     Semaphore semaphore = getSseSemaphore(transport.getHandler());
@@ -384,7 +384,7 @@ void permitReleasedOnAbruptDisconnect() throws Exception {
 ```java
 @Test
 void permitReleasedOnSessionTermination() throws Exception {
-    GrizzlyStreamableServerTransportProvider transport = createTransport(2);
+    HttpTransportProvider transport = createTransport(2);
     transport.start();
     String sessionId = createSession(transport);
     Semaphore semaphore = getSseSemaphore(transport.getHandler());
@@ -442,7 +442,7 @@ This is ensured by the atomic `tryAcquire()` call happening BEFORE any response 
 @Test
 void noRaceConditionBetweenPermitCheckAndResponse() throws Exception {
     // Use 2 permits
-    GrizzlyStreamableServerTransportProvider transport = createTransport(2);
+    HttpTransportProvider transport = createTransport(2);
     transport.start();
     String sessionId = createSession(transport);
 
@@ -520,9 +520,9 @@ private static class ConnectionResult {
 ### Helper: Create Transport with Custom Limit
 
 ```java
-private GrizzlyStreamableServerTransportProvider createTransport(int maxConnections) {
+private HttpTransportProvider createTransport(int maxConnections) {
     McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry());
-    McpGrizzlyHandler grizzlyHandler = new McpGrizzlyHandler(
+    McpHttpHandler grizzlyHandler = new McpHttpHandler(
         handler,
         "/mcp",
         null, // no API key
@@ -530,7 +530,7 @@ private GrizzlyStreamableServerTransportProvider createTransport(int maxConnecti
         DEFAULT_MAX_REQUEST_BODY_BYTES,
         maxConnections
     );
-    return new GrizzlyStreamableServerTransportProvider(grizzlyHandler)
+    return new HttpTransportProvider(grizzlyHandler)
         .port(0)
         .endpoint("/mcp");
 }
@@ -539,11 +539,11 @@ private GrizzlyStreamableServerTransportProvider createTransport(int maxConnecti
 ### Helper: Get Handler from Transport
 
 ```java
-private McpGrizzlyHandler getHandler(GrizzlyStreamableServerTransportProvider transport) {
+private McpHttpHandler getHandler(HttpTransportProvider transport) {
     // Use reflection or add getter to transport class
-    Field field = GrizzlyStreamableServerTransportProvider.class.getDeclaredField("handler");
+    Field field = HttpTransportProvider.class.getDeclaredField("handler");
     field.setAccessible(true);
-    return (McpGrizzlyHandler) field.get(transport);
+    return (McpHttpHandler) field.get(transport);
 }
 ```
 
@@ -571,8 +571,8 @@ private McpGrizzlyHandler getHandler(GrizzlyStreamableServerTransportProvider tr
 ## References
 
 - ADR-0017: SSE Permit Acquisition and Response Flow
-- `McpGrizzlyHandler.handleGet()` (lines 301-372)
-- `McpGrizzlyHandler.writeError()` (lines 421-448)
+- `McpHttpHandler.handleGet()` (lines 301-372)
+- `McpHttpHandler.writeError()` (lines 421-448)
 - Test Spec: LAST-EVENT-ID-REPLAY-TEST-SPEC.md
 - Test: TEST-0001-sse-connection-release-streaming.md
 

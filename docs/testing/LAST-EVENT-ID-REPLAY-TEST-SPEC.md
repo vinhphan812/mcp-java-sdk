@@ -1,6 +1,6 @@
 # Test Specification: Last-Event-ID Replay Behavior
 
-**Reference:** `McpGrizzlyHandler.handleGet()` (lines 301-372)
+**Reference:** `McpHttpHandler.handleGet()` (lines 301-372)
 **Date:** 2026-09-20
 **Status:** Draft
 
@@ -11,7 +11,7 @@ functionality when a client reconnects with a `Last-Event-ID` header.
 
 ## Background
 
-The SSE endpoint at `McpGrizzlyHandler.handleGet()` supports client reconnection with event replay via the
+The SSE endpoint at `McpHttpHandler.handleGet()` supports client reconnection with event replay via the
 `Last-Event-ID` header. The implementation must ensure:
 
 1. Replay occurs AFTER response headers are properly set
@@ -38,7 +38,7 @@ void replayOccursAfterHeadersAreSet() throws Exception {
 
     // 2. Create handler wrapper that captures header state during replay
     HeaderTrackingHandler trackingHandler = new HeaderTrackingHandler(handler);
-    GrizzlyStreamableServerTransportProvider transport = new GrizzlyStreamableServerTransportProvider(trackingHandler)
+    HttpTransportProvider transport = new HttpTransportProvider(trackingHandler)
             .port(0).endpoint("/mcp");
     transport.start();
 
@@ -100,7 +100,7 @@ void replayOccursAfterPermitAcquired() throws Exception {
     int maxConnections = 2;
     McpProtocolHandler handler = createMockHandler();
 
-    GrizzlyStreamableServerTransportProvider transport = new GrizzlyStreamableServerTransportProvider(handler)
+    HttpTransportProvider transport = new HttpTransportProvider(handler)
             .port(0)
             .endpoint("/mcp")
             .maxSseConnections(maxConnections);
@@ -181,7 +181,7 @@ void onlyEventsAfterLastEventIdAreReplayed() throws Exception {
     // 1. Setup server with mock handler that records sent events
     RecordingMcpProtocolHandler handler = new RecordingMcpProtocolHandler();
 
-    GrizzlyStreamableServerTransportProvider transport = new GrizzlyStreamableServerTransportProvider(handler)
+    HttpTransportProvider transport = new HttpTransportProvider(handler)
             .port(0).endpoint("/mcp");
     transport.start();
 
@@ -259,7 +259,7 @@ void noDuplicateEventsOnReconnect() throws Exception {
     // 1. Setup server with event tracking per session
     TrackingMcpProtocolHandler handler = new TrackingMcpProtocolHandler();
 
-    GrizzlyStreamableServerTransportProvider transport = new GrizzlyStreamableServerTransportProvider(handler)
+    HttpTransportProvider transport = new HttpTransportProvider(handler)
             .port(0).endpoint("/mcp");
     transport.start();
 
@@ -403,5 +403,5 @@ class HeaderTrackingHandler extends McpProtocolHandler {
 ## References
 
 - ADR-0017: SSE Permit Acquisition and Response Flow
-- `McpGrizzlyHandler.handleGet()` (lines 301-372)
+- `McpHttpHandler.handleGet()` (lines 301-372)
 - SSE Specification: https://html.spec.whatwg.org/multipage/server-sent-events.html

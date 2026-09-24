@@ -1,6 +1,6 @@
 # ADR-0011 Follow-up — Configurable Rate Limits and Security Constants
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-14
 **Authors:** MCP Java SDK team
 **Supersedes:** Section "Configuration" in [ADR-0011-security-rate-limiting.md](./ADR-0011-security-rate-limiting.md)

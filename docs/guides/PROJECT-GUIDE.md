@@ -44,13 +44,13 @@ src/main/java/io/github/vinhphan812/mcp/
 ├── core/               Registry, protocol dispatch, server facade
 │   ├── McpServer, McpRegistry, McpProtocolHandler
 └── transport/          Grizzly HTTP adapter and lifecycle provider
-    ├── GrizzlyStreamableServerTransportProvider, McpGrizzlyHandler
+    ├── HttpTransportProvider, McpHttpHandler
 
 src/test/java/io/github/vinhphan812/mcp/
 └── Behaviour and live HTTP tests
 
 examples/src/main/java/.../examples/
-└── GrizzlyExample.java
+└── HttpExample.java
 
 docs/
 ├── guides/
@@ -143,7 +143,7 @@ flowchart TB
         Config["McpServerConfig"]
         Builder["McpServer.Builder"]
         Server["McpServer"]
-        TransportProvider["GrizzlyStreamableServerTransportProvider"]
+        TransportProvider["HttpTransportProvider"]
     end
 
     subgraph core["core/ (transport-neutral)"]
@@ -152,7 +152,7 @@ flowchart TB
     end
 
     subgraph transport["transport/ (Grizzly-specific)"]
-        Handler["McpGrizzlyHandler"]
+        Handler["McpHttpHandler"]
         GrizzlyServer["Grizzly HTTP Server"]
     end
 

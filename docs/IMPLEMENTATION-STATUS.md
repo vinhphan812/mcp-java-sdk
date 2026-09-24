@@ -34,8 +34,8 @@ McpLogger, JulMcpLogger"]
     end
 
     subgraph Trans["transport/"]
-        T["GrizzlyStreamableServerTransportProvider"]
-        H2["McpGrizzlyHandler"]
+        T["HttpTransportProvider"]
+        H2["McpHttpHandler"]
     end
 
     Annot -->|"@Tools/@Resources/@Prompts"| R

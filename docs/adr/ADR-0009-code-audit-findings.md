@@ -39,7 +39,7 @@ WORKING, FAILED, and CANCELLED states; it holds the value for COMPLETED.
 secret in the builder instance. Applications needing rotating secrets had no supported path.
 
 **Decision:** Add `apiKeySupplier(Supplier<String>)` to both
-`GrizzlyStreamableServerTransportProvider` and `McpServer.Builder`.
+`HttpTransportProvider` and `McpServer.Builder`.
 The plain `apiKey(String)` overload now delegates to `() -> value`.
 Application secrets must not be hard-coded; suppliers can read from environment
 variables or secret stores.
