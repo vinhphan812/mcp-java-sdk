@@ -60,11 +60,6 @@ public final class MainExample {
                 .experimental(experimental)
                 .resourceSubscriptions(true);
 
-        RateLimitExample.configure(configBuilder);
-        MiddlewareExample.configure(configBuilder);
-        ApiKeyStoreExample.configure(configBuilder);
-        AuthorizationExample.configure(configBuilder);
-
         McpServer server = McpServer.builder()
                 .registry(registry)
                 .config(configBuilder.build())

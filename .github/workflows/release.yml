@@ -20,9 +20,9 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
       - name: Test and build
-        run: ./gradlew clean test build --console=plain
+        run: ./gradlew test build --console=plain
       - name: Compile examples (release gate)
-        run: ./gradlew --no-daemon -p examples clean compileJava --console=plain
+        run: ./gradlew --no-daemon -p examples compileJava --console=plain
       - name: Publish to GitHub Packages
         run: ./gradlew publish --console=plain
         env:

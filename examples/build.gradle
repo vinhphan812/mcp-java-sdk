@@ -4,12 +4,12 @@ plugins {
 }
 
 application {
-    mainClass = 'io.github.vinhphan812.mcp.examples.GrizzlyExample'
+    mainClass = 'io.github.vinhphan812.mcp.examples.HttpExample'
 }
 
-def sdkJar = providers.gradleProperty('sdkJar')
-        .orElse('../build/libs/mcp-java-sdk-1.0-SNAPSHOT.jar')
-        .get()
+def sdkJar = project.findProperty('sdkJar') != null
+        ? project.property('sdkJar')
+        : '../build/libs/mcp-java-sdk-1.0-SNAPSHOT.jar'
 
 repositories {
     mavenCentral()
