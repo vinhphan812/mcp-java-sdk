@@ -20,9 +20,12 @@ import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.api.config.RateLimits;
 import io.github.vinhphan812.mcp.api.handler.McpToolHandler;
 import io.github.vinhphan812.mcp.api.handler.McpResourceHandler;
+import io.github.vinhphan812.mcp.api.utils.ConcurrencyHook;
 
+import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -59,6 +62,13 @@ class McpCategoryReservationTest {
      * Creates SEPARATE sessions for each category to isolate burst rate-limit state.
      */
     private static TestContext makeContext(int readCap, int writeCap, int adminCap) throws Exception {
+        return makeContext(readCap, writeCap, adminCap, null, null, null);
+    }
+
+    private static TestContext makeContext(int readCap, int writeCap, int adminCap,
+                                           ConcurrencyHook readHook,
+                                           ConcurrencyHook writeHook,
+                                           ConcurrencyHook adminHook) throws Exception {
         RateLimits limits = RateLimits.builder()
                 .maxConcurrentSessions(100)
                 .sessionTimeoutMs(Long.MAX_VALUE)
@@ -76,16 +86,16 @@ class McpCategoryReservationTest {
         // Register all tools so tests can use tools/call with explicit scopes
         registry.registerTool("readTool", "A read tool",
                 new java.util.LinkedHashMap<String, Object>(),
-                java.util.Arrays.asList("read"),
-                (McpToolHandler) params -> new java.util.LinkedHashMap<>());
+                java.util.Collections.<String>emptyList(), java.util.Arrays.asList("read"), false,
+                blockingHandler(readHook));
         registry.registerTool("writeTool", "A write tool",
                 new java.util.LinkedHashMap<String, Object>(),
-                java.util.Arrays.asList("write"),
-                (McpToolHandler) params -> java.util.Collections.emptyMap());
+                java.util.Collections.<String>emptyList(), java.util.Arrays.asList("write"), false,
+                blockingHandler(writeHook));
         registry.registerTool("adminTool", "An admin tool",
                 new java.util.LinkedHashMap<String, Object>(),
-                java.util.Arrays.asList("admin"),
-                (McpToolHandler) params -> new java.util.LinkedHashMap<>());
+                java.util.Collections.<String>emptyList(), java.util.Arrays.asList("admin"), false,
+                blockingHandler(adminHook));
         // Register a resource so resources/subscribe (write category) succeeds
         registry.registerResource("test://x", "Test Resource", "A test resource",
                 "text/plain",
@@ -138,7 +148,24 @@ class McpCategoryReservationTest {
         }
     }
 
-    /** Returns true when the body contains a successful JSON-RPC result (no error). */
+    private static McpToolHandler blockingHandler(final ConcurrencyHook hook) {
+        return new McpToolHandler() {
+            @Override
+            public Map<String, Object> call(Map<String, Object> params) throws Exception {
+                if (hook != null) {
+                    hook.blockIfAdmitted();
+                }
+                return new java.util.LinkedHashMap<String, Object>();
+            }
+        };
+    }
+
+    private static String toolCall(String id, String toolName) {
+        return "{\"jsonrpc\":\"2.0\",\"id\":\"" + id
+                + "\",\"method\":\"tools/call\",\"params\":{\"name\":\""
+                + toolName + "\"}}";
+    }
+
     private static boolean isAdmitted(String body) {
         if (body == null) return false;
         // Exclude -32029 (rate limit denied) and -32603 (internal error)
@@ -160,83 +187,37 @@ class McpCategoryReservationTest {
      */
     @org.junit.jupiter.api.Test
     void categoryCap_N_plus_1_denied_then_release_unblocks() throws Exception {
-        final int cap = 2;             // per-category cap
-        final int overflow = 1;         // extra thread beyond cap
-        final int total = cap + overflow;
-
-        TestContext ctx = makeContext(cap, cap, cap);
-
-        // Register one tool so tools/call has something to route
-        // Use explicit "read" scope to avoid burst rate-limit interference
-        ctx.registry.registerTool("testTool", "A test tool",
-                new java.util.LinkedHashMap<>(),
-                java.util.Arrays.asList("read"),
-                (McpToolHandler) params -> new java.util.LinkedHashMap<>());
+        final int cap = 2;
+        final ConcurrencyHook readHook = new ConcurrencyHook(cap);
+        final TestContext ctx = makeContext(cap, cap, cap, readHook, null, null);
+        final CountDownLatch completed = new CountDownLatch(cap);
+        final AtomicReference<Throwable> workerFailure = new AtomicReference<Throwable>();
+        final AtomicInteger successes = new AtomicInteger();
+        final ExecutorService executor = Executors.newFixedThreadPool(cap);
 
         try {
-            CountDownLatch done = new CountDownLatch(total);
-            AtomicInteger admitted = new AtomicInteger(0);
-            AtomicInteger denied = new AtomicInteger(0);
-            // Two barriers: one to force simultaneous entry (barrier1), one to force
-            // simultaneous release after entry so the overflow thread sees the cap full
-            CyclicBarrier barrier1 = new CyclicBarrier(total);
-            CyclicBarrier barrier2 = new CyclicBarrier(total);
+            submitCalls(executor, ctx, ctx.readSessionId, "readTool", "R", cap,
+                    completed, workerFailure, successes);
+            assertTrue(readHook.awaitEntered(10, TimeUnit.SECONDS),
+                    "Read cap calls did not enter their handlers");
 
-            Thread[] threads = new Thread[total];
-            for (int i = 0; i < total; i++) {
-                final int threadId = i;
-                threads[i] = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            // Wait for all threads to be ready
-                            barrier1.await();
-                        } catch (Exception e) {
-                            done.countDown();
-                            return;
-                        }
-                        try {
-                            String req = "{\"jsonrpc\":\"2.0\",\"id\":" + threadId
-                                    + ",\"method\":\"tools/call\",\"params\":{\"name\":\"testTool\"}}";
-                            McpProtocolHandler.McpResponse r =
-                                    ctx.handler.handleRequestResponse(req, ctx.readSessionId, null);
-                            if (isAdmitted(r.getBody())) {
-                                admitted.incrementAndGet();
-                            } else {
-                                denied.incrementAndGet();
-                            }
-                            // Wait here so the overflow thread definitely sees the cap full
-                            barrier2.await();
-                        } catch (Exception e) {
-                            // barrier2 may throw on overflow thread if fewer than total arrive
-                            denied.incrementAndGet();
-                        } finally {
-                            done.countDown();
-                        }
-                    }
-                });
-                threads[i].start();
-            }
-
-            assertTrue(done.await(10, TimeUnit.SECONDS),
-                    "All threads must complete within 10s");
-
-            // N admitted, 1 denied
-            assertEquals(cap, admitted.get(),
-                    "Exactly " + cap + " calls should be admitted; got " + admitted.get());
-            assertEquals(overflow, denied.get(),
-                    "Exactly " + overflow + " calls should be denied -32029; got " + denied.get());
-
-            // barrier2 has released all threads; slots are now free.
-            // One more call must succeed.
-            String req = "{\"jsonrpc\":\"2.0\",\"id\":999,\"method\":\"tools/call\","
-                    + "\"params\":{\"name\":\"testTool\"}}";
-            McpProtocolHandler.McpResponse r =
-                    ctx.handler.handleRequestResponse(req, ctx.readSessionId, null);
-            assertTrue(isAdmitted(r.getBody()),
-                    "After release, another request must be admitted; got: " + r.getBody());
+            assertOverflow(ctx, ctx.readSessionId, "readTool", "overflow");
         } finally {
-            ctx.handler.shutdown();
+            readHook.unblockAll();
+            try {
+                assertTrue(completed.await(10, TimeUnit.SECONDS),
+                        "Admitted calls did not complete after the hook was released");
+                assertNull(workerFailure.get(), "Admitted worker failed");
+                assertEquals(cap, successes.get(), "Exactly the cap calls must succeed");
+
+                McpProtocolHandler.McpResponse response = ctx.handler.handleRequestResponse(
+                        toolCall("after-release", "readTool"), ctx.readSessionId, null);
+                assertTrue(isAdmitted(response.getBody()),
+                        "After release, another request must be admitted: " + response.getBody());
+            } finally {
+                executor.shutdownNow();
+                ctx.handler.shutdown();
+            }
         }
     }
 
@@ -253,130 +234,90 @@ class McpCategoryReservationTest {
         final int readCap = 3;
         final int writeCap = 2;
         final int adminCap = 1;
-
-        TestContext ctx = makeContext(readCap, writeCap, adminCap);
-
-        // All tools (readTool, writeTool, adminTool) and test://x resource
-        // are already registered by makeContext. No duplicates needed.
+        final ConcurrencyHook readHook = new ConcurrencyHook(readCap);
+        final ConcurrencyHook writeHook = new ConcurrencyHook(writeCap);
+        final ConcurrencyHook adminHook = new ConcurrencyHook(adminCap);
+        final TestContext ctx = makeContext(readCap, writeCap, adminCap,
+                readHook, writeHook, adminHook);
+        final CountDownLatch completed = new CountDownLatch(readCap + writeCap + adminCap);
+        final AtomicReference<Throwable> workerFailure = new AtomicReference<Throwable>();
+        final AtomicInteger readSuccesses = new AtomicInteger();
+        final AtomicInteger writeSuccesses = new AtomicInteger();
+        final AtomicInteger adminSuccesses = new AtomicInteger();
+        final ExecutorService executor = Executors.newFixedThreadPool(readCap + writeCap + adminCap);
 
         try {
-            // Track admitted per category
-            AtomicInteger readAdmitted = new AtomicInteger(0);
-            AtomicInteger writeAdmitted = new AtomicInteger(0);
-            AtomicInteger adminAdmitted = new AtomicInteger(0);
-            AtomicInteger readDenied = new AtomicInteger(0);
-            AtomicInteger writeDenied = new AtomicInteger(0);
-            AtomicInteger adminDenied = new AtomicInteger(0);
+            submitCalls(executor, ctx, ctx.readSessionId, "readTool", "R", readCap,
+                    completed, workerFailure, readSuccesses);
+            submitCalls(executor, ctx, ctx.writeSessionId, "writeTool", "W", writeCap,
+                    completed, workerFailure, writeSuccesses);
+            submitCalls(executor, ctx, ctx.adminSessionId, "adminTool", "A", adminCap,
+                    completed, workerFailure, adminSuccesses);
 
-            // Common barrier so all calls start as close together as possible
-            int totalRead = readCap + 1;
-            int totalWrite = writeCap + 1;
-            int totalAdmin = adminCap + 1;
-            int total = totalRead + totalWrite + totalAdmin;
-            CyclicBarrier barrier = new CyclicBarrier(total);
-            CountDownLatch done = new CountDownLatch(total);
+            assertTrue(readHook.awaitEntered(10, TimeUnit.SECONDS),
+                    "Read cap calls did not enter their handlers");
+            assertTrue(writeHook.awaitEntered(10, TimeUnit.SECONDS),
+                    "Write cap calls did not enter their handlers");
+            assertTrue(adminHook.awaitEntered(10, TimeUnit.SECONDS),
+                    "Admin cap calls did not enter their handlers");
 
-            // Read threads
-            for (int i = 0; i < totalRead; i++) {
-                final int id = i;
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            barrier.await();
-                            String req = "{\"jsonrpc\":\"2.0\",\"id\":R" + id
-                                    + ",\"method\":\"tools/call\",\"params\":{\"name\":\"readTool\"}}";
-                            McpProtocolHandler.McpResponse r =
-                                    ctx.handler.handleRequestResponse(req, ctx.readSessionId, null);
-                            if (isAdmitted(r.getBody())) {
-                                readAdmitted.incrementAndGet();
-                            } else {
-                                readDenied.incrementAndGet();
-                            }
-                        } catch (Exception e) {
-                            readDenied.incrementAndGet();
-                        } finally {
-                            done.countDown();
-                        }
-                    }
-                }).start();
-            }
-
-            // Write threads (write category via tools/call with write scope)
-            for (int i = 0; i < totalWrite; i++) {
-                final int id = i;
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            barrier.await();
-                            String req = "{\"jsonrpc\":\"2.0\",\"id\":W" + id
-                                    + ",\"method\":\"tools/call\","
-                                    + "\"params\":{\"name\":\"writeTool\"}}";
-                            McpProtocolHandler.McpResponse r =
-                                    ctx.handler.handleRequestResponse(req, ctx.writeSessionId, null);
-                            if (isAdmitted(r.getBody())) {
-                                writeAdmitted.incrementAndGet();
-                            } else {
-                                writeDenied.incrementAndGet();
-                            }
-                        } catch (Exception e) {
-                            writeDenied.incrementAndGet();
-                        } finally {
-                            done.countDown();
-                        }
-                    }
-                }).start();
-            }
-
-            // Admin threads (admin category via tools/call with admin scope)
-            for (int i = 0; i < totalAdmin; i++) {
-                final int id = i;
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            barrier.await();
-                            String req = "{\"jsonrpc\":\"2.0\",\"id\":A" + id
-                                    + ",\"method\":\"tools/call\","
-                                    + "\"params\":{\"name\":\"adminTool\"}}";
-                            McpProtocolHandler.McpResponse r =
-                                    ctx.handler.handleRequestResponse(req, ctx.adminSessionId, null);
-                            if (isAdmitted(r.getBody())) {
-                                adminAdmitted.incrementAndGet();
-                            } else {
-                                adminDenied.incrementAndGet();
-                            }
-                        } catch (Exception e) {
-                            adminDenied.incrementAndGet();
-                        } finally {
-                            done.countDown();
-                        }
-                    }
-                }).start();
-            }
-
-            assertTrue(done.await(10, TimeUnit.SECONDS),
-                    "All category threads must complete within 10s");
-
-            // Each category admitted all threads because of double-increment bug in production
-            assertTrue(readAdmitted.get() >= readCap,
-                    "Read: expected at least " + readCap + " admitted; got " + readAdmitted.get());
-            assertEquals(0, readDenied.get(),
-                    "Read: expected 0 denied; got " + readDenied.get());
-
-            assertTrue(writeAdmitted.get() >= writeCap,
-                    "Write: expected at least " + writeCap + " admitted; got " + writeAdmitted.get());
-            assertEquals(0, writeDenied.get(),
-                    "Write: expected 0 denied; got " + writeDenied.get());
-
-            assertTrue(adminAdmitted.get() >= adminCap,
-                    "Admin: expected at least " + adminCap + " admitted; got " + adminAdmitted.get());
-            assertEquals(0, adminDenied.get(),
-                    "Admin: expected 0 denied; got " + adminDenied.get());
+            assertOverflow(ctx, ctx.readSessionId, "readTool", "RO");
+            assertOverflow(ctx, ctx.writeSessionId, "writeTool", "WO");
+            assertOverflow(ctx, ctx.adminSessionId, "adminTool", "AO");
         } finally {
-            ctx.handler.shutdown();
+            readHook.unblockAll();
+            writeHook.unblockAll();
+            adminHook.unblockAll();
+            try {
+                assertTrue(completed.await(10, TimeUnit.SECONDS),
+                        "Admitted calls did not complete after hooks were released");
+                assertNull(workerFailure.get(), "Admitted worker failed");
+                assertEquals(readCap, readSuccesses.get(), "Read cap calls must succeed");
+                assertEquals(writeCap, writeSuccesses.get(), "Write cap calls must succeed");
+                assertEquals(adminCap, adminSuccesses.get(), "Admin cap calls must succeed");
+            } finally {
+                executor.shutdownNow();
+                ctx.handler.shutdown();
+            }
         }
+    }
+
+    private static void submitCalls(ExecutorService executor, final TestContext ctx,
+                                    final String sessionId, final String toolName,
+                                    final String idPrefix, int count,
+                                    final CountDownLatch completed,
+                                    final AtomicReference<Throwable> workerFailure,
+                                    final AtomicInteger successes) {
+        for (int i = 0; i < count; i++) {
+            final String id = idPrefix + i;
+            executor.submit(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        McpProtocolHandler.McpResponse response =
+                                ctx.handler.handleRequestResponse(toolCall(id, toolName), sessionId, null);
+                        if (isAdmitted(response.getBody())) {
+                            successes.incrementAndGet();
+                        } else {
+                            workerFailure.compareAndSet(null,
+                                    new AssertionError("Expected admitted response for " + id + ": "
+                                            + response.getBody()));
+                        }
+                    } catch (Throwable t) {
+                        workerFailure.compareAndSet(null, t);
+                    } finally {
+                        completed.countDown();
+                    }
+                }
+            });
+        }
+    }
+
+    private static void assertOverflow(TestContext ctx, String sessionId, String toolName, String id) {
+        McpProtocolHandler.McpResponse response =
+                ctx.handler.handleRequestResponse(toolCall(id, toolName), sessionId, null);
+        assertTrue(response.getBody().contains("-32029"),
+                "Overflow " + toolName + " call must be denied: " + response.getBody());
     }
 
     // ==================== Test 3: Exception and early-return paths release slot ====================
