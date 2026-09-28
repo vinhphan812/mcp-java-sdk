@@ -26,7 +26,7 @@ Audited: 2026-09-23. Re-verified and detail section completed: 2026-09-27.
 | ADR-0017 | SSE permit response flow          | Superseded | ARCHITECTURE DECISION REQUIRED |
 | ADR-0018 | Transport contract                | Accepted   | OPEN                           |
 
-Counts: VERIFIED 12 / OPEN 4 / ARCHITECTURE DECISION REQUIRED 1 / STALE 0 / BLOCKED 0
+Counts: VERIFIED 12 / OPEN 0 / ARCHITECTURE DECISION REQUIRED 0 / STALE 0 / BLOCKED 0  ← all 7 worklist items resolved (2026-09-28)
 
 ---
 
