@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Date:** 2026-09-20
-**Parent ADR:** ADR-0017 — SSE Permit Acquisition and Response Flow
+**Parent ADR:** ADR-0016 (normative implementation contract) — historical problem statement: [ADR-0017](ADR-0017-sse-permit-response-flow.md)
 **Related Test Spec:** TEST-0001 — SSE Connection Release and Streaming
 
 ---

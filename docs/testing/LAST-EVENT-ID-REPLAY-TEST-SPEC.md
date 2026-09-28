@@ -3,6 +3,7 @@
 **Reference:** `McpHttpHandler.handleGet()` (lines 301-372)
 **Date:** 2026-09-20
 **Status:** Draft
+**Parent ADR:** ADR-0016 (normative implementation contract) — historical problem statement: [ADR-0017](ADR-0017-sse-permit-response-flow.md)
 
 ## Overview
 
@@ -402,6 +403,6 @@ class HeaderTrackingHandler extends McpProtocolHandler {
 
 ## References
 
-- ADR-0017: SSE Permit Acquisition and Response Flow
+- ADR-0016: SSE Permit Flow Verification and Implementation Plan — [ADR-0017](ADR-0017-sse-permit-response-flow.md) is the historical problem statement
 - `McpHttpHandler.handleGet()` (lines 301-372)
 - SSE Specification: https://html.spec.whatwg.org/multipage/server-sent-events.html

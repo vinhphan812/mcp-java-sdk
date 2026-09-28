@@ -221,7 +221,7 @@ When responding to legacy clients:
 | Phase 1 | Implement dual-mode detection + handlers | This ADR | **Completed** |
 | Phase 2 | Log deprecation warning for legacy mode | Next sprint | Pending |
 | Phase 3 | Add config flag to disable legacy | Future | Pending |
-| Phase 4 | Remove legacy (major version) | v2.0 | Planned |
+| Phase 4 | Remove legacy (major version) | v2.0 | Planned — open Q1/Q2/Q3 resolved 2026-09-28 |
 
 ### Implementation Status (2026-09-22)
 
@@ -244,18 +244,39 @@ The following phases have been completed:
 
 ## Open Questions
 
-1. **Session state cleanup**: With modern transport, how do we handle server-side state? Modern transport is stateless
-   per-request. Should we use external state (Redis) or retain in-memory session for backward compat only?
+### ~~Q1: Session state cleanup~~ — RESOLVED (Phase 4)
 
-2. **Subscription model**: Modern `subscriptions/listen` requires long-lived SSE streams on POST response. Does the
-   current SSE polling loop support this pattern, or is redesign needed?
+Modern Streamable HTTP transport uses the same server-side session model as legacy HTTP+SSE (sessions stored in
+`ConcurrentHashMap<String, SessionState>`) for security enforcement. Cleanup follows two paths:
 
-3. **Rate limiting**: Legacy uses per-session rate limits. Modern has no sessions. Should rate limiting differ between
-   modes?
+1. **Explicit**: `DELETE /mcp` → `handleDelete()` → `handler.terminateSession(sessionId)` (McpHttpHandler.java, lines 495-504). No `session/destroy` JSON-RPC method exists or is needed.
+2. **Idle timeout**: `McpProtocolHandler` runs a daemon cleanup thread every `sessionCleanupIntervalMs` (default 60 s). Sessions are removed when `now - lastActivity > sessionTimeoutMs` (default 5 min). `lastActivity` is refreshed on every inbound request. An abandoned client whose stream is killed without DELETE is cleaned up after 5 min of silence.
+
+**No source changes required.** The hybrid implementation (Phase 1-3) already reuses `McpProtocolHandler` for both transport modes, so session cleanup is shared.
+
+### ~~Q2: Subscription model~~ — RESOLVED (Phase 4)
+
+In modern Streamable HTTP transport, a subscription is tracked as a resource URI in `SessionState.subscriptions` (`ConcurrentHashSet<String>`). The SSE permit (`Semaphore sseConnections`, default 4) is a **network resource**, not a subscription model.
+
+Specifically: a client holding a POST SSE stream (`handlePostStreaming()`, lines 393-410) acquires one permit from `sseConnections`. The permit blocks **new SSE streams** from opening when all 4 slots are occupied — this is a network-capacity gate, not a subscription gate. Subscriptions (`resources/subscribe`) and SSE permits are **orthogonal**: a permit holder receives ALL pending notifications, not just those from its own subscriptions. The SSE permit limit is therefore a model of **network resource** (concurrent long-lived HTTP connections), not of **subscription count**.
+
+**No source changes required.** These semantics already hold in the Phase 3 implementation.
+
+### ~~Q3: Stateless Streamable HTTP rate limiting~~ — RESOLVED (Phase 4)
+
+Rate limiting in modern Streamable HTTP mode **inherits session rate limits unchanged**. The implementation is session-stateful at the protocol layer for both legacy and modern transport because:
+
+1. `McpProtocolHandler` is shared across both transport modes. `checkRateLimit()` applies both `ipRateLimits` (per client IP) and `sessionRateLimits` (per `Mcp-Session-Id`) on every non-initialize request.
+2. Modern transport creates sessions via `initialize` and attaches `Mcp-Session-Id` to all subsequent requests — the session exists even though the transport framing is per-request.
+3. Abuse scoring, concurrent session caps, and per-category rate limits are all session-scoped and apply uniformly.
+
+Rate limiting is **not** a function of transport framing but of session state. The security features added by ADR-0011/ADR-0012 require a session to associate rate counters, abuse scores, and destructive-tool caps — so the protocol layer is inherently session-stateful regardless of HTTP transport semantics.
+
+**No source changes required.** The existing `checkRateLimit()` path already covers both modes because both use `Mcp-Session-Id` and `handleRequestResponse()`. External stateless rate limiting (API gateway, CDN) is orthogonal and encouraged as a first line of defense; ADR-0011 already supports `trustXForwardedFor` for IP-based rate limiting that respects upstream proxies.
 
 ## References
 
 - [MCP Streamable HTTP Spec (draft)](https://modelcontextprotocol.io/specification/draft/basic/transports/streamable-http)
 - [MCP HTTP+SSE Transport (deprecated)](https://modelcontextprotocol.io/specification/2024-11-05/basic/transports#http-with-sse)
 - Current implementation: `McpHttpHandler.java`, `HttpTransportProvider.java`
-- Existing ADR: ADR-0017 (SSE permit ordering — still relevant for legacy mode)
+- SSE permit ordering contract: [ADR-0016](ADR-0016-sse-permit-flow-verification.md) (normative for legacy HTTP+SSE mode; [ADR-0017](ADR-0017-sse-permit-response-flow.md) is the historical problem statement)
