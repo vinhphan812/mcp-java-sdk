@@ -19,8 +19,6 @@ The `transport/` package is isolated from `core/` in the dependency direction, n
   (host, port, endpoint, API key, CORS, transport mode). Creates and manages the Grizzly HTTP server lifecycle.
 - **`McpHttpHandler`** — HTTP adapter (extends Grizzly `HttpHandler`). Handles POST (JSON-RPC), GET (SSE replay),
   and DELETE (session close) at the Grizzly layer. Delegates to `McpProtocolHandler` for protocol logic.
-- **`McpGrizzlyHandler`** — legacy HTTP adapter (extends Grizzly `HttpHandler`). Kept for backward compatibility
-  but **`HttpTransportProvider` uses `McpHttpHandler` by default**.
 - **`TransportMode`** — enum selecting between `AUTO` (protocol-driven), `HTTP_SSE` (legacy dual-endpoint),
   and `STREAMABLE_HTTP` (modern single-endpoint).
 
@@ -38,7 +36,6 @@ graph TD
 
     subgraph transport["transport/ (Grizzly-specific)"]
         HttpHandler["McpHttpHandler<br/>(main HTTP adapter)"]
-        GrizzlyHandler["McpGrizzlyHandler<br/>(legacy adapter)"]
         GrizzlyServer["Grizzly HTTP Server"]
     end
 
@@ -48,16 +45,13 @@ graph TD
     Provider --> HttpHandler
     HttpHandler --> Protocol
     HttpHandler --> GrizzlyServer
-    Provider --> GrizzlyHandler
-    GrizzlyHandler --> Protocol
-    GrizzlyHandler --> GrizzlyServer
 
     classDef core fill:#e8f5e9,stroke:#2e7d32
     classDef transport fill:#fff3e0,stroke:#e65100
     classDef application fill:#e3f2fd,stroke:#1565c0
     classDef protocol fill:#f3e5f5,stroke:#7b1fa2
     class Registry,Protocol core
-    class HttpHandler,GrizzlyHandler,GrizzlyServer transport
+    class HttpHandler,GrizzlyServer transport
     class Server,Provider application
 ```
 
@@ -71,7 +65,6 @@ transport adapters import core protocol contracts, but core does not import tran
 |-------|---------|------|
 | `HttpTransportProvider` | `transport/` | Public entry point, builder API, server lifecycle |
 | `McpHttpHandler` | `transport/` | Main HTTP adapter (POST/GET/DELETE); SSE streaming in `handleGet()` |
-| `McpGrizzlyHandler` | `transport/` | Legacy HTTP adapter; kept for backward compatibility |
 | `TransportMode` | `transport/` | Enum: `AUTO`, `HTTP_SSE`, `STREAMABLE_HTTP` |
 
 ## Request/response flow (McpHttpHandler)

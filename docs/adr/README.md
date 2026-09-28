@@ -54,7 +54,13 @@ flowchart LR
 | [ADR-0009](ADR-0009-code-audit-2026-09-11.md)                  | Code Audit Findings (2026-09-11)                                                | Accepted | 2026-09-11 |
 | [ADR-0010](ADR-0010-api-package-restructure.md)                | `api/` Package Restructure by Category                                          | Accepted | 2026-09-11 |
 | [ADR-0011](ADR-0011-security-rate-limiting.md)                 | Security and Rate Limiting (owner sessions, per-category limits, abuse scoring) | Accepted | 2026-09-14 |
-| [ADR-0011-follow-up](ADR-0011-follow-up-rate-limits-config.md) | Configurable RateLimits via McpServerConfig                                     | Proposed | 2026-09-14 |
+| [ADR-0012](ADR-0012-configurable-rate-limits.md)               | Configurable Rate Limits and Security Constants                                  | Accepted | 2026-09-14 |
+| [ADR-0013](ADR-0013-tls-strategy-analysis.md)                 | TLS Strategy: Reverse-Proxy-Only vs In-Process TLS                              | Accepted | 2026-09-20 |
+| [ADR-0014](ADR-0014-tls-transport-contract.md)                | TLS Transport Contract: Reverse-Proxy-Only Termination                          | Accepted | 2026-09-20 |
+| [ADR-0015](ADR-0015-concurrent-collection-strategy.md)        | Concurrent Collection Strategy for Registry                                      | Accepted | 2026-09-20 |
+| [ADR-0016](ADR-0016-sse-permit-flow-verification.md)         | SSE Permit Flow Verification and Implementation Plan                             | Accepted | 2026-09-20 |
+| [ADR-0017](ADR-0017-sse-permit-response-flow.md)              | SSE Permit Acquisition and Response Flow                                         | Superseded | 2026-09-20 |
+| [ADR-0018](ADR-0018-transport-contract-http-sse-vs-streamable-http.md) | Transport Contract: Legacy HTTP+SSE vs Modern Streamable HTTP            | Accepted | 2026-09-22 |
 
 ## When to create an ADR
 

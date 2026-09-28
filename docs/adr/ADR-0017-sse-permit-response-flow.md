@@ -3,7 +3,7 @@
 **Status:** Active — Normative for legacy HTTP+SSE mode
 **Date:** 2026-09-20
 **Last Updated:** 2026-09-28
-**Reference:** `McpHttpHandler.handleGet()` (SSE management is in `McpHttpHandler`, not `McpGrizzlyHandler`)
+**Reference:** `McpHttpHandler.handleGet()` (SSE management lives here)
 **Supersedes:** (none — prior to this ADR there was no written permit-ordering contract)
 
 > **Note (2026-09-28):** ADR-0017 is the normative contract for SSE permit ordering in legacy HTTP+SSE mode.
