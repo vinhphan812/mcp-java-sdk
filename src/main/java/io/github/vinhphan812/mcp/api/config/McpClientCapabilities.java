@@ -1,6 +1,6 @@
 package io.github.vinhphan812.mcp.api.config;
 
-import com.google.gson.Gson;
+import io.github.vinhphan812.mcp.api.utils.McpGson;
 
 import java.util.*;
 
@@ -12,8 +12,6 @@ import java.util.*;
  * type deliberately does not send elicitation requests or experimental methods.</p>
  */
 public final class McpClientCapabilities {
-
-    private static final Gson GSON = new Gson();
 
     /**
      * Elicitation capability properties.
@@ -46,7 +44,7 @@ public final class McpClientCapabilities {
      * @return JSON representation
      */
     public String toJson() {
-        return GSON.toJson(toMap());
+        return McpGson.get().toJson(toMap());
     }
 
     /**

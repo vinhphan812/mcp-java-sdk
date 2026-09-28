@@ -1,9 +1,9 @@
 package io.github.vinhphan812.mcp.api;
 
-import com.google.gson.Gson;
 import io.github.vinhphan812.mcp.annotations.*;
 import io.github.vinhphan812.mcp.api.handler.McpToolHandler;
 import io.github.vinhphan812.mcp.api.spi.McpRegistrar;
+import io.github.vinhphan812.mcp.api.utils.McpGson;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
@@ -16,7 +16,6 @@ import java.util.*;
  * generated registrar so discovery is deterministic and startup is cheaper.
  */
 public final class McpReflectionRegistrar {
-    private static final Gson GSON = new Gson();
 
     private McpReflectionRegistrar() {
     }
@@ -75,7 +74,7 @@ public final class McpReflectionRegistrar {
     private static Map<String, Object> parseOutputSchema(String json) {
         if (json == null || json.trim().isEmpty()) return null;
         try {
-            return GSON.fromJson(json, Map.class);
+            return McpGson.get().fromJson(json, Map.class);
         } catch (Exception e) {
             return null; // invalid JSON — skip schema
         }
@@ -293,15 +292,15 @@ public final class McpReflectionRegistrar {
         }
         // Array support: JSON array -> typed array (serialise to JSON then parse to target element type)
         if (target.isArray()) {
-            String json = GSON.toJson(raw);
-            return GSON.fromJson(json, target);
+            String json = McpGson.get().toJson(raw);
+            return McpGson.get().fromJson(json, target);
         }
         // Complex type support: deserialise any remaining JSON value to a POJO via Gson.
         // This handles @McpParam on user-defined classes (e.g. Address, Order, Config).
         // The raw value must be a Map or JSON-primitive; otherwise Gson throws which we let surface.
         try {
-            String json = GSON.toJson(raw);
-            return GSON.fromJson(json, target);
+            String json = McpGson.get().toJson(raw);
+            return McpGson.get().fromJson(json, target);
         } catch (Exception e) {
             // Gson failed — fall through to the typed error below.
         }
