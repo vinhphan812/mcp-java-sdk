@@ -27,6 +27,12 @@ import io.github.vinhphan812.mcp.api.logging.McpLogger;
 import io.github.vinhphan812.mcp.api.spi.McpAuthorization;
 import io.github.vinhphan812.mcp.api.spi.McpRegistrar;
 import io.github.vinhphan812.mcp.api.spi.McpRegistryChangeListener;
+import io.github.vinhphan812.mcp.api.utils.McpError;
+import io.github.vinhphan812.mcp.api.utils.McpErrorCodes;
+import io.github.vinhphan812.mcp.api.utils.McpException;
+import io.github.vinhphan812.mcp.api.utils.McpGson;
+import io.github.vinhphan812.mcp.api.utils.McpJsonRpc;
+import io.github.vinhphan812.mcp.api.utils.McpMethodNames;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -50,12 +56,10 @@ import java.util.regex.Pattern;
  * Security features (ADR-0011): owner-based sessions, per-category rate limiting,
  * destructive tool caps, abuse scoring, queue overflow handling, and authorization SPI.
  */
-@SuppressWarnings("unused")
 public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListener {
 
-    private static final String JSONRPC_VERSION = "2.0";
     private static final String SERVER_NAME = "mcp-java-sdk";
-    private static final String SERVER_VERSION = "1.0.0";
+    // JSON-RPC version and server version are in McpJsonRpc.
     private static final Logger LOGGER = Logger.getLogger(McpProtocolHandler.class.getName());
 
     private final Gson mapper;
@@ -69,79 +73,12 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     }
 
     // ==================== Security (ADR-0011) ====================
+    // Canonical values are defined in McpSecurityDefaults.
+    // Runtime values come from RateLimits (injected via McpServerConfig).
+    // McpProtocolHandler does NOT declare security defaults — it consumes them.
 
     private final McpAuthorization authorization;
     private final QueueOverflowListener overflowListener;
-
-    /** Maximum concurrent sessions per server. */
-    /** Maximum concurrent MCP sessions allowed on this server. */
-    public static final int MAX_CONCURRENT_SESSIONS = 10;
-
-    /** Session idle timeout in milliseconds (5 minutes). */
-    /** Session idle timeout in milliseconds before cleanup. */
-    public static final long SESSION_TIMEOUT_MS = 5 * 60 * 1000L;
-
-    /** Maximum pending notifications per session before triggering overflow. */
-    /** Maximum pending notifications per session before overflow is triggered. */
-    public static final int MAX_PENDING_NOTIFICATIONS_PER_SESSION = 100;
-
-    /** Max requests per IP per minute. */
-    /** Maximum requests per client IP per minute. */
-    public static final int MAX_REQUESTS_PER_IP_PER_MINUTE = 60;
-
-    /** Max requests per session per minute. */
-    /** Maximum requests per session per minute. */
-    public static final int MAX_REQUESTS_PER_SESSION_PER_MINUTE = 120;
-
-    /** Session cleanup interval in milliseconds. */
-    public static final long SESSION_CLEANUP_INTERVAL_MS_DEFAULT = 60 * 1000L;
-    /** Sliding request rate-limit window in milliseconds. */
-    public static final long RATE_LIMIT_WINDOW_MS_DEFAULT = 60 * 1000L;
-    /** Sustained rate-limit window in milliseconds. */
-    public static final long RATE_LIMIT_SUSTAINED_WINDOW_MS_DEFAULT = 5 * 60 * 1000L;
-
-    private static final long RATE_LIMIT_WINDOW_MS = RATE_LIMIT_WINDOW_MS_DEFAULT;
-    private static final long RATE_LIMIT_SUSTAINED_WINDOW_MS = RATE_LIMIT_SUSTAINED_WINDOW_MS_DEFAULT;
-
-    // Per-category limits
-    /** Burst limit for read operations per session per minute. */
-    public static final int CATEGORY_READ_BURST_LIMIT = 60;
-    /** Sustained limit for read operations per session per 5 minutes. */
-    public static final int CATEGORY_READ_SUSTAINED_LIMIT = 200;
-    /** Concurrent in-flight cap for read operations. */
-    public static final int CATEGORY_READ_CONCURRENT_CAP = 5;
-
-    /** Burst limit for write operations per session per minute. */
-    public static final int CATEGORY_WRITE_BURST_LIMIT = 30;
-    /** Sustained limit for write operations per session per 5 minutes. */
-    public static final int CATEGORY_WRITE_SUSTAINED_LIMIT = 100;
-    /** Concurrent in-flight cap for write operations. */
-    public static final int CATEGORY_WRITE_CONCURRENT_CAP = 3;
-
-    /** Burst limit for admin operations per session per minute. */
-    public static final int CATEGORY_ADMIN_BURST_LIMIT = 5;
-    /** Sustained limit for admin operations per session per 5 minutes. */
-    public static final int CATEGORY_ADMIN_SUSTAINED_LIMIT = 15;
-    /** Concurrent in-flight cap for admin operations. */
-    public static final int CATEGORY_ADMIN_CONCURRENT_CAP = 1;
-
-    // Destructive tool caps
-    /** Maximum lifetime calls to "shutdown" tool per session. */
-    public static final int DESTRUCTIVE_CAP_SHUTDOWN = 3;
-    /** Cool-down period for "shutdown" tool in milliseconds. */
-    public static final long DESTRUCTIVE_COOLDOWN_SHUTDOWN_MS = 10 * 60 * 1000L;
-    /** Maximum lifetime calls to "delete_action" / "delete_prompt" tools per session. */
-    public static final int DESTRUCTIVE_CAP_DELETE = 10;
-    /** Cool-down period for delete tools in milliseconds. */
-    public static final long DESTRUCTIVE_COOLDOWN_DELETE_MS = 2 * 60 * 1000L;
-    /** Maximum lifetime calls to "upload_file" tool per session. */
-    public static final int DESTRUCTIVE_CAP_UPLOAD = 5;
-    /** Cool-down period for "upload_file" tool in milliseconds. */
-    public static final long DESTRUCTIVE_COOLDOWN_UPLOAD_MS = 60 * 1000L;
-
-    /** Abuse score threshold for session blocking. */
-    /** Abuse score at or above which the session is blocked. */
-    public static final int ABUSE_SCORE_BLOCK_THRESHOLD = 10;
 
     private static final Set<String> DESTRUCTIVE_TOOLS = new HashSet<>(Arrays.asList(
             "shutdown", "delete_action", "delete_prompt",
@@ -150,8 +87,6 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private static final String CATEGORY_READ = "read";
     private static final String CATEGORY_WRITE = "write";
     private static final String CATEGORY_ADMIN = "admin";
-
-    private static final long SESSION_CLEANUP_INTERVAL_MS = 60 * 1000L;
 
     // Category rate-limit state (per session)
     static final class CategoryRateLimitState {
@@ -341,18 +276,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     /**
      * Thrown to signal a JSON-RPC error from within a handler method without a full stack trace.
      */
-    private static final class McpErrorException extends RuntimeException {
-        private final int code;
-
-        McpErrorException(int code, String message) {
-            super(message);
-            this.code = code;
-        }
-
-        int getCode() {
-            return code;
-        }
-    }
+    // McpErrorException was moved to io.github.vinhphan812.mcp.api.utils.McpException
 
     // ==================== Constructors ====================
 
@@ -392,7 +316,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                               McpAuthorization authorization) {
         if (registry == null) throw new IllegalArgumentException("registry cannot be null");
         if (config == null) throw new IllegalArgumentException("config cannot be null");
-        this.mapper = new Gson();
+        this.mapper = McpGson.get();
         this.registry = registry;
         this.config = config;
         this.applicationLogger = config.logger;
@@ -407,7 +331,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private static McpServerConfig defaultConfig() {
         return McpServerConfig.builder()
                 .serverName(SERVER_NAME)
-                .serverVersion(SERVER_VERSION)
+                .serverVersion(McpJsonRpc.SERVER_VERSION)
                 .build();
     }
 
@@ -466,7 +390,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
      */
     public boolean supportsProtocolVersion(String version) {
         return version == null || config.protocolVersion.equals(version)
-                || "2025-06-18".equals(version) || "2025-03-26".equals(version);
+                || McpJsonRpc.PROTOCOL_VERSION_LEGACY.equals(version)
+                || McpJsonRpc.PROTOCOL_VERSION.equals(version);
     }
 
     /**
@@ -584,8 +509,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         try {
             Map<String, Object> request = mapper.fromJson(requestBody, new TypeToken<Map<String, Object>>() {
             }.getType());
-            if (request == null || !JSONRPC_VERSION.equals(request.get("jsonrpc"))) {
-                return new McpResponse(errorResponse(null, -32600, "Invalid Request: jsonrpc must be 2.0"), sessionId);
+            if (request == null || !McpJsonRpc.VERSION.equals(request.get("jsonrpc"))) {
+                return new McpResponse(errorResponse(null, McpError.invalidRequestPrefix("jsonrpc must be 2.0")), sessionId);
             }
             Object methodValue = request.get("method");
             method = methodValue instanceof String ? (String) methodValue : null;
@@ -594,35 +519,32 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             boolean notification = !request.containsKey("id");
 
             if (method == null) {
-                return new McpResponse(errorResponse(id, -32600,
-                        "Invalid Request: missing method"), sessionId);
+                return new McpResponse(errorResponse(id, McpError.invalidRequestPrefix("missing method")), sessionId);
             }
 
             applicationLogger.debug("Handling MCP request: " + method);
 
             // Check max concurrent sessions for initialize
-            if ("initialize".equals(method) && sessions.size() >= rateLimits.maxConcurrentSessions) {
-                return new McpResponse(errorResponse(id, -32029,
-                        "Too Many Requests: max concurrent sessions reached"), sessionId);
+            if (McpMethodNames.INITIALIZE.equals(method) && sessions.size() >= rateLimits.maxConcurrentSessions) {
+                return new McpResponse(errorResponse(id, McpError.rateLimitExceeded("max concurrent sessions reached")), sessionId);
             }
 
             if (!isSessionOptional(method) && !hasSession(sessionId)) {
-                return new McpResponse(errorResponse(id, -32001,
-                        "Missing or invalid MCP session"), sessionId);
+                return new McpResponse(errorResponse(id, McpError.of(McpErrorCodes.RESULT_NOT_COMPLETE,
+                        "Missing or invalid MCP session")), sessionId);
             }
 
             // Check rate limits (IP + session)
             String rateLimitError = checkRateLimit(clientIp, sessionId, method);
             if (rateLimitError != null) {
-                return new McpResponse(errorResponse(id, -32029,
-                        "Too Many Requests: " + rateLimitError), sessionId);
+                return new McpResponse(errorResponse(id, McpError.rateLimitExceeded(rateLimitError)), sessionId);
             }
 
             // Check category rate limits for all methods
             toolScopes = null;
             if (!isSessionOptional(method) && hasSession(sessionId)) {
                 // Extract tool scopes for tools/call
-                if ("tools/call".equals(method) && params instanceof Map) {
+                if (McpMethodNames.TOOLS_CALL.equals(method) && params instanceof Map) {
                     Map<String, Object> toolParams = (Map<String, Object>) params;
                     String toolName = toolParams.get("name") instanceof String
                             ? (String) toolParams.get("name") : null;
@@ -635,8 +557,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 }
                 String categoryRateLimitError = checkMethodRateLimit(sessionId, method, toolScopes);
                 if (categoryRateLimitError != null) {
-                    return new McpResponse(errorResponse(id, -32029,
-                            "Too Many Requests: " + categoryRateLimitError), sessionId);
+                    return new McpResponse(errorResponse(id, McpError.rateLimitExceeded(categoryRateLimitError)), sessionId);
                 }
             }
 
@@ -648,13 +569,13 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             // Track concurrent requests for all methods
             if (!isSessionOptional(method) && hasSession(sessionId)) {
                 String cat = methodCategory(method);
-                if ("tools/call".equals(method) && toolScopes != null) {
+                if (McpMethodNames.TOOLS_CALL.equals(method) && toolScopes != null) {
                     cat = toolCategory(toolScopes);
                 }
                 if (reserveCategory(sessions.get(sessionId).categoryLimits, cat, getCategoryCap(cat))) {
                     reservedCategory = cat;
                 } else {
-                    return new McpResponse(errorResponse(id, -32029, "Too Many Requests: " + cat + " concurrent limit exceeded"), sessionId);
+                    return new McpResponse(errorResponse(id, McpError.rateLimitExceeded(cat + " concurrent limit exceeded")), sessionId);
                 }
             }
 
@@ -664,33 +585,31 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             // Intentional: each MCP list handler calls a different registry method.
             //noinspection DuplicateBranchesInSwitch
             switch (method) {
-                case "initialize":
+                case McpMethodNames.INITIALIZE:
                     Map<String, Object> initializeParams = params instanceof Map
                             ? (Map<String, Object>) params : null;
                     Object requestedVersion = initializeParams == null
                             ? null : initializeParams.get("protocolVersion");
                     if (requestedVersion != null && !(requestedVersion instanceof String)) {
-                        return new McpResponse(errorResponse(id, -32602,
-                                "Invalid params: protocolVersion must be a string"), sessionId);
+                        return new McpResponse(errorResponse(id, McpError.invalidParamsPrefix("protocolVersion must be a string")), sessionId);
                     }
                     if (requestedVersion != null && !supportsProtocolVersion((String) requestedVersion)) {
-                        return new McpResponse(errorResponse(id, -32602,
-                                "Unsupported protocol version: " + requestedVersion), sessionId);
+                        return new McpResponse(errorResponse(id, McpError.invalidParams("Unsupported protocol version: " + requestedVersion)), sessionId);
                     }
                     String initSessionId = UUID.randomUUID().toString();
                     result = handleInitialize(initializeParams, initSessionId, clientIp);
                     responseSessionId = initSessionId;
                     break;
-                case "notifications/initialized":
-                case "notifications/message":
+                case McpMethodNames.NOTIF_INITIALIZED:
+                case McpMethodNames.NOTIF_MESSAGE:
                     return new McpResponse(null, sessionId);
-                case "tools/list":
+                case McpMethodNames.TOOLS_LIST:
                     if (!config.tools) {
                         return new McpResponse(capabilityError(id, "tools"), sessionId);
                     }
                     result = handleToolsList(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
-                case "tools/call":
+                case McpMethodNames.TOOLS_CALL:
                     if (!config.tools) {
                         return new McpResponse(capabilityError(id, "tools"), sessionId);
                     }
@@ -698,13 +617,13 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                             params instanceof Map ? (Map<String, Object>) params : null,
                             sessionId, id);
                     break;
-                case "resources/list":
+                case McpMethodNames.RESOURCES_LIST:
                     if (!config.resources) {
                         return new McpResponse(capabilityError(id, "resources"), sessionId);
                     }
                     result = handleResourcesList(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
-                case "resources/read":
+                case McpMethodNames.RESOURCES_READ:
                     if (!config.resources) {
                         return new McpResponse(capabilityError(id, "resources"), sessionId);
                     }
@@ -718,76 +637,74 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                     result = handleResourceTemplatesList(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
                 case "resources/templates/get":
-                    return new McpResponse(errorResponse(id, -32601,
-                            "Method not found: resources/templates/get — use resources/read with resolved URI"), sessionId);
-                case "resources/subscribe":
+                    return new McpResponse(errorResponse(id, McpError.methodNotFound("Method not found: resources/templates/get — use resources/read with resolved URI")), sessionId);
+                case McpMethodNames.RESOURCES_SUBSCRIBE:
                     if (!config.resources || !config.resourceSubscriptions) {
                         return new McpResponse(capabilityError(id, "resource subscriptions"), sessionId);
                     }
                     result = handleResourceSubscribe(sessionId, params instanceof Map
                             ? (Map<String, Object>) params : null);
                     break;
-                case "resources/unsubscribe":
+                case McpMethodNames.RESOURCES_UNSUBSCRIBE:
                     if (!config.resources || !config.resourceSubscriptions) {
                         return new McpResponse(capabilityError(id, "resource subscriptions"), sessionId);
                     }
                     result = handleResourceUnsubscribe(sessionId, params instanceof Map
                             ? (Map<String, Object>) params : null);
                     break;
-                case "prompts/list":
+                case McpMethodNames.PROMPTS_LIST:
                     if (!config.prompts) {
                         return new McpResponse(capabilityError(id, "prompts"), sessionId);
                     }
                     result = handlePromptsList(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
-                case "prompts/get":
+                case McpMethodNames.PROMPTS_GET:
                     if (!config.prompts) {
                         return new McpResponse(capabilityError(id, "prompts"), sessionId);
                     }
                     result = handlePromptsGet(params instanceof Map
                             ? (Map<String, Object>) params : null);
                     break;
-                case "tasks/get":
+                case McpMethodNames.TASKS_GET:
                     if (!config.tasks) return new McpResponse(capabilityError(id, "tasks"), sessionId);
                     result = handleTasksGet(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
-                case "tasks/result":
+                case McpMethodNames.TASKS_RESULT:
                     if (!config.tasks) return new McpResponse(capabilityError(id, "tasks"), sessionId);
                     result = handleTasksResult(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
-                case "tasks/cancel":
+                case McpMethodNames.TASKS_CANCEL:
                     if (!config.tasks) return new McpResponse(capabilityError(id, "tasks"), sessionId);
                     result = handleTasksCancel(params instanceof Map ? (Map<String, Object>) params : null, sessionId, id);
                     break;
-                case "tasks/create":
+                case McpMethodNames.TASKS_CREATE:
                     if (!config.tasks) return new McpResponse(capabilityError(id, "tasks"), sessionId);
                     result = handleTasksCreate(params instanceof Map ? (Map<String, Object>) params : null, sessionId, id);
                     break;
-                case "completion/complete":
+                case McpMethodNames.COMPLETION_COMPLETE:
                     if (!config.completions) return new McpResponse(capabilityError(id, "completions"), sessionId);
                     result = handleCompletion(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
-                case "logging/setLevel":
+                case McpMethodNames.LOGGING_SET_LEVEL:
                     if (!config.logging) return new McpResponse(capabilityError(id, "logging"), sessionId);
                     result = handleSetLogLevel(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
-                case "notifications/cancelled":
+                case McpMethodNames.NOTIF_CANCELLED:
                     handleNotificationCancelled(sessionId, params instanceof Map
                             ? (Map<String, Object>) params : null);
                     return new McpResponse(null, sessionId);
-                case "ping":
+                case McpMethodNames.PING:
                     result = new LinkedHashMap<>();
                     break;
                 default:
-                    return new McpResponse(errorResponse(id, -32601,
-                            "Method not found: " + method), sessionId);
+                    return new McpResponse(errorResponse(id, McpError.methodNotFound("Method not found: " + method)), sessionId);
             }
 
             if (result == null || notification) {
                 return new McpResponse(null, responseSessionId);
             }
             return new McpResponse(successResponse(id, result), responseSessionId);
-        } catch (McpErrorException e) {
+        } catch (McpException e) {
             return new McpResponse(errorResponse(id, e.getCode(), e.getMessage()), sessionId);
         } catch (Throwable t) {
             applicationLogger.error("Error handling MCP request: " + t.getMessage());
@@ -797,10 +714,10 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 Map<String, Object> req = mapper.fromJson(requestBody, new TypeToken<Map<String, Object>>() {
                 }.getType());
                 if (req != null) id = req.get("id");
-            } catch (Exception ignored) {
+            } catch (Exception parseFailure) {
                 // Keep the JSON-RPC error id null when the request cannot be parsed.
             }
-            return new McpResponse(errorResponse(id, -32603, "Internal server error"), sessionId);
+            return new McpResponse(errorResponse(id, McpErrorCodes.INTERNAL_ERROR, "Internal server error"), sessionId);
         } finally {
             if (reservedCategory != null) {
                 releaseCategory(sessions.get(sessionId).categoryLimits, reservedCategory);
@@ -809,9 +726,9 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     }
 
     private boolean isSessionOptional(String method) {
-        return "initialize".equals(method)
-                || "notifications/initialized".equals(method)
-                || "ping".equals(method);
+        return McpMethodNames.INITIALIZE.equals(method)
+                || McpMethodNames.NOTIF_INITIALIZED.equals(method)
+                || McpMethodNames.PING.equals(method);
     }
 
     // Backward-compatible overload
@@ -863,10 +780,6 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
      * @param ownerId owner identity
      * @return session ID, or null if unbound
      */
-    /**
-     * @param ownerId owner identity
-     * @return session ID bound to this owner, or null
-     */
     public String getSessionIdForOwner(String ownerId) {
         return ownerId == null ? null : sessionOwners.get(ownerId);
     }
@@ -876,10 +789,6 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
      *
      * @param sessionId session identifier
      * @return owner identity, or null if unbound
-     */
-    /**
-     * @param sessionId session identifier
-     * @return owner identity bound to this session, or null
      */
     public String getOwnerIdForSession(String sessionId) {
         if (sessionId == null) return null;
@@ -1009,7 +918,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
         public Reserve(CategoryRateLimitState cl, String category) {
             if (!reserveCategory(cl, category, getCategoryCap(category))) {
-                throw new McpErrorException(-32029, "Too Many Requests: " + category + " concurrent limit exceeded");
+                throw McpException.rateLimitExceeded(category + " concurrent limit exceeded");
             }
             this.cl = cl;
             this.category = category;
@@ -1048,29 +957,29 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
         // Read operations - methods that only retrieve data
         switch (method) {
-            case "tools/list":
-            case "tools/call":
-            case "resources/list":
-            case "resources/read":
+            case McpMethodNames.TOOLS_LIST:
+            case McpMethodNames.TOOLS_CALL:
+            case McpMethodNames.RESOURCES_LIST:
+            case McpMethodNames.RESOURCES_READ:
             case "resources/templates/list":
             case "resources/templates/get":
-            case "prompts/list":
-            case "prompts/get":
-            case "tasks/get":
-            case "tasks/result":
-            case "completion/complete":
-            case "logging/setLevel":
-            case "ping":
+            case McpMethodNames.PROMPTS_LIST:
+            case McpMethodNames.PROMPTS_GET:
+            case McpMethodNames.TASKS_GET:
+            case McpMethodNames.TASKS_RESULT:
+            case McpMethodNames.COMPLETION_COMPLETE:
+            case McpMethodNames.LOGGING_SET_LEVEL:
+            case McpMethodNames.PING:
                 return CATEGORY_READ;
 
             // Write operations - modify client state or cancel operations
-            case "resources/subscribe":
-            case "resources/unsubscribe":
-            case "tasks/cancel":
+            case McpMethodNames.RESOURCES_SUBSCRIBE:
+            case McpMethodNames.RESOURCES_UNSUBSCRIBE:
+            case McpMethodNames.TASKS_CANCEL:
                 return CATEGORY_WRITE;
 
             // Admin operations - create server-side resources/tasks
-            case "tasks/create":
+            case McpMethodNames.TASKS_CREATE:
                 return CATEGORY_ADMIN;
 
             default:
@@ -1098,7 +1007,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
         // For tools/call, use tool-specific scopes if provided
         String category;
-        if ("tools/call".equals(method) && toolScopes != null) {
+        if (McpMethodNames.TOOLS_CALL.equals(method) && toolScopes != null) {
             category = toolCategory(toolScopes);
         } else {
             category = methodCategory(method);
@@ -1151,7 +1060,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (state == null) return;
 
         String category;
-        if ("tools/call".equals(method) && toolScopes != null) {
+        if (McpMethodNames.TOOLS_CALL.equals(method) && toolScopes != null) {
             category = toolCategory(toolScopes);
         } else {
             category = methodCategory(method);
@@ -1178,7 +1087,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (state == null) return;
 
         String category;
-        if ("tools/call".equals(method) && toolScopes != null) {
+        if (McpMethodNames.TOOLS_CALL.equals(method) && toolScopes != null) {
             category = toolCategory(toolScopes);
         } else {
             category = methodCategory(method);
@@ -1455,7 +1364,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private Map<String, Object> handleTasksResult(Map<String, Object> params) {
         McpTask task = findTask(params);
         if (task.getStatus() == McpTask.Status.WORKING)
-            throw new McpErrorException(-32001, "Task is not complete: " + task.getTaskId());
+            throw McpException.taskNotComplete(task.getTaskId());
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("taskId", task.getTaskId());
         if (task.getStatus() == McpTask.Status.FAILED || task.getStatus() == McpTask.Status.CANCELLED)
@@ -1467,7 +1376,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private Map<String, Object> handleTasksCancel(Map<String, Object> params, String sessionId, Object requestId) {
         McpTask task = findTask(params);
         if (task.getStatus() != McpTask.Status.WORKING)
-            throw new McpErrorException(-32002, "Task is already terminal: " + task.getStatus().name().toLowerCase());
+            throw McpException.taskAlreadyTerminal(task.getStatus().name());
         registry.cancelRequest(sessionId, requestId == null ? null : requestId.toString());
         Map<String, Object> result = registry.cancelTask(task.getTaskId()).toMap();
         // Emit server-initiated notifications/cancelled to client
@@ -1476,7 +1385,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         notifyParams.put("reason", "Task cancelled by server");
         SessionState state = sessions.get(sessionId);
         if (state != null) {
-            state.enqueueEvent(mapper.toJson(mapAsRpcNotification("notifications/cancelled", notifyParams)));
+            state.enqueueEvent(mapper.toJson(mapAsRpcNotification(McpMethodNames.NOTIF_CANCELLED, notifyParams)));
         }
         return result;
     }
@@ -1492,10 +1401,10 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
      */
     @SuppressWarnings("unchecked")
     private Map<String, Object> handleTasksCreate(Map<String, Object> params, String sessionId, Object requestId) {
-        if (params == null) throw new McpErrorException(-32602, "Invalid params: params required");
+        if (params == null) throw McpException.invalidParams("params required");
         String name = params.get("name") instanceof String ? (String) params.get("name") : null;
         if (name == null || name.trim().isEmpty())
-            throw new McpErrorException(-32602, "Invalid params: name is required");
+            throw McpException.invalidParams("name is required");
         Map<String, Object> input = params.get("input") instanceof Map
                 ? (Map<String, Object>) params.get("input") : new LinkedHashMap<>();
         Map<String, Object> inputSchema = params.get("inputSchema") instanceof Map
@@ -1505,7 +1414,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         Map<String, Object> notifParams = new LinkedHashMap<>();
         notifParams.put("task", task.toMap());
         notifParams.put("token", task.getTaskId());
-        sessions.get(sessionId).enqueueEvent(mapper.toJson(mapAsRpcNotification("tasks/task", notifParams)));
+        sessions.get(sessionId).enqueueEvent(mapper.toJson(mapAsRpcNotification(McpMethodNames.NOTIF_TASK, notifParams)));
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("task", task.toMap());
         resp.put("token", task.getTaskId());
@@ -1514,22 +1423,22 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
     private McpTask findTask(Map<String, Object> params) {
         if (params == null || !(params.get("taskId") instanceof String) || ((String) params.get("taskId")).trim().isEmpty())
-            throw new McpErrorException(-32602, "Invalid params: taskId is required");
+            throw McpException.invalidParams("taskId is required");
         McpTask t = registry.getTask((String) params.get("taskId"));
-        if (t == null) throw new McpErrorException(-32602, "Unknown task: " + params.get("taskId"));
+        if (t == null) throw McpException.invalidParams("Unknown task: " + params.get("taskId"));
         return t;
     }
 
     private Map<String, Object> handleCompletion(Map<String, Object> params) {
         if (params == null || !(params.get("ref") instanceof Map) || !(params.get("argument") instanceof Map))
-            throw new McpErrorException(-32602, "Invalid params: ref and argument are required");
+            throw McpException.invalidParams("ref and argument are required");
         Map<?, ?> rawRef = (Map<?, ?>) params.get("ref");
         Map<?, ?> rawArgument = (Map<?, ?>) params.get("argument");
         Map<String, Object> ref = stringObjectMap(rawRef, "ref");
         Map<String, Object> argument = stringObjectMap(rawArgument, "argument");
         Object type = ref.get("type");
         McpCompletionProvider provider = registry.getCompletionProvider(type instanceof String ? (String) type : null);
-        if (provider == null) throw new McpErrorException(-32602, "No completion provider for reference type: " + type);
+        if (provider == null) throw McpException.invalidParams("No completion provider for reference type: " + type);
         Map<String, Object> result = provider.complete(ref, argument);
         return result == null ? new LinkedHashMap<>() : result;
     }
@@ -1538,7 +1447,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         Map<String, Object> result = new LinkedHashMap<>();
         for (Map.Entry<?, ?> entry : source.entrySet()) {
             if (!(entry.getKey() instanceof String))
-                throw new McpErrorException(-32602, "Invalid params: " + field + " keys must be strings");
+                throw McpException.invalidParams(field + " keys must be strings");
             result.put((String) entry.getKey(), entry.getValue());
         }
         return result;
@@ -1546,13 +1455,13 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
     private Map<String, Object> handleSetLogLevel(Map<String, Object> params) {
         if (params == null || !(params.get("level") instanceof String))
-            throw new McpErrorException(-32602, "Invalid params: level is required");
+            throw McpException.invalidParams("level is required");
         try {
             Level level = Level.parse((String) params.get("level"));
             LOGGER.setLevel(level);
             return new LinkedHashMap<>();
         } catch (IllegalArgumentException e) {
-            throw new McpErrorException(-32602, "Invalid log level: " + params.get("level"));
+            throw McpException.invalidParams("Invalid log level: " + params.get("level"));
         }
     }
 
@@ -1582,7 +1491,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private static int decodeCursor(Object cursor, int size) {
         if (cursor == null) return 0;
         if (!(cursor instanceof String) || ((String) cursor).isEmpty()) {
-            throw new McpErrorException(-32602, "Invalid params: cursor is invalid");
+            throw McpException.invalidParams("cursor is invalid");
         }
         try {
             String decoded = new String(Base64.getUrlDecoder().decode((String) cursor), StandardCharsets.UTF_8);
@@ -1591,13 +1500,13 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             if (offset < 0 || offset >= size) throw new IllegalArgumentException();
             return (int) offset;
         } catch (Exception e) {
-            throw new McpErrorException(-32602, "Invalid params: cursor is invalid");
+            throw McpException.invalidParams("cursor is invalid");
         }
     }
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> handleToolsCall(Map<String, Object> params, String sessionId, Object requestId) {
-        if (params == null) throw new McpErrorException(-32602, "Invalid params: missing params");
+        if (params == null) throw McpException.invalidParams("missing params");
 
         String name = requireName(params, "tool");
         Map<String, Object> arguments = optionalArguments(params);
@@ -1606,7 +1515,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 : null;
 
         McpToolHandler handler = registry.getToolHandler(name);
-        if (handler == null) throw new McpErrorException(-32602, "Unknown tool: " + name);
+        if (handler == null) throw McpException.invalidParams("Unknown tool: " + name);
 
         // Lookup tool definition for schema and scopes
         Map<String, Object> definition = registry.getToolDefinition(name);
@@ -1659,7 +1568,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 notifyToolProgress(sessionId, progressToken, 1d, 1d, "Tool " + name + " completed");
             }
             return result;
-        } catch (McpErrorException e) {
+        } catch (McpException e) {
             throw e;
         } catch (Throwable t) {
             return handleHandlerException("Tool", name, t);
@@ -1701,7 +1610,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         params.put("progress", current);
         params.put("total", total);
         if (message != null) params.put("message", message);
-        String body = mapper.toJson(mapAsRpcNotification("notifications/progress", params));
+        String body = mapper.toJson(mapAsRpcNotification(McpMethodNames.NOTIF_PROGRESS, params));
         state.enqueueEvent(body);
     }
 
@@ -1712,7 +1621,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
      * @param kind        identifier kind label for logging
      * @param identifier  resource/tool name or URI
      * @param t           the caught exception
-     * @return error result for tool handlers; throws McpErrorException for resources
+     * @return error result for tool handlers; throws McpException for resources
      */
     private Map<String, Object> handleHandlerException(String kind, String identifier, Throwable t) {
         LOGGER.log(Level.SEVERE, kind + " error (" + identifier + "): " + t.getMessage(), t);
@@ -1723,14 +1632,13 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if ("Tool".equals(kind)) {
             return errorToolResult("Error calling " + identifier + ": " + e.getMessage());
         }
-        throw new McpErrorException(-32603, "Error reading " + identifier + ": " + e.getMessage());
+        throw McpException.internalError("Error reading " + identifier + ": " + e.getMessage());
     }
 
     private String requireName(Map<String, Object> params, String kind) {
         Object value = params.get("name");
         if (!(value instanceof String) || ((String) value).trim().isEmpty()) {
-            throw new McpErrorException(-32602,
-                    "Invalid params: " + kind + " name must be a non-empty string");
+            throw McpException.invalidParams(kind + " name must be a non-empty string");
         }
         return (String) value;
     }
@@ -1739,7 +1647,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         Object value = params.get("arguments");
         if (value == null) return new LinkedHashMap<>();
         if (!(value instanceof Map)) {
-            throw new McpErrorException(-32602, "Invalid params: arguments must be an object");
+            throw McpException.invalidParams("arguments must be an object");
         }
         return stringObjectMap((Map<?, ?>) value, "arguments");
     }
@@ -1776,23 +1684,23 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     }
 
     private Map<String, Object> handleResourcesRead(Map<String, Object> params) {
-        if (params == null) throw new McpErrorException(-32602, "Invalid params: missing params");
+        if (params == null) throw McpException.invalidParams("missing params");
         Object uriValue = params.get("uri");
         if (!(uriValue instanceof String) || ((String) uriValue).trim().isEmpty()) {
-            throw new McpErrorException(-32602, "Invalid params: uri must be a non-empty string");
+            throw McpException.invalidParams("uri must be a non-empty string");
         }
         String uri = (String) uriValue;
 
         McpResourceHandler handler = registry.getResourceHandler(uri);
         if (handler == null) handler = findTemplateHandler(uri);
-        if (handler == null) throw new McpErrorException(-32602, "Unknown resource: " + uri);
+        if (handler == null) throw McpException.invalidParams("Unknown resource: " + uri);
 
         try {
             if (handler instanceof McpBlobResourceHandler) {
                 return blobContents(uri, ((McpBlobResourceHandler) handler).readBlob(uri));
             }
             return resourceContents(uri, handler.read(uri));
-        } catch (McpErrorException e) {
+        } catch (McpException e) {
             throw e;
         } catch (Throwable t) {
             return handleHandlerException("Resource", uri, t);
@@ -1893,16 +1801,16 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     }
 
     private SessionState requireSession(String sessionId) {
-        if (sessionId == null) throw new McpErrorException(-32602, "Missing session ID");
+        if (sessionId == null) throw McpException.invalidParams("Missing session ID");
         SessionState state = sessions.get(sessionId);
-        if (state == null) throw new McpErrorException(-32602, "Unknown session: " + sessionId);
+        if (state == null) throw McpException.invalidParams("Unknown session: " + sessionId);
         return state;
     }
 
     private String requireResourceUri(Map<String, Object> params) {
         if (params == null || !(params.get("uri") instanceof String)
                 || ((String) params.get("uri")).trim().isEmpty()) {
-            throw new McpErrorException(-32602, "Missing resource URI");
+            throw McpException.invalidParams("Missing resource URI");
         }
         return (String) params.get("uri");
     }
@@ -2031,9 +1939,23 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
      */
     @Override
     public void onRegistryChanged(String listType) {
-        String method = "notifications/" + listType + "/list_changed";
+        String method;
+        switch (listType) {
+            case "tools":
+                method = McpMethodNames.NOTIF_TOOLS_LIST_CHANGED;
+                break;
+            case "resources":
+                method = McpMethodNames.NOTIF_RESOURCES_LIST_CHANGED;
+                break;
+            case "prompts":
+                method = McpMethodNames.NOTIF_PROMPTS_LIST_CHANGED;
+                break;
+            default:
+                method = McpMethodNames.NOTIF_LIST_CHANGED;
+        }
+        String body = mapper.toJson(mapAsRpcNotification(method, null));
         for (SessionState state : sessions.values()) {
-            state.enqueueEvent(mapper.toJson(mapAsRpcNotification(method, null)));
+            state.enqueueEvent(body);
         }
     }
 
@@ -2045,7 +1967,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (uri == null) return;
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("uri", uri);
-        String body = mapper.toJson(mapAsRpcNotification("notifications/resources/updated", params));
+        String body = mapper.toJson(mapAsRpcNotification(McpMethodNames.NOTIF_RESOURCES_UPDATED, params));
         for (SessionState state : sessions.values()) {
             if (state.subscriptions.contains(uri)) {
                 enqueue(state, body);
@@ -2108,7 +2030,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         params.put("level", level);
         if (logger != null) params.put("logger", logger);
         params.put("data", data);
-        String body = mapper.toJson(mapAsRpcNotification("notifications/message", params));
+        String body = mapper.toJson(mapAsRpcNotification(McpMethodNames.NOTIF_MESSAGE, params));
         for (SessionState state : sessions.values()) state.enqueueEvent(body);
     }
 
@@ -2181,37 +2103,46 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
     private Map<String, Object> mapAsRpcNotification(String method, Map<String, Object> params) {
         Map<String, Object> message = new LinkedHashMap<>();
-        message.put("jsonrpc", JSONRPC_VERSION);
+        message.put("jsonrpc", McpJsonRpc.VERSION);
         message.put("method", method);
         if (params != null) message.put("params", params);
         return message;
     }
 
     private String capabilityError(Object id, String capability) {
-        return errorResponse(id, -32601, "MCP capability is disabled: " + capability);
+        return errorResponse(id, McpError.capabilityDisabled(capability));
     }
 
     private String successResponse(Object id, Object result) {
         Map<String, Object> resp = new LinkedHashMap<>();
-        resp.put("jsonrpc", JSONRPC_VERSION);
+        resp.put("jsonrpc", McpJsonRpc.VERSION);
         resp.put("id", id);
         resp.put("result", result);
         return mapper.toJson(resp);
     }
 
-    private String errorResponse(Object id, int code, String message) {
+    @SuppressWarnings("unchecked")
+    private String errorResponse(Object id, Map<String, Object> error) {
         Map<String, Object> resp = new LinkedHashMap<>();
-        resp.put("jsonrpc", JSONRPC_VERSION);
+        resp.put("jsonrpc", McpJsonRpc.VERSION);
         resp.put("id", id);
-        Map<String, Object> error = new LinkedHashMap<>();
-        error.put("code", code);
-        error.put("message", message == null ? "Unknown MCP error" : message);
-        resp.put("error", error);
+        Map<String, Object> errorClone = new LinkedHashMap<>(2);
+        errorClone.put("code", error.get("code"));
+        errorClone.put("message", error.get("message") == null ? "Unknown MCP error" : error.get("message"));
+        resp.put("error", errorClone);
         try {
             return mapper.toJson(resp);
-        } catch (Exception ignored) {
+        } catch (Exception serializationFailure) {
             return "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32603,\"message\":\"Internal server error\"}}";
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private String errorResponse(Object id, int code, String message) {
+        Map<String, Object> error = new LinkedHashMap<>();
+        error.put("code", code);
+        error.put("message", message);
+        return errorResponse(id, error);
     }
 
     private Map<String, Object> errorToolResult(String message) {
@@ -2237,7 +2168,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         errorPayload.put("error", message == null ? "Unknown resource error" : message);
         try {
             contentItem.put("text", mapper.toJson(errorPayload));
-        } catch (Exception ignored) {
+        } catch (Exception serializationFailure) {
             contentItem.put("text", "{\"error\":\"Unable to serialize resource error\"}");
         }
         contents.add(contentItem);
