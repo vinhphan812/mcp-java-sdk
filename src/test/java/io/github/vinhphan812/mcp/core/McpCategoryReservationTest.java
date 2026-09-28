@@ -16,6 +16,7 @@
 
 package io.github.vinhphan812.mcp.core;
 
+import io.github.vinhphan812.mcp.api.config.McpSecurityDefaults;
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.api.config.RateLimits;
 import io.github.vinhphan812.mcp.api.handler.McpToolHandler;
@@ -415,7 +416,7 @@ class McpCategoryReservationTest {
             // Find the session's CategoryRateLimitState and block it
             McpProtocolHandler.CategoryRateLimitState cl =
                     (McpProtocolHandler.CategoryRateLimitState) ctx.handler.getSessionCategoryLimits(ctx.readSessionId);
-            cl.setAbuseScore(McpProtocolHandler.ABUSE_SCORE_BLOCK_THRESHOLD);
+            cl.setAbuseScore(McpSecurityDefaults.ABUSE_SCORE_BLOCK_THRESHOLD);
             cl.setBlocked(true);
 
             // Blocked session denies

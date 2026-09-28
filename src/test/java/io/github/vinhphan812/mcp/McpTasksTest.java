@@ -103,7 +103,7 @@ class McpTasksTest {
             assertTrue(response.getAsJsonObject("error").get("message").getAsString()
                     .startsWith("Invalid params: taskId is required")
                     || response.getAsJsonObject("error").get("message").getAsString()
-                    .equals("Unknown task: missing"), rawParams);
+                    .startsWith("Invalid params: Unknown task:"), rawParams);
         }
     }
 

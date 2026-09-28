@@ -1,5 +1,6 @@
 package io.github.vinhphan812.mcp;
 
+import io.github.vinhphan812.mcp.api.config.McpSecurityDefaults;
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.api.config.RateLimits;
 import io.github.vinhphan812.mcp.core.McpProtocolHandler;
@@ -12,13 +13,13 @@ import static org.junit.jupiter.api.Assertions.*;
 /** Tests configurable ADR-0011 rate limits. */
 class McpRateLimitsConfigTest {
     @Test
-    void defaultsMatchProtocolConstants() {
+    void defaultsMatchSecurityDefaults() {
         RateLimits limits = RateLimits.defaults();
-        assertEquals(McpProtocolHandler.MAX_CONCURRENT_SESSIONS, limits.maxConcurrentSessions);
-        assertEquals(McpProtocolHandler.CATEGORY_READ_BURST_LIMIT, limits.readBurst);
-        assertEquals(McpProtocolHandler.CATEGORY_ADMIN_CONCURRENT_CAP, limits.adminConcurrent);
-        assertEquals(McpProtocolHandler.DESTRUCTIVE_CAP_SHUTDOWN, limits.shutdownCap);
-        assertEquals(McpProtocolHandler.ABUSE_SCORE_BLOCK_THRESHOLD, limits.abuseScoreBlockThreshold);
+        assertEquals(McpSecurityDefaults.MAX_CONCURRENT_SESSIONS, limits.maxConcurrentSessions);
+        assertEquals(McpSecurityDefaults.CATEGORY_READ_BURST_LIMIT, limits.readBurst);
+        assertEquals(McpSecurityDefaults.CATEGORY_ADMIN_CONCURRENT_CAP, limits.adminConcurrent);
+        assertEquals(McpSecurityDefaults.DESTRUCTIVE_CAP_SHUTDOWN, limits.shutdownCap);
+        assertEquals(McpSecurityDefaults.ABUSE_SCORE_BLOCK_THRESHOLD, limits.abuseScoreBlockThreshold);
     }
 
     @Test
@@ -42,7 +43,7 @@ class McpRateLimitsConfigTest {
     @Test
     void nullRateLimitsUseDefaults() {
         McpServerConfig config = McpServerConfig.builder().rateLimits(null).build();
-        assertEquals(McpProtocolHandler.CATEGORY_WRITE_BURST_LIMIT, config.rateLimits.writeBurst);
+        assertEquals(McpSecurityDefaults.CATEGORY_WRITE_BURST_LIMIT, config.rateLimits.writeBurst);
     }
 
     @Test
