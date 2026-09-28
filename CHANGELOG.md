@@ -9,13 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Removed
+### Deprecated
 
-- `TlsConfig` class removed. TLS termination should be handled by a reverse proxy.
-  If you need TLS, configure it at the proxy level (nginx, Apache, cloud LB, K8s ingress).
+- `TlsConfig` class, constructor, and `defaults()` factory are deprecated. This class does not
+  configure TLS; TLS termination is handled by a reverse proxy. No replacement SDK TLS API is
+  planned. Removal is reserved for the next explicitly planned major release.
   See [ADR-0014](docs/adr/ADR-0014-tls-transport-contract.md) for the full decision rationale.
 
 ### Documentation
 
-- Added guidance on TLS setup via reverse proxy in the [transport documentation](docs/guides/TRANSPORT-SSE.md).
-- `scheme("https")` is now documented as an external TLS indicator, not in-process TLS.
+- `scheme("https")` is documented as an external TLS indicator (reverse-proxy termination), not in-process TLS.
+  See [TRANSPORT-STREAMABLE-HTTP.md](docs/transport/TRANSPORT-STREAMABLE-HTTP.md).

@@ -22,8 +22,33 @@ This ADR establishes the official position on TLS transport and defines the cont
 
 ## Decision
 
-**The MCP Java SDK will use reverse-proxy-only TLS termination.** The `TlsConfig` class will be removed in the next
-major release. The `scheme()` method remains as a documentation mechanism for externally-terminated TLS.
+**The MCP Java SDK will use reverse-proxy-only TLS termination.** The `scheme()` method remains as a documentation
+mechanism for externally-terminated TLS.
+
+`TlsConfig` follows a two-phase removal lifecycle:
+
+### Phase 1 — Deprecation (current)
+
+`TlsConfig` is marked `@Deprecated` (class, constructor, and `defaults()` factory). The Javadoc states:
+
+- The class does not configure TLS.
+- TLS termination is external (reverse proxy/load balancer/ingress).
+- No replacement SDK TLS API is planned.
+- Removal is reserved for the next explicitly planned major release.
+
+The class and its current behavior are preserved unchanged during this phase. No `tls(TlsConfig)` builder method
+or in-process TLS implementation may be added.
+
+### Phase 2 — Removal (major release only)
+
+The class is deleted only when a major release is explicitly approved and scheduled. Before deletion:
+
+1. A repository-wide reference audit confirms no production, test, example, documentation, or generated API reference
+   still requires the class.
+2. The `Unreleased` section of `CHANGELOG.md` is updated to record the removal as a breaking change for that release.
+3. Migration guidance is published alongside the major release.
+
+`scheme("https")` behavior and documentation remain unchanged throughout both phases.
 
 ### Threat / Deployment Assumptions
 
@@ -39,17 +64,20 @@ at a reverse proxy.
 
 ### API Changes
 
-| Component               | Change                              | Breaking?        |
-|-------------------------|-------------------------------------|------------------|
-| `TlsConfig` class       | Removed in next major release       | Yes (but unused) |
-| `scheme(String)` method | Retained, documents external TLS    | No               |
+| Component               | Change                                                           | Breaking?            |
+|-------------------------|------------------------------------------------------------------|----------------------|
+| `TlsConfig` class       | Deprecated now; removed in next named major release               | Yes (but unused)     |
+| `scheme(String)` method | Retained, documents external TLS | No                   |
 | `getUrl()`              | Returns scheme from `scheme()` call | No               |
 
 ### Migration Path
 
-1. **Current state** — Users calling `scheme("https")` get a modified URL string but no actual TLS
-2. **After removal** — Same behavior, with clear documentation that TLS is external
-3. **Users needing TLS** — Must configure reverse proxy; SDK documentation will link to setup guides
+**Phase 1 (current — deprecation):** No migration required. `TlsConfig` and `scheme("https")` work as before.
+`TlsConfig` now produces a compile-time deprecation warning. Consumers may remove unused `TlsConfig` objects
+or ignore the warning until the major release.
+
+**Phase 2 (major release):** Remove `TlsConfig` objects and any associated configuration. TLS continues to be
+handled by the reverse proxy. `scheme("https")` remains available.
 
 ### https-advertising Semantics
 
@@ -63,12 +91,15 @@ terminated by a reverse proxy.
 
 Rationale: Clients need to know the correct URL scheme to connect, regardless of how TLS is terminated internally.
 
-### Cleanup Tasks (if removing TlsConfig)
+### Cleanup Tasks (at the major-release removal phase — not yet scheduled)
+
+> These tasks apply only when a major release is explicitly approved and scheduled. They must not be
+> started before a named major version is selected and a migration window is planned.
 
 1. Delete `src/main/java/io/github/vinhphan812/mcp/api/config/TlsConfig.java`
-2. Update any javadoc references to TLS configuration
-3. Add release notes documenting the removal
-4. Add transport documentation explaining reverse-proxy TLS pattern
+2. Update any Javadoc references to TLS configuration
+3. Update `CHANGELOG.md`: move the removal notice from `Unreleased` into the release's breaking-changes notes
+4. Publish migration guidance alongside the major release
 
 ### Implementation Tasks (if choosing in-process TLS) — NOT CHOSEN
 
@@ -123,5 +154,6 @@ For in-process TLS (not chosen):
 
 - ADR-0006 Security Model
 - ADR-0013 TLS Strategy Analysis
-- TlsConfig source (to be removed): `src/main/java/io/github/vinhphan812/mcp/api/config/TlsConfig.java`
+- TLSCONFIG-LIFECYCLE-DECISION.md — Detailed two-phase deprecation/removal lifecycle specification
+- TlsConfig source: `src/main/java/io/github/vinhphan812/mcp/api/config/TlsConfig.java`
 - Transport provider: `src/main/java/io/github/vinhphan812/mcp/transport/StreamableServerTransportProvider.java`
