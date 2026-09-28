@@ -270,7 +270,7 @@ rejection tests include:
 | [MCP-PORTING-PLAN.md](MCP-PORTING-PLAN.md)                        | Portable extraction rationale and acceptance criteria                     |
 | [docs/adr/README.md](adr/README.md)                               | ADR index and format guide                                                |
 | [ADR-0001](adr/ADR-0001-portable-java8-core.md)                   | Portable Java 8 core without Android SDK                                  |
-| [ADR-0002](adr/ADR-0002-grizzly-transport-isolation.md)           | Grizzly transport isolation from core                                     |
+| [ADR-0002](adr/ADR-0002-grizzly-transport-isolation.md)           | One-way Grizzly transport → core dependency; core remains transport-neutral |
 | [ADR-0003](adr/ADR-0003-json-rpc-envelope-protocol-versioning.md) | JSON-RPC envelope and protocol versioning                                 |
 | [ADR-0004](adr/ADR-0004-session-management.md)                    | Session management and lifecycle                                          |
 | [ADR-0005](adr/ADR-0005-sse-notifications-event-queue.md)         | SSE event queue for server-initiated notifications                        |

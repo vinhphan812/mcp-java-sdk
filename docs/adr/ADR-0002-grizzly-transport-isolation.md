@@ -13,7 +13,7 @@ dependency; it may not be suitable for all runtime environments, particularly An
 
 ## Decision
 
-The `transport/` package is isolated from `core/`. The architecture consists of:
+The `transport/` package is isolated from `core/` in the dependency direction, not as complete physical isolation. `transport/` may depend on `core/` for protocol handling, while `core/` must not depend on `transport/` or Grizzly. The public `McpRegistrar` SPI in `api/spi/` is the registration boundary for application code and protocol implementations. The architecture consists of:
 
 - **`HttpTransportProvider`** — public entry point, `AutoCloseable`. Exposes a builder API for configuration
   (host, port, endpoint, API key, CORS, transport mode). Creates and manages the Grizzly HTTP server lifecycle.
@@ -61,8 +61,9 @@ graph TD
     class Server,Provider application
 ```
 
-The public `McpRegistrar` SPI is the boundary between application code and the protocol layer. Any transport
-implementation can consume the same registry and protocol handler without importing Grizzly.
+The public `McpRegistrar` SPI is the registration boundary between application code and the protocol layer. Any transport
+implementation can consume the same registry and protocol handler without importing Grizzly. This is a one-way dependency:
+transport adapters import core protocol contracts, but core does not import transport classes or Grizzly.
 
 ## Class Reference
 

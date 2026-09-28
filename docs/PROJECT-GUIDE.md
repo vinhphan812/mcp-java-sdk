@@ -81,8 +81,9 @@ The package split is intentionally small and clean:
   registers their annotated methods.
 - `core/` contains protocol dispatch, registry state, and the server facade. It translates public registrations into MCP
   JSON-RPC behaviour but does not own HTTP-specific request handling.
-- `transport/` contains the Grizzly Streamable HTTP adapter and lifecycle provider. Keeping it isolated permits a future
-  transport adapter without moving protocol or annotation code.
+- `transport/` contains the Grizzly Streamable HTTP adapter and lifecycle provider. It may depend on `core` for protocol
+  work, while `core` must not depend on `transport`; this one-way boundary permits future transport adapters without
+  moving protocol or annotation code.
 
 This arrangement keeps dependency direction clear: annotations describe providers; API exposes extension points; core
 owns MCP semantics; transport adapts network I/O. Intentionally excluded are Android application services, robot/domain

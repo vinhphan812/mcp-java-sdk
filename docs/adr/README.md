@@ -13,7 +13,7 @@ also: [PROJECT-GUIDE.md](../PROJECT-GUIDE.md) | [API-REFERENCE.md](../API-REFERE
 ```mermaid
 flowchart LR
     Core1["ADR-0001: Java 8 core"]
-    Core2["ADR-0002: Grizzly isolation\n(transport/core separation)"]
+    Core2["ADR-0002: Grizzly isolation\n(one-way transport → core)"]
     Core3["ADR-0003: JSON-RPC/versioning"]
     Core4["ADR-0004: Sessions"]
     Core5["ADR-0005: SSE notifications"]
@@ -44,7 +44,7 @@ flowchart LR
 | ID                                                             | Title                                                                           | Status   | Date       |
 |----------------------------------------------------------------|---------------------------------------------------------------------------------|----------|------------|
 | [ADR-0001](ADR-0001-portable-java8-core.md)                    | Portable Java 8 Core Without Android SDK                                        | Accepted | 2026-09-01 |
-| [ADR-0002](ADR-0002-grizzly-transport-isolation.md)            | Grizzly Transport Isolation                                                     | Accepted | 2026-09-01 |
+| [ADR-0002](ADR-0002-grizzly-transport-isolation.md)            | Grizzly Transport Isolation (one-way transport → core dependency)              | Accepted | 2026-09-01 |
 | [ADR-0003](ADR-0003-json-rpc-envelope-protocol-versioning.md)  | JSON-RPC 2.0 Envelope, Protocol Versioning, and Capability Advertisement        | Accepted | 2026-09-01 |
 | [ADR-0004](ADR-0004-session-management.md)                     | Session Management and Lifecycle                                                | Accepted | 2026-09-01 |
 | [ADR-0005](ADR-0005-sse-notifications-event-queue.md)          | Server-Initiated Notifications via SSE Event Queue                              | Accepted | 2026-09-01 |

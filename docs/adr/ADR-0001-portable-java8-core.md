@@ -55,6 +55,6 @@ No matches in production source. Test source may use Android packages; productio
 
 ## Notes
 
-- The `transport/` package is intentionally Grizzly-specific and isolated from `core/`.
+- The `transport/` package is intentionally Grizzly-specific and may depend on `core`; `core` remains independent of `transport`.
 - WebSocket, STDIO, Android services, and robot domain models are outside the portable scope and belong in consuming
   applications or separate adapters.
