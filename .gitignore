@@ -39,7 +39,7 @@ bin/
 .DS_Store
 
 ## Docs ##
-docs/inspect.claude/
+docs/inspect
 
 # Claude agent
 .claude/
