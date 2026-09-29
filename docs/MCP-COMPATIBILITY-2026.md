@@ -8,7 +8,7 @@ Reference documentation:
 - [PROJECT-GUIDE.md](../PROJECT-GUIDE.md) — architecture and usage guide.
 - [API-REFERENCE.md](../API-REFERENCE.md) — complete public API surface.
 - [IMPLEMENTATION-STATUS.md](../IMPLEMENTATION-STATUS.md) — completed, incomplete, and unverified areas.
-- [GRIZZLY-EXAMPLE.md](../GRIZZLY-EXAMPLE.md) — standalone Grizzly example.
+- [HTTP-TRANSPORT-EXAMPLE.md](HTTP-TRANSPORT-EXAMPLE.md) — standalone HTTP/SSE transport example.
 - [MCP-PORTING-PLAN.md](../MCP-PORTING-PLAN.md) — package inventory and porting notes.
 - [docs/adr/](../adr/) — architecture decision records documenting key design choices.
 

@@ -130,7 +130,7 @@ public Map<String, Object> formatAddress(
 ```
 
 If a JSON key differs from the Java field name (e.g. `"user_id"` → `userId`), annotate the field with
-`@SerializedName("user_id")`. Gson uses the annotation over the field name. See `GRIZZLY-EXAMPLE.md` for the full
+`@SerializedName("user_id")`. Gson uses the annotation over the field name. See `HTTP-TRANSPORT-EXAMPLE.md` for the full
 working example with `Address`.
 
 ### `@McpResource`
@@ -628,7 +628,7 @@ Supported MCP JSON-RPC methods:
 | Document                                                       | Description                                          |
 |----------------------------------------------------------------|------------------------------------------------------|
 | [Project Guide](PROJECT-GUIDE.md)                              | Architecture, usage guide, and protocol overview     |
-| [Grizzly Example](GRIZZLY-EXAMPLE.md)                          | Standalone Grizzly example with HTTP request samples |
+| [HTTP Transport Example](HTTP-TRANSPORT-EXAMPLE.md)          | Standalone HTTP/SSE transport example with request samples |
 | [Implementation Status](IMPLEMENTATION-STATUS.md)              | Completed, incomplete, and unverified areas          |
 | [MCP Compatibility](../architecture/MCP-COMPATIBILITY-2026.md) | MCP baseline and P0/P1/P2 compatibility status       |
 | [docs/adr/](adr/)                                              | Architecture Decision Records                        |

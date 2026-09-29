@@ -326,7 +326,7 @@ Set<String> origins = new HashSet<>(Arrays.asList(
 McpGrizzlyHandler handler = new McpGrizzlyHandler(
         protocolHandler,
         "/mcp",
-        () -> "secret-api-key",  // API key supplier
+        () -> System.getenv("MCP_API_KEY"),  // API key supplier
         origins,
         1024 * 1024,            // 1 MB max body
         10,                     // 10 concurrent SSE

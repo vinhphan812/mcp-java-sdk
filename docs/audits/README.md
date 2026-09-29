@@ -2,7 +2,8 @@
 
 ## Current Status
 
-See [AUDIT_STATUS.md](./AUDIT_STATUS.md) for the complete audit findings and verification status.
+> **Note:** `AUDIT_STATUS.md` is superseded by [ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md](./ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md).
+> The ADR audit covers all 18 ADRs and is the current authoritative audit record.
 
 ## Summary
 
@@ -13,12 +14,16 @@ See [AUDIT_STATUS.md](./AUDIT_STATUS.md) for the complete audit findings and ver
 
 ## Key Documents
 
-| Document                                  | Description                                      |
-|-------------------------------------------|--------------------------------------------------|
-| [AUDIT_STATUS.md](./AUDIT_STATUS.md)      | Complete audit findings with verification status |
-| [LOC-AUDIT.md](./LOC-AUDIT.md)            | Lines of code analysis                           |
-| [ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md](./ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md) | ADR-to-source contract audit (18 ADRs, all VERIFIED/resolved) |
-| [historical/](./historical/)              | 45 archived triage/evidence files (superseded) |
+|| Document                                  | Description                                      |
+||-------------------------------------------|--------------------------------------------------|
+|| [ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md](./ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md) | ADR-to-source contract audit (18 ADRs, all VERIFIED/resolved) — **current authoritative audit** |
+|| [LOC-AUDIT.md](./LOC-AUDIT.md)            | Lines of code analysis                           |
+|| [AUDIT_STATUS.md](./AUDIT_STATUS.md)      | Superseded — kept for historical reference only  |
+|| [historical/](./historical/)              | 45 archived triage/evidence files (superseded)   |
+
+### Additional resources
+
+- [Finding classifications](../inspect/FINDINGS-CLASSIFICATION.md) — source-revalidated findings for maintainers
 
 ## Categories
 

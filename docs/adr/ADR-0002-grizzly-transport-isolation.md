@@ -8,8 +8,11 @@
 ## Context
 
 The SDK provides an MCP server that communicates over HTTP using the Model Context Protocol. Grizzly was chosen
-because it supports Java 8 and does not require external native dependencies. However, Grizzly is a server-oriented
-dependency; it may not be suitable for all runtime environments, particularly Android.
+for its HTTP/SSE transport capabilities. However, Grizzly is a server-oriented dependency; it may not be suitable for all
+runtime environments, particularly Android.
+> **Note (ADR-0019):** Grizzly 4.0.2 is compiled for Java 11 bytecode, establishing a Java 11+ runtime floor for the
+> transport layer. The core protocol packages remain pure Java 8 bytecode. See [ADR-0019](./ADR-0019-java-runtime-floor.md)
+> for full evidence and alternatives considered.
 
 ## Decision
 

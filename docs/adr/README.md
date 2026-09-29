@@ -61,6 +61,7 @@ flowchart LR
 | [ADR-0016](ADR-0016-sse-permit-flow-verification.md)         | SSE Permit Flow Verification and Implementation Plan                             | Accepted | 2026-09-20 |
 | [ADR-0017](ADR-0017-sse-permit-response-flow.md)              | SSE Permit Acquisition and Response Flow                                         | Historical | 2026-09-20 |
 | [ADR-0018](ADR-0018-transport-contract-http-sse-vs-streamable-http.md) | Transport Contract: Legacy HTTP+SSE vs Modern Streamable HTTP            | Accepted | 2026-09-22 |
+| [ADR-0019](ADR-0019-java-runtime-floor.md)                          | Java Runtime Floor: Java 11+ Required for Grizzly Transport              | Accepted | 2026-09-29 |
 
 ## When to create an ADR
 

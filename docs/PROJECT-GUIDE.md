@@ -55,7 +55,7 @@ examples/src/main/java/.../examples/
 docs/
 ├── PROJECT-GUIDE.md
 ├── API-REFERENCE.md
-├── GRIZZLY-EXAMPLE.md
+├── HTTP-TRANSPORT-EXAMPLE.md
 ├── IMPLEMENTATION-STATUS.md
 ├── MCP-COMPATIBILITY-2026.md
 ├── MCP-PORTING-PLAN.md
@@ -213,13 +213,13 @@ The reflection registrar reads these annotations:
 - `@McpParam` for argument metadata, schemas, and direct parameter binding.
 
 The complete runnable catalogue, request payloads, capability settings, run commands, and limitations are documented in
-`docs/GRIZZLY-EXAMPLE.md`. It registers six tools, three exact resources, four resource templates, and four prompts.
+`HTTP-TRANSPORT-EXAMPLE.md`. It registers six tools, three exact resources, four resource templates, and four prompts.
 
 When a tool or prompt method has one `Map<String, Object>` parameter, the map is passed through unchanged. When
 parameters are individually annotated with `@McpParam`, JSON argument values are bound by name and converted to
 supported Java 8 scalar types (`String`, boolean, and numeric primitives/wrappers). Required values and types are
 checked before invocation. Any remaining type (user-defined POJO, nested object, array, or generic `List`) is
-deserialised via Gson round-trip. See `docs/GRIZZLY-EXAMPLE.md` for a full POJO example (`Address`).
+deserialised via Gson round-trip. See `HTTP-TRANSPORT-EXAMPLE.md` for a full POJO example (`Address`).
 
 Current contracts:
 
@@ -397,7 +397,7 @@ Current tests cover:
 The example is not declared as a separate Gradle source set or application task. Run it with a suitable Gradle classpath
 or add a separate build task in a different change.
 
-Detailed request guidance is in `docs/GRIZZLY-EXAMPLE.md`.
+Detailed request guidance is in `HTTP-TRANSPORT-EXAMPLE.md`.
 
 ## 11. Audit and release checklist
 
@@ -416,7 +416,7 @@ Before release:
 
 - `README.md`: quick overview;
 - `docs/API-REFERENCE.md`: complete public API surface with all annotations, handlers, and methods;
-- `docs/GRIZZLY-EXAMPLE.md`: transport and example walkthrough;
+- `HTTP-TRANSPORT-EXAMPLE.md`: transport and example walkthrough;
 - `docs/MCP-COMPATIBILITY-2026.md`: compatibility matrix and remediation history;
 - `docs/MCP-PORTING-PLAN.md`: portable extraction plan;
 - `docs/IMPLEMENTATION-STATUS.md`: completed, incomplete, and unverified areas with test evidence;

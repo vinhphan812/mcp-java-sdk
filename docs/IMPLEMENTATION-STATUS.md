@@ -157,7 +157,7 @@ McpLogger, JulMcpLogger"]
 
 - Example includes tool with `outputSchema`, exact resources, resource templates, and prompts.
 - Example binds to loopback by default.
-- Four documentation files: PROJECT-GUIDE, GRIZZLY-EXAMPLE, COMPATIBILITY, IMPLEMENTATION-STATUS.
+- Four documentation files: PROJECT-GUIDE, HTTP-TRANSPORT-EXAMPLE, COMPATIBILITY, IMPLEMENTATION-STATUS.
 - Dated full-source audit at `docs/audits/2026-09-01-full-source-audit.md`.
 
 ## Verification
@@ -264,7 +264,7 @@ rejection tests include:
 | [README.md](../README.md)                                         | Project entry point, badges, quick start, scope                           |
 | [PROJECT-GUIDE.md](PROJECT-GUIDE.md)                              | Architecture, API overview, protocol flow, transport, and release guide   |
 | [API-REFERENCE.md](API-REFERENCE.md)                              | Complete public API surface                                               |
-| [GRIZZLY-EXAMPLE.md](GRIZZLY-EXAMPLE.md)                          | Standalone Grizzly example with HTTP request samples                      |
+| [HTTP-TRANSPORT-EXAMPLE.md](HTTP-TRANSPORT-EXAMPLE.md) | Standalone HTTP/SSE transport example with request samples             |
 | [MCP-COMPATIBILITY-2026.md](MCP-COMPATIBILITY-2026.md)            | MCP baseline, P0/P1/P2 compatibility work, and validation checklist       |
 | [IMPLEMENTATION-STATUS.md](IMPLEMENTATION-STATUS.md)              | This file: completed, incomplete, and unverified areas with test evidence |
 | [MCP-PORTING-PLAN.md](MCP-PORTING-PLAN.md)                        | Portable extraction rationale and acceptance criteria                     |

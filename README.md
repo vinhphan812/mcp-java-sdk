@@ -1,12 +1,12 @@
 # MCP Java SDK
 
-Portable Java 8 library for hosting an [MCP](https://modelcontextprotocol.io) server inside any Java application —
+Portable Java 11+ library for hosting an [MCP](https://modelcontextprotocol.io) server inside any Java application —
 including Android apps, Android/ROSA robots, desktop services, and backend servers. A phone or robot can act as an MCP
 server, exposing tools, resources, and prompts over HTTP to MCP clients on the same device or network.
 
 [![CI](https://github.com/vinhphan812/mcp-java-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/vinhphan812/mcp-java-sdk/actions)
 [![Release](https://img.shields.io/github/v/release/vinhphan812/mcp-java-sdk?label=latest)](https://github.com/vinhphan812/mcp-java-sdk/releases/latest)
-[![Java](https://img.shields.io/badge/Java-8+-orange)](https://adoptium.net/)
+[![Java](https://img.shields.io/badge/Java-11+-orange)](https://adoptium.net/)
 [![License](https://img.shields.io/github/license/vinhphan812/mcp-java-sdk)](LICENSE)
 [![GitHub Repo stars](https://img.shields.io/github/stars/vinhphan812/mcp-java-sdk?style=flat)](https://github.com/vinhphan812/mcp-java-sdk)
 
@@ -75,20 +75,20 @@ dependencies {
 
 ```bash
 # Linux / macOS
-export GITHUB_TOKEN=ghp_your_token_here
+export GITHUB_TOKEN=REDACTED_GITHUB_TOKEN
 
 # Windows (Git Bash)
-export GITHUB_TOKEN=ghp_your_token_here
+export GITHUB_TOKEN=REDACTED_GITHUB_TOKEN
 
 # Windows (CMD)
-set GITHUB_TOKEN=ghp_your_token_here
+set GITHUB_TOKEN=REDACTED_GITHUB_TOKEN
 ```
 
 Or add to `~/.gradle/gradle.properties`:
 
 ```properties
 gpr.user=your-github-username
-gpr.token=ghp_your_token_here
+gpr.token=REDACTED_GITHUB_TOKEN
 ```
 
 ### Local JAR (no authentication)
@@ -120,7 +120,7 @@ cd mcp-java-sdk
 
 ## Quick start
 
-A minimal example that starts an MCP server on Android or any Java 8+ runtime:
+A minimal example that starts an MCP server on Android (API 22+) or any Java 11+ runtime:
 
 ```java
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
@@ -363,14 +363,14 @@ stateDiagram-v2
 
 ### Core documentation
 
-| Document                                                    | Description                                             |
-|-------------------------------------------------------------|---------------------------------------------------------|
-| [PROJECT-GUIDE.md](docs/PROJECT-GUIDE.md)                   | Architecture, API, protocol, transport, and usage guide |
-| [API-REFERENCE.md](docs/API-REFERENCE.md)                   | Complete public API surface                             |
-| [IMPLEMENTATION-STATUS.md](docs/IMPLEMENTATION-STATUS.md)   | Completed, incomplete, and unverified areas             |
-| [GRIZZLY-EXAMPLE.md](docs/GRIZZLY-EXAMPLE.md)               | Standalone example and HTTP request samples             |
-| [MCP-COMPATIBILITY-2026.md](docs/MCP-COMPATIBILITY-2026.md) | MCP baseline and P0/P1/P2 compatibility                 |
-| [MCP-PORTING-PLAN.md](docs/MCP-PORTING-PLAN.md)             | Package inventory and porting notes                     |
+|| Document                                                    | Description                                             |
+||-------------------------------------------------------------|---------------------------------------------------------|
+|| [PROJECT-GUIDE.md](docs/guides/PROJECT-GUIDE.md)            | Architecture, API, protocol, transport, and usage guide |
+|| [API-REFERENCE.md](docs/guides/API-REFERENCE.md)           | Complete public API surface                             |
+|| [IMPLEMENTATION-STATUS.md](docs/guides/IMPLEMENTATION-STATUS.md) | Completed, incomplete, and unverified areas          |
+|| [HTTP-TRANSPORT-EXAMPLE.md](docs/guides/HTTP-TRANSPORT-EXAMPLE.md) | Standalone HTTP/SSE transport example with samples  |
+|| [MCP-COMPATIBILITY-2026.md](docs/architecture/MCP-COMPATIBILITY-2026.md) | MCP baseline and P0/P1/P2 compatibility     |
+|| [MCP-PORTING-PLAN.md](docs/architecture/MCP-PORTING-PLAN.md) | Package inventory and porting notes                  |
 
 ### Architecture Decision Records
 

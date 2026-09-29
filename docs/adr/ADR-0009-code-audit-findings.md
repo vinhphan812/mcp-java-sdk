@@ -95,5 +95,5 @@ BUILD SUCCESSFUL
 
 ---
 
-**Superseded by** [2026-09-12-full-source-audit.md](../audits/2026-09-12-full-source-audit.md)
-and [2026-09-12-audit-supplement.md](../audits/2026-09-12-audit-supplement.md).
+**Superseded by** [2026-09-12-full-source-audit.md](../audits/historical/2026-09-12-full-source-audit.md)
+and [2026-09-12-audit-supplement.md](../audits/historical/2026-09-12-audit-supplement.md).
