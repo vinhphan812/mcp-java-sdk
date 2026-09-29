@@ -366,14 +366,14 @@ stateDiagram-v2
 
 ### Core documentation
 
-|| Document                                                    | Description                                             |
-||-------------------------------------------------------------|---------------------------------------------------------|
-|| [PROJECT-GUIDE.md](docs/guides/PROJECT-GUIDE.md)            | Architecture, API, protocol, transport, and usage guide |
-|| [API-REFERENCE.md](docs/guides/API-REFERENCE.md)           | Complete public API surface                             |
-|| [IMPLEMENTATION-STATUS.md](docs/guides/IMPLEMENTATION-STATUS.md) | Completed, incomplete, and unverified areas          |
-|| [HTTP-TRANSPORT-EXAMPLE.md](docs/guides/HTTP-TRANSPORT-EXAMPLE.md) | Standalone HTTP/SSE transport example with samples  |
-|| [MCP-COMPATIBILITY-2026.md](docs/architecture/MCP-COMPATIBILITY-2026.md) | MCP baseline and P0/P1/P2 compatibility     |
-|| [MCP-PORTING-PLAN.md](docs/architecture/MCP-PORTING-PLAN.md) | Package inventory and porting notes                  |
+| Document                                                    | Description                                             |
+|-------------------------------------------------------------|---------------------------------------------------------|
+| [PROJECT-GUIDE.md](docs/guides/PROJECT-GUIDE.md)            | Architecture, API, protocol, transport, and usage guide |
+| [API-REFERENCE.md](docs/guides/API-REFERENCE.md)           | Complete public API surface                             |
+| [IMPLEMENTATION-STATUS.md](docs/guides/IMPLEMENTATION-STATUS.md) | Completed, incomplete, and unverified areas          |
+| [HTTP-TRANSPORT-EXAMPLE.md](docs/guides/HTTP-TRANSPORT-EXAMPLE.md) | Standalone HTTP/SSE transport example with samples  |
+| [MCP-COMPATIBILITY-2026.md](docs/architecture/MCP-COMPATIBILITY-2026.md) | MCP baseline and P0/P1/P2 compatibility     |
+| [MCP-PORTING-PLAN.md](docs/architecture/MCP-PORTING-PLAN.md) | Package inventory and porting notes                  |
 
 ### Architecture Decision Records
 
