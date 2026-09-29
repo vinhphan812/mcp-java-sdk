@@ -19,11 +19,11 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Build JAR and test
-        run: ./gradlew compileJava test build --console=plain
+      - name: Build release JAR and test
+        run: ./gradlew -PsdkVersion=${GITHUB_REF_NAME#v} compileJava test build --console=plain
 
       - name: Compile examples (release gate)
-        run: ./gradlew -p examples compileJava --console=plain
+        run: ./gradlew -p examples compileJava -PsdkJar=../build/libs/mcp-java-sdk-${GITHUB_REF_NAME#v}.jar --console=plain
 
       - name: Publish to GitHub Packages
         run: ./gradlew publish --console=plain
