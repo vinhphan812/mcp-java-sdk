@@ -107,6 +107,9 @@ public final class McpSecurityDefaults {
     /** Points deducted from abuse score per minute of clean behaviour. */
     public static final int ABUSE_SCORE_DECAY_PER_MINUTE = 1;
 
+    /** Maximum SSE notification events held in the session queue before oldest are evicted. */
+    public static final int MAX_QUEUED_EVENTS = 1000;
+
     private McpSecurityDefaults() {
     }
 }

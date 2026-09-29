@@ -45,6 +45,8 @@ public final class McpServerConfig {
     public final int pageSize;
     /** Listener for notification queue overflow events. */
     public final McpProtocolHandler.QueueOverflowListener overflowListener;
+    /** Maximum SSE notification events held in the session queue before oldest are evicted. */
+    public final int maxQueuedEvents;
     /** Tool authorisation handler. */
     public final McpAuthorization authorization;
     /** Immutable rate-limit and security configuration. */
@@ -115,6 +117,7 @@ public final class McpServerConfig {
         experimental = Collections.unmodifiableMap(new LinkedHashMap<>(builder.experimental));
         pageSize = builder.pageSize;
         overflowListener = builder.overflowListener;
+        maxQueuedEvents = builder.maxQueuedEvents;
         authorization = builder.authorization;
         rateLimits = builder.rateLimits == null ? RateLimits.defaults() : builder.rateLimits;
         trustXForwardedFor = builder.trustXForwardedFor;
@@ -153,6 +156,7 @@ public final class McpServerConfig {
         }
 
         private int pageSize = 50;
+        private int maxQueuedEvents = McpSecurityDefaults.MAX_QUEUED_EVENTS;
         private McpProtocolHandler.QueueOverflowListener overflowListener;
         private McpAuthorization authorization;
         private RateLimits rateLimits;
@@ -168,6 +172,15 @@ public final class McpServerConfig {
         public Builder pageSize(int value) {
             if (value <= 0) throw new IllegalArgumentException("pageSize must be positive");
             pageSize = value;
+            return this;
+        }
+
+        /** Sets maximum queued SSE notification events per session before oldest are evicted.
+         * @param value positive event count
+         * @return this builder */
+        public Builder maxQueuedEvents(int value) {
+            if (value <= 0) throw new IllegalArgumentException("maxQueuedEvents must be positive");
+            maxQueuedEvents = value;
             return this;
         }
 

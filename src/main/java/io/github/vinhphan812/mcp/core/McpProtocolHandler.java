@@ -69,18 +69,13 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     }
 
     // ==================== Security (ADR-0011) ====================
-    // Canonical values are defined in McpSecurityDefaults.
+    // Rate-limit and security defaults are defined in McpSecurityDefaults.
     // Runtime values come from RateLimits (injected via McpServerConfig).
     // McpProtocolHandler does NOT declare security defaults — it consumes them.
 
     private final McpAuthorization authorization;
     private final QueueOverflowListener overflowListener;
-
-    private static final Set<String> DESTRUCTIVE_TOOLS = McpSecurityDefaults.DESTRUCTIVE_TOOLS;
-
-    private static final String CATEGORY_READ = "read";
-    private static final String CATEGORY_WRITE = "write";
-    private static final String CATEGORY_ADMIN = "admin";
+    private final int maxQueuedEvents;
 
     // Sliding-window rate limit tracker
     private static final class RateLimitRecord {
@@ -145,8 +140,6 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
     // ==================== SSE Event ====================
 
-    private static final int MAX_QUEUED_EVENTS = 1000;
-
     private static final class SseEvent {
         final long id;
         final String body;
@@ -160,6 +153,12 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     // ==================== Session State ====================
 
     private static class SessionState {
+        private static int maxQueuedEvents = McpSecurityDefaults.MAX_QUEUED_EVENTS;
+
+        static void setMaxQueuedEvents(int limit) {
+            maxQueuedEvents = limit;
+        }
+
         final String sessionId;
         final long createdAt;
         volatile long lastActivity;
@@ -181,7 +180,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
         void enqueueEvent(String body) {
             synchronized(this) {
-                if (pendingEvents.size() >= MAX_QUEUED_EVENTS) pendingEvents.poll();
+                if (pendingEvents.size() >= maxQueuedEvents) pendingEvents.poll();
                 pendingEvents.offer(new SseEvent(nextEventId.getAndIncrement(), body));
             }
         }
@@ -277,6 +276,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         this.rateLimits = config.rateLimits == null ? RateLimits.defaults() : config.rateLimits;
         this.categoryRateLimitController = new CategoryRateLimitController(this.rateLimits, LOGGER);
         this.overflowListener = overflowListener;
+        this.maxQueuedEvents = config.maxQueuedEvents;
+        SessionState.setMaxQueuedEvents(config.maxQueuedEvents);
         this.authorization = authorization;
         registry.setNotificationTarget(this);
         registry.addRegistryChangeListener(this);
