@@ -631,5 +631,5 @@ Supported MCP JSON-RPC methods:
 | [HTTP Transport Example](HTTP-TRANSPORT-EXAMPLE.md)          | Standalone HTTP/SSE transport example with request samples |
 | [Implementation Status](IMPLEMENTATION-STATUS.md)              | Completed, incomplete, and unverified areas          |
 | [MCP Compatibility](../architecture/MCP-COMPATIBILITY-2026.md) | MCP baseline and P0/P1/P2 compatibility status       |
-| [docs/adr/](adr/)                                              | Architecture Decision Records                        |
+| [docs/adr/](../adr/)                                          | Architecture Decision Records                        |
 

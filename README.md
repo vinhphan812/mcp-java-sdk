@@ -387,7 +387,7 @@ stateDiagram-v2
 | [ADR-0006](docs/adr/ADR-0006-security-model.md)                        | Security: Origin, Bearer, CRLF           | Accepted |
 | [ADR-0007](docs/adr/ADR-0007-annotation-registration.md)               | Annotation-based registration            | Accepted |
 | [ADR-0008](docs/adr/ADR-0008-protocol-baseline-compatibility.md)       | Protocol baseline 2025-11-25             | Accepted |
-| [ADR-0009](docs/adr/ADR-0009-code-audit-2026-09-11.md)                 | Source audit 2026-09-11                  | Accepted |
+| [ADR-0009](docs/adr/ADR-0009-code-audit-findings.md)                 | Source audit 2026-09-11                  | Accepted |
 | [ADR-0010](docs/adr/ADR-0010-api-package-restructure.md)               | API package restructure                  | Accepted |
 
 See [docs/adr/README.md](docs/adr/README.md) for the ADR index.
