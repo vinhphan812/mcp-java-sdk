@@ -18,6 +18,7 @@ package io.github.vinhphan812.mcp.core;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import io.github.vinhphan812.mcp.api.config.McpSecurityDefaults;
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.api.config.RateLimits;
 import io.github.vinhphan812.mcp.api.dto.McpBlobContent;
@@ -27,18 +28,12 @@ import io.github.vinhphan812.mcp.api.logging.McpLogger;
 import io.github.vinhphan812.mcp.api.spi.McpAuthorization;
 import io.github.vinhphan812.mcp.api.spi.McpRegistrar;
 import io.github.vinhphan812.mcp.api.spi.McpRegistryChangeListener;
-import io.github.vinhphan812.mcp.api.utils.McpError;
-import io.github.vinhphan812.mcp.api.utils.McpErrorCodes;
-import io.github.vinhphan812.mcp.api.utils.McpException;
-import io.github.vinhphan812.mcp.api.utils.McpGson;
-import io.github.vinhphan812.mcp.api.utils.McpJsonRpc;
-import io.github.vinhphan812.mcp.api.utils.McpMethodNames;
+import io.github.vinhphan812.mcp.api.utils.*;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -67,6 +62,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private final McpServerConfig config;
     private final McpLogger applicationLogger;
     private final RateLimits rateLimits;
+    private final CategoryRateLimitController categoryRateLimitController;
 
     public McpServerConfig getConfig() {
         return config;
@@ -80,51 +76,11 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private final McpAuthorization authorization;
     private final QueueOverflowListener overflowListener;
 
-    private static final Set<String> DESTRUCTIVE_TOOLS = new HashSet<>(Arrays.asList(
-            "shutdown", "delete_action", "delete_prompt",
-            "set_mcp_api_key", "revoke_mcp_api_key", "upload_file"));
+    private static final Set<String> DESTRUCTIVE_TOOLS = McpSecurityDefaults.DESTRUCTIVE_TOOLS;
 
     private static final String CATEGORY_READ = "read";
     private static final String CATEGORY_WRITE = "write";
     private static final String CATEGORY_ADMIN = "admin";
-
-    // Category rate-limit state (per session)
-    static final class CategoryRateLimitState {
-        final RateLimitRecord readBurst = new RateLimitRecord();
-        final RateLimitRecord readSustained = new RateLimitRecord();
-        final RateLimitRecord writeBurst = new RateLimitRecord();
-        final RateLimitRecord writeSustained = new RateLimitRecord();
-        final RateLimitRecord adminBurst = new RateLimitRecord();
-        final RateLimitRecord adminSustained = new RateLimitRecord();
-
-        final AtomicInteger readConcurrent = new AtomicInteger(0);
-        final AtomicInteger writeConcurrent = new AtomicInteger(0);
-        final AtomicInteger adminConcurrent = new AtomicInteger(0);
-
-        final AtomicInteger shutdownCount = new AtomicInteger(0);
-        volatile long shutdownLastMs = 0L;
-        final AtomicInteger deleteCount = new AtomicInteger(0);
-        volatile long deleteLastMs = 0L;
-        final AtomicInteger uploadCount = new AtomicInteger(0);
-        volatile long uploadLastMs = 0L;
-
-        final AtomicInteger abuseScore = new AtomicInteger(0);
-        volatile boolean blocked = false;
-
-        /** Package-visible for test access. */
-        void setAbuseScore(int score) {
-            abuseScore.set(score);
-        }
-
-        int getAbuseScore() {
-            return abuseScore.get();
-        }
-
-        /** Package-visible for test access. */
-        void setBlocked(boolean blocked) {
-            this.blocked = blocked;
-        }
-    }
 
     // Sliding-window rate limit tracker
     private static final class RateLimitRecord {
@@ -214,8 +170,6 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         final AtomicLong nextEventId = new AtomicLong(1L);
         /** Bounded notification queue for overflow tracking. */
         final ConcurrentLinkedQueue<String> pendingNotifications = new ConcurrentLinkedQueue<>();
-        /** Per-category rate-limit and abuse state. */
-        final CategoryRateLimitState categoryLimits = new CategoryRateLimitState();
 
         SessionState(String sessionId, String clientIp, String ownerId) {
             this.sessionId = sessionId;
@@ -321,6 +275,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         this.config = config;
         this.applicationLogger = config.logger;
         this.rateLimits = config.rateLimits == null ? RateLimits.defaults() : config.rateLimits;
+        this.categoryRateLimitController = new CategoryRateLimitController(this.rateLimits, LOGGER);
         this.overflowListener = overflowListener;
         this.authorization = authorization;
         registry.setNotificationTarget(this);
@@ -353,6 +308,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                                 && sessions.remove(entry.getKey(), entry.getValue())) {
                             clearOwnerBinding(entry.getValue());
                             sessionRateLimits.remove(entry.getKey());
+                            categoryRateLimitController.removeSession(entry.getKey());
                             LOGGER.warning("Expired inactive MCP session: " + entry.getKey());
                         }
                     }
@@ -430,16 +386,26 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         return new RateLimitStatus(limit, remaining, resetSeconds);
     }
 
-    /**
-     * Returns the category rate limit state for a session.
-     * Used by tests to verify concurrent slot counts.
-     *
-     * @param sessionId session identifier
-     * @return category state or null if session not found
-     */
-    public CategoryRateLimitState getSessionCategoryLimits(String sessionId) {
-        SessionState state = sessions.get(sessionId);
-        return state == null ? null : state.categoryLimits;
+    /** Package-visible test seam for abuse score setup. */
+    void setSessionCategoryAbuseScore(String sessionId, int score) {
+        categoryRateLimitController.setAbuseScore(sessionId, score);
+    }
+
+    /** Package-visible test seam for blocked-session setup. */
+    void setSessionCategoryBlocked(String sessionId, boolean blocked) {
+        categoryRateLimitController.setBlocked(sessionId, blocked);
+    }
+
+    int getSessionCategoryReadConcurrent(String sessionId) {
+        return categoryRateLimitController.concurrent(sessionId, CategoryRateLimitController.READ);
+    }
+
+    int getSessionCategoryWriteConcurrent(String sessionId) {
+        return categoryRateLimitController.concurrent(sessionId, CategoryRateLimitController.WRITE);
+    }
+
+    int getSessionCategoryAdminConcurrent(String sessionId) {
+        return categoryRateLimitController.concurrent(sessionId, CategoryRateLimitController.ADMIN);
     }
 
     /**
@@ -555,7 +521,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                         }
                     }
                 }
-                String categoryRateLimitError = checkMethodRateLimit(sessionId, method, toolScopes);
+                String categoryRateLimitError = categoryRateLimitController.checkMethod(sessionId, method, toolScopes);
                 if (categoryRateLimitError != null) {
                     return new McpResponse(errorResponse(id, McpError.rateLimitExceeded(categoryRateLimitError)), sessionId);
                 }
@@ -568,11 +534,11 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
             // Track concurrent requests for all methods
             if (!isSessionOptional(method) && hasSession(sessionId)) {
-                String cat = methodCategory(method);
+                String cat = categoryRateLimitController.categoryForMethod(method, toolScopes);
                 if (McpMethodNames.TOOLS_CALL.equals(method) && toolScopes != null) {
-                    cat = toolCategory(toolScopes);
+                    cat = categoryRateLimitController.toolCategory(toolScopes);
                 }
-                if (reserveCategory(sessions.get(sessionId).categoryLimits, cat, getCategoryCap(cat))) {
+                if (categoryRateLimitController.reserve(sessionId, cat)) {
                     reservedCategory = cat;
                 } else {
                     return new McpResponse(errorResponse(id, McpError.rateLimitExceeded(cat + " concurrent limit exceeded")), sessionId);
@@ -720,7 +686,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             return new McpResponse(errorResponse(id, McpErrorCodes.INTERNAL_ERROR, "Internal server error"), sessionId);
         } finally {
             if (reservedCategory != null) {
-                releaseCategory(sessions.get(sessionId).categoryLimits, reservedCategory);
+                categoryRateLimitController.release(sessionId, reservedCategory);
             }
         }
     }
@@ -754,6 +720,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             if (state != null) {
                 clearOwnerBinding(state);
                 sessionRateLimits.remove(sessionId);
+                categoryRateLimitController.removeSession(sessionId);
                 LOGGER.info("Session terminated: " + sessionId);
             }
         }
@@ -768,6 +735,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         sessions.clear();
         sessionOwners.clear();
         sessionRateLimits.clear();
+        categoryRateLimitController.clearSessions();
         if (count > 0) {
             LOGGER.info("Closed " + count + " MCP sessions");
         }
@@ -805,7 +773,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     public boolean isSessionBlocked(String sessionId) {
         if (sessionId == null) return false;
         SessionState state = sessions.get(sessionId);
-        return state != null && state.categoryLimits.blocked;
+        return categoryRateLimitController.isBlocked(sessionId);
     }
 
     /**
@@ -842,11 +810,15 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             if (existingSession != null) {
                 // Owner already has a session — replace it
                 SessionState old = sessions.remove(existingSession);
-                if (old != null) clearOwnerBinding(old);
+                if (old != null) {
+                    categoryRateLimitController.removeSession(existingSession);
+                    clearOwnerBinding(old);
+                }
             }
         }
         SessionState state = new SessionState(sessionId, clientIp, normalizedOwnerId);
         sessions.put(sessionId, state);
+        categoryRateLimitController.registerSession(sessionId);
         return state;
     }
 
@@ -854,255 +826,6 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         SessionState state = sessions.get(sessionId);
         if (state != null) {
             state.lastActivity = System.currentTimeMillis();
-        }
-    }
-
-    /**
-     * Determine the rate-limit category from required scopes.
-     * admin > write > read.
-     */
-    private boolean reserveCategory(CategoryRateLimitState cl, String category, int cap) {
-        AtomicInteger counter;
-        switch (category) {
-            case CATEGORY_ADMIN:
-                counter = cl.adminConcurrent;
-                break;
-            case CATEGORY_WRITE:
-                counter = cl.writeConcurrent;
-                break;
-            default:
-                counter = cl.readConcurrent;
-                break;
-        }
-        while (true) {
-            int current = counter.get();
-            if (current >= cap) return false;
-            if (counter.compareAndSet(current, current + 1)) {
-                LOGGER.info("RESERVED " + category + " from=" + current + " to=" + (current + 1));
-                return true;
-            }
-        }
-    }
-
-    private void releaseCategory(CategoryRateLimitState cl, String category) {
-        AtomicInteger counter;
-        switch (category) {
-            case CATEGORY_ADMIN:
-                counter = cl.adminConcurrent;
-                break;
-            case CATEGORY_WRITE:
-                counter = cl.writeConcurrent;
-                break;
-            default:
-                counter = cl.readConcurrent;
-                break;
-        }
-        int current = counter.decrementAndGet();
-        LOGGER.info("RELEASED " + category + " to=" + current);
-    }
-
-    private int getCategoryCap(String category) {
-        switch (category) {
-            case CATEGORY_ADMIN:
-                return rateLimits.adminConcurrent;
-            case CATEGORY_WRITE:
-                return rateLimits.writeConcurrent;
-            default:
-                return rateLimits.readConcurrent;
-        }
-    }
-
-    private final class Reserve implements AutoCloseable {
-        private final CategoryRateLimitState cl;
-        private final String category;
-
-        public Reserve(CategoryRateLimitState cl, String category) {
-            if (!reserveCategory(cl, category, getCategoryCap(category))) {
-                throw McpException.rateLimitExceeded(category + " concurrent limit exceeded");
-            }
-            this.cl = cl;
-            this.category = category;
-        }
-
-        @Override
-        public void close() {
-            releaseCategory(cl, category);
-        }
-    }
-
-
-    private String toolCategory(List<String> requiredScopes) {
-        if (requiredScopes == null || requiredScopes.isEmpty()) return CATEGORY_READ;
-        for (String s : requiredScopes) {
-            if (CATEGORY_ADMIN.equals(s)) return CATEGORY_ADMIN;
-        }
-        for (String s : requiredScopes) {
-            if (CATEGORY_WRITE.equals(s)) return CATEGORY_WRITE;
-        }
-        return CATEGORY_READ;
-    }
-
-    /**
-     * Determine the rate-limit category for an MCP method.
-     * Read operations: tools/list, resources/read, resources/list, prompts/list, prompts/get,
-     *                  tasks/get, tasks/result, completion/complete, logging/setLevel, ping
-     * Write operations: resources/subscribe, resources/unsubscribe, tasks/cancel
-     * Admin operations: tasks/create (creates new server-side resources)
-     *
-     * @param method the MCP method name
-     * @return the category (read/write/admin)
-     */
-    private String methodCategory(String method) {
-        if (method == null) return CATEGORY_READ;
-
-        // Read operations - methods that only retrieve data
-        switch (method) {
-            case McpMethodNames.TOOLS_LIST:
-            case McpMethodNames.TOOLS_CALL:
-            case McpMethodNames.RESOURCES_LIST:
-            case McpMethodNames.RESOURCES_READ:
-            case "resources/templates/list":
-            case "resources/templates/get":
-            case McpMethodNames.PROMPTS_LIST:
-            case McpMethodNames.PROMPTS_GET:
-            case McpMethodNames.TASKS_GET:
-            case McpMethodNames.TASKS_RESULT:
-            case McpMethodNames.COMPLETION_COMPLETE:
-            case McpMethodNames.LOGGING_SET_LEVEL:
-            case McpMethodNames.PING:
-                return CATEGORY_READ;
-
-            // Write operations - modify client state or cancel operations
-            case McpMethodNames.RESOURCES_SUBSCRIBE:
-            case McpMethodNames.RESOURCES_UNSUBSCRIBE:
-            case McpMethodNames.TASKS_CANCEL:
-                return CATEGORY_WRITE;
-
-            // Admin operations - create server-side resources/tasks
-            case McpMethodNames.TASKS_CREATE:
-                return CATEGORY_ADMIN;
-
-            default:
-                return CATEGORY_READ;
-        }
-    }
-
-    /**
-     * Check per-category rate limits for any MCP method.
-     * This extends category rate limiting beyond tools to all protocol methods.
-     *
-     * @return null if allowed, or a denial message.
-     */
-    String checkMethodRateLimit(String sessionId, String method, List<String> toolScopes) {
-        if (sessionId == null) return null;
-        SessionState state = sessions.get(sessionId);
-        if (state == null) return null;
-
-        CategoryRateLimitState cl = state.categoryLimits;
-
-        // Check blocked session
-        if (cl.blocked) {
-            return "session blocked due to abuse: " + method;
-        }
-
-        // For tools/call, use tool-specific scopes if provided
-        String category;
-        if (McpMethodNames.TOOLS_CALL.equals(method) && toolScopes != null) {
-            category = toolCategory(toolScopes);
-        } else {
-            category = methodCategory(method);
-        }
-
-        long now = System.currentTimeMillis();
-
-        // Per-category limits
-        switch (category) {
-            case CATEGORY_ADMIN:
-                if (!cl.adminBurst.allowRequest(rateLimits.adminBurst, rateLimits.rateLimitWindowMs)) {
-                    addAbuseScore(cl, sessionId, method, 2, "admin burst limit exceeded");
-                    return "admin method burst limit exceeded: " + method;
-                }
-                if (!cl.adminSustained.allowRequest(rateLimits.adminSustained, rateLimits.rateLimitSustainedWindowMs)) {
-                    addAbuseScore(cl, sessionId, method, 2, "admin sustained limit exceeded");
-                    return "admin method sustained limit exceeded: " + method;
-                }
-                break;
-            case CATEGORY_WRITE:
-                if (!cl.writeBurst.allowRequest(rateLimits.writeBurst, rateLimits.rateLimitWindowMs)) {
-                    addAbuseScore(cl, sessionId, method, 1, "write burst limit exceeded");
-                    return "write method burst limit exceeded: " + method;
-                }
-                if (!cl.writeSustained.allowRequest(rateLimits.writeSustained, rateLimits.rateLimitSustainedWindowMs)) {
-                    addAbuseScore(cl, sessionId, method, 1, "write sustained limit exceeded");
-                    return "write method sustained limit exceeded: " + method;
-                }
-                break;
-            default: // READ
-                if (!cl.readBurst.allowRequest(rateLimits.readBurst, rateLimits.rateLimitWindowMs)) {
-                    addAbuseScore(cl, sessionId, method, 1, "read burst limit exceeded");
-                    return "read method burst limit exceeded: " + method;
-                }
-                if (!cl.readSustained.allowRequest(rateLimits.readSustained, rateLimits.rateLimitSustainedWindowMs)) {
-                    addAbuseScore(cl, sessionId, method, 1, "read sustained limit exceeded");
-                    return "read method sustained limit exceeded: " + method;
-                }
-                break;
-        }
-        return null;
-    }
-
-    /**
-     * Increment the in-flight concurrent counter for a method category.
-     * Must pair with {@link #decrementMethodConcurrentCount} in a finally block.
-     */
-    void incrementMethodConcurrentCount(String sessionId, String method, List<String> toolScopes) {
-        SessionState state = sessions.get(sessionId);
-        if (state == null) return;
-
-        String category;
-        if (McpMethodNames.TOOLS_CALL.equals(method) && toolScopes != null) {
-            category = toolCategory(toolScopes);
-        } else {
-            category = methodCategory(method);
-        }
-
-        switch (category) {
-            case CATEGORY_ADMIN:
-                state.categoryLimits.adminConcurrent.incrementAndGet();
-                break;
-            case CATEGORY_WRITE:
-                state.categoryLimits.writeConcurrent.incrementAndGet();
-                break;
-            default:
-                state.categoryLimits.readConcurrent.incrementAndGet();
-                break;
-        }
-    }
-
-    /**
-     * Decrement the in-flight concurrent counter for a method category.
-     */
-    void decrementMethodConcurrentCount(String sessionId, String method, List<String> toolScopes) {
-        SessionState state = sessions.get(sessionId);
-        if (state == null) return;
-
-        String category;
-        if (McpMethodNames.TOOLS_CALL.equals(method) && toolScopes != null) {
-            category = toolCategory(toolScopes);
-        } else {
-            category = methodCategory(method);
-        }
-
-        switch (category) {
-            case CATEGORY_ADMIN:
-                state.categoryLimits.adminConcurrent.decrementAndGet();
-                break;
-            case CATEGORY_WRITE:
-                state.categoryLimits.writeConcurrent.decrementAndGet();
-                break;
-            default:
-                state.categoryLimits.readConcurrent.decrementAndGet();
-                break;
         }
     }
 
@@ -1130,171 +853,6 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             }
         }
         return null;
-    }
-
-    /**
-     * Check per-category and destructive-tool rate limits for a tool call.
-     *
-     * @return null if allowed, or a denial message.
-     */
-    @SuppressWarnings("unchecked")
-    String checkToolRateLimit(String sessionId, String toolName,
-                              List<String> requiredScopes) {
-        if (sessionId == null) return null;
-        SessionState state = sessions.get(sessionId);
-        if (state == null) return null;
-
-        CategoryRateLimitState cl = state.categoryLimits;
-
-        // Check blocked session
-        if (cl.blocked) {
-            return "session blocked due to abuse: " + toolName;
-        }
-
-        String category = toolCategory(requiredScopes);
-        long now = System.currentTimeMillis();
-
-        // Destructive tool caps
-        if (rateLimits.destructiveTools.contains(toolName)) {
-            String destructiveError = checkDestructiveCap(cl, toolName, now, sessionId);
-            if (destructiveError != null) return destructiveError;
-        }
-
-        // Per-category limits
-        switch (category) {
-            case CATEGORY_ADMIN:
-                if (!cl.adminBurst.allowRequest(rateLimits.adminBurst, rateLimits.rateLimitWindowMs)) {
-                    addAbuseScore(cl, sessionId, toolName, 2, "admin burst limit exceeded");
-                    return "admin tool burst limit exceeded for tool: " + toolName;
-                }
-                if (!cl.adminSustained.allowRequest(rateLimits.adminSustained, rateLimits.rateLimitSustainedWindowMs)) {
-                    addAbuseScore(cl, sessionId, toolName, 2, "admin sustained limit exceeded");
-                    return "admin tool sustained limit exceeded for tool: " + toolName;
-                }
-                break;
-            case CATEGORY_WRITE:
-                if (!cl.writeBurst.allowRequest(rateLimits.writeBurst, rateLimits.rateLimitWindowMs)) {
-                    addAbuseScore(cl, sessionId, toolName, 1, "write burst limit exceeded");
-                    return "write tool burst limit exceeded for tool: " + toolName;
-                }
-                if (!cl.writeSustained.allowRequest(rateLimits.writeSustained, rateLimits.rateLimitSustainedWindowMs)) {
-                    addAbuseScore(cl, sessionId, toolName, 1, "write sustained limit exceeded");
-                    return "write tool sustained limit exceeded for tool: " + toolName;
-                }
-                break;
-            default: // READ
-                if (!cl.readBurst.allowRequest(rateLimits.readBurst, rateLimits.rateLimitWindowMs)) {
-                    addAbuseScore(cl, sessionId, toolName, 1, "read burst limit exceeded");
-                    return "read tool burst limit exceeded for tool: " + toolName;
-                }
-                if (!cl.readSustained.allowRequest(rateLimits.readSustained, rateLimits.rateLimitSustainedWindowMs)) {
-                    addAbuseScore(cl, sessionId, toolName, 1, "read sustained limit exceeded");
-                    return "read tool sustained limit exceeded for tool: " + toolName;
-                }
-                break;
-        }
-        return null;
-    }
-
-    private String checkDestructiveCap(CategoryRateLimitState cl, String toolName,
-                                       long now, String sessionId) {
-        long elapsed;
-        switch (toolName) {
-            case "shutdown":
-                if (cl.shutdownCount.get() >= rateLimits.shutdownCap) {
-                    addAbuseScore(cl, sessionId, toolName, 5, "shutdown cap exceeded");
-                    return "shutdown tool lifetime cap exceeded for session";
-                }
-                elapsed = now - cl.shutdownLastMs;
-                if (cl.shutdownLastMs > 0 && elapsed < rateLimits.shutdownCooldownMs) {
-                    long remaining = (rateLimits.shutdownCooldownMs - elapsed) / 1000;
-                    return "shutdown tool on cool-down, retry in " + remaining + "s";
-                }
-                cl.shutdownCount.incrementAndGet();
-                cl.shutdownLastMs = now;
-                break;
-            case "delete_action":
-            case "delete_prompt":
-                if (cl.deleteCount.get() >= rateLimits.deleteCap) {
-                    addAbuseScore(cl, sessionId, toolName, 3, "delete cap exceeded");
-                    return toolName + " lifetime cap exceeded for session";
-                }
-                elapsed = now - cl.deleteLastMs;
-                if (cl.deleteLastMs > 0 && elapsed < rateLimits.deleteCooldownMs) {
-                    long remaining = (rateLimits.deleteCooldownMs - elapsed) / 1000;
-                    return toolName + " on cool-down, retry in " + remaining + "s";
-                }
-                cl.deleteCount.incrementAndGet();
-                cl.deleteLastMs = now;
-                break;
-            case "upload_file":
-                if (cl.uploadCount.get() >= rateLimits.uploadCap) {
-                    addAbuseScore(cl, sessionId, toolName, 2, "upload cap exceeded");
-                    return "upload_file lifetime cap exceeded for session";
-                }
-                elapsed = now - cl.uploadLastMs;
-                if (cl.uploadLastMs > 0 && elapsed < rateLimits.uploadCooldownMs) {
-                    long remaining = (rateLimits.uploadCooldownMs - elapsed) / 1000;
-                    return "upload_file on cool-down, retry in " + remaining + "s";
-                }
-                cl.uploadCount.incrementAndGet();
-                cl.uploadLastMs = now;
-                break;
-        }
-        return null;
-    }
-
-    private void addAbuseScore(CategoryRateLimitState cl, String sessionId,
-                               String toolName, int weight, String reason) {
-        int score = cl.abuseScore.addAndGet(weight);
-        String level = score >= rateLimits.abuseScoreBlockThreshold ? "SEVERE"
-                : score >= rateLimits.abuseScoreBlockThreshold / 2 ? "CRITICAL"
-                : "WARN";
-        LOGGER.warning("[" + level + "] session=" + sessionId
-                + " tool=" + toolName + " abuseScore=" + score + " reason=" + reason);
-        if (score >= rateLimits.abuseScoreBlockThreshold) {
-            cl.blocked = true;
-            LOGGER.severe("[SEVERE] Session blocked for abuse: " + sessionId);
-        }
-    }
-
-    /**
-     * Increment the in-flight concurrent counter for a session.
-     * Must pair with {@link #decrementConcurrentCount} in a finally block.
-     */
-    void incrementConcurrentCount(String sessionId, List<String> requiredScopes) {
-        SessionState state = sessions.get(sessionId);
-        if (state == null) return;
-        switch (toolCategory(requiredScopes)) {
-            case CATEGORY_ADMIN:
-                state.categoryLimits.adminConcurrent.incrementAndGet();
-                break;
-            case CATEGORY_WRITE:
-                state.categoryLimits.writeConcurrent.incrementAndGet();
-                break;
-            default:
-                state.categoryLimits.readConcurrent.incrementAndGet();
-                break;
-        }
-    }
-
-    /**
-     * Decrement the in-flight concurrent counter for a session.
-     */
-    void decrementConcurrentCount(String sessionId, List<String> requiredScopes) {
-        SessionState state = sessions.get(sessionId);
-        if (state == null) return;
-        switch (toolCategory(requiredScopes)) {
-            case CATEGORY_ADMIN:
-                state.categoryLimits.adminConcurrent.decrementAndGet();
-                break;
-            case CATEGORY_WRITE:
-                state.categoryLimits.writeConcurrent.decrementAndGet();
-                break;
-            default:
-                state.categoryLimits.readConcurrent.decrementAndGet();
-                break;
-        }
     }
 
     // ==================== Initialize ====================
@@ -1541,7 +1099,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         }
 
         // Rate limit check
-        String rateLimitError = checkToolRateLimit(sessionId, name, requiredScopes);
+        String rateLimitError = categoryRateLimitController.checkTool(sessionId, name, requiredScopes);
         if (rateLimitError != null) {
             return errorToolResult(rateLimitError);
         }

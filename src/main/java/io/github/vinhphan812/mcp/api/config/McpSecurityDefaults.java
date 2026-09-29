@@ -1,5 +1,10 @@
 package io.github.vinhphan812.mcp.api.config;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
 /**
  * Canonical SDK security and rate-limit defaults (ADR-0011).
  * <p>
@@ -68,7 +73,12 @@ public final class McpSecurityDefaults {
     /** Maximum in-flight admin operations per session. */
     public static final int CATEGORY_ADMIN_CONCURRENT_CAP = 1;
 
-    // ---- Destructive tool caps ----
+    /** Canonical immutable names of tools subject to destructive limits. */
+    public static final Set<String> DESTRUCTIVE_TOOLS = Collections.unmodifiableSet(
+            new LinkedHashSet<>(Arrays.asList(
+                    "shutdown", "delete_action", "delete_prompt", "set_mcp_api_key",
+                    "revoke_mcp_api_key", "upload_file")));
+
 
     /** Maximum lifetime calls to the "shutdown" tool per session. */
     public static final int DESTRUCTIVE_CAP_SHUTDOWN = 3;

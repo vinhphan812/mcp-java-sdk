@@ -56,21 +56,7 @@ public class McpRegistry implements McpRegistrar {
      * @param handler tool handler
      */
     public synchronized void registerTool(String name, String description, Map<String, Object> inputSchema, List<String> required, Map<String, Object> outputSchema, McpToolHandler handler) {
-        requireUnique(name, toolHandlers, "tool");
-        Map<String, Object> tool = new LinkedHashMap<>();
-        tool.put("name", name);
-        tool.put("description", description);
-        Map<String, Object> schema = new LinkedHashMap<>();
-        schema.put("type", "object");
-        schema.put("properties", inputSchema != null ? copyMap(inputSchema) : new LinkedHashMap<>());
-        schema.put("required", required != null ? new ArrayList<>(required) : new ArrayList<>());
-        tool.put("inputSchema", schema);
-        if (outputSchema != null && !outputSchema.isEmpty()) {
-            tool.put("outputSchema", copyMap(outputSchema));
-        }
-        registeredTools.add(tool);
-        toolHandlers.put(name, handler);
-        notifyRegistryChanged("tools");
+        registerToolDefinition(name, description, inputSchema, required, outputSchema, null, false, handler);
     }
 
     /**
@@ -86,6 +72,13 @@ public class McpRegistry implements McpRegistrar {
     public synchronized void registerTool(String name, String description, Map<String, Object> inputSchema,
                                           List<String> required, List<String> requiredScopes,
                                           boolean confirmationRequired, McpToolHandler handler) {
+        registerToolDefinition(name, description, inputSchema, required, null, requiredScopes, confirmationRequired, handler);
+    }
+
+    private void registerToolDefinition(String name, String description, Map<String, Object> inputSchema,
+                                        List<String> required, Map<String, Object> outputSchema,
+                                        List<String> requiredScopes, boolean confirmationRequired,
+                                        McpToolHandler handler) {
         requireUnique(name, toolHandlers, "tool");
         Map<String, Object> tool = new LinkedHashMap<>();
         tool.put("name", name);
@@ -95,6 +88,9 @@ public class McpRegistry implements McpRegistrar {
         schema.put("properties", inputSchema != null ? copyMap(inputSchema) : new LinkedHashMap<>());
         schema.put("required", required != null ? new ArrayList<>(required) : new ArrayList<>());
         tool.put("inputSchema", schema);
+        if (outputSchema != null && !outputSchema.isEmpty()) {
+            tool.put("outputSchema", copyMap(outputSchema));
+        }
         if (requiredScopes != null && !requiredScopes.isEmpty()) {
             tool.put("requiredScopes", new ArrayList<>(requiredScopes));
         }
