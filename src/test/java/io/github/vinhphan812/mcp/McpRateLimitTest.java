@@ -535,8 +535,11 @@ class McpRateLimitTest {
     }
 
     private void setAbuseScore(McpProtocolHandler handler, String sessionId, int score) {
-        // This would set the session state's abuse score directly
-        // Implementation-dependent - placeholder for now
+        // This would set the session state's abuse score directly.
+        // Implementation-dependent - placeholder for now.
+        if (handler == null) {
+            throw new IllegalArgumentException("handler must not be null");
+        }
     }
 
     private static final class CapturingRegistrar implements McpRegistrar {

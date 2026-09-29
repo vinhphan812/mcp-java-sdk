@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 class McpCategoryDebugTest {
 
     @org.junit.jupiter.api.Test
-    void debug_initOnly() throws Exception {
+    void debug_initOnly() {
         RateLimits limits = RateLimits.builder()
                 .maxConcurrentSessions(100)
                 .sessionTimeoutMs(Long.MAX_VALUE)
@@ -63,7 +63,7 @@ class McpCategoryDebugTest {
     }
 
     @org.junit.jupiter.api.Test
-    void debug_withToolRegistration() throws Exception {
+    void debug_withToolRegistration() {
         RateLimits limits = RateLimits.builder()
                 .maxConcurrentSessions(100)
                 .sessionTimeoutMs(Long.MAX_VALUE)

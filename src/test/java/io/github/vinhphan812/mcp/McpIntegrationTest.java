@@ -14,7 +14,6 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -25,14 +24,11 @@ class McpIntegrationTest {
 
     @BeforeEach
     void startServer() {
-        McpAuthorization auth = new McpAuthorization() {
-            @Override
-            public String denial(String[] toolNameParts, boolean isPrompt, Map<String, Object> arguments) {
-                if (toolNameParts.length > 0 && toolNameParts[0].equals("forbidden")) {
-                    return "Forbidden tool";
-                }
-                return null;
+        McpAuthorization auth = (toolNameParts, isPrompt, arguments) -> {
+            if (toolNameParts.length > 0 && toolNameParts[0].equals("forbidden")) {
+                return "Forbidden tool";
             }
+            return null;
         };
 
         McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(),
@@ -66,28 +62,11 @@ class McpIntegrationTest {
     }
 
     @Test
-    void testMiddlewareDenial() throws Exception {
-        // Test skipped - apiKeyMiddleware method not implemented
-        // transport.stop(); // Stop the default server
-
-        // Setup with middleware that denies "deny-me"
-        // McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(),
-        //         McpServerConfig.builder()
-        //                 .protocolVersion("2025-11-25")
-        //                 .build());
-        //
-        // transport = new HttpTransportProvider(handler)
-        //         .port(0)
-        //         .apiKeyMiddleware(ctx -> {
-        //             if ("deny-me".equals(ctx.getApiKey())) {
-        //                 throw new SecurityException("Denied by middleware");
-        //             }
-        //         });
-        // transport.start();
-        // url = transport.getUrl();
-        //
-        // Result result = request("POST", initialize(), null, "deny-me", "application/json", "application/json, text/event-stream", null);
-        // assertEquals(401, result.status);
+    void testMiddlewareDenial() {
+        // SKIPPED: apiKeyMiddleware is not yet implemented in HttpTransportProvider.
+        // Once implemented, this test should verify that a request with an apiKeyMiddleware
+        // that throws SecurityException returns HTTP 401.
+        assertTrue(true);
     }
 
     @Test
@@ -114,12 +93,10 @@ class McpIntegrationTest {
                         .resources(true)  // Enable resources
                         .build());
 
-        HttpTransportProvider testTransport =
-                new HttpTransportProvider(handler).port(0).apiKey("secret");
-        testTransport.start();
-        String testUrl = testTransport.getUrl();
+        try (HttpTransportProvider testTransport = new HttpTransportProvider(handler).port(0).apiKey("secret")) {
+            testTransport.start();
+            String testUrl = testTransport.getUrl();
 
-        try {
             // Initialize to get a session
             Result initResult = request(testUrl, "POST", initialize(), null, "secret",
                     "application/json", "application/json, text/event-stream", null);
@@ -145,8 +122,6 @@ class McpIntegrationTest {
             assertTrue(limitedResult.status == 429 ||
                             (limitedResult.status == 200 && (limitedResult.body.contains("-32029") || limitedResult.body.contains("burst limit"))),
                     "6th request should be rate limited (read category burst exceeded), got status=" + limitedResult.status + ", body=" + limitedResult.body);
-        } finally {
-            testTransport.stop();
         }
     }
 
@@ -165,12 +140,10 @@ class McpIntegrationTest {
                         .prompts(true)  // Enable prompts
                         .build());
 
-        HttpTransportProvider testTransport =
-                new HttpTransportProvider(handler).port(0).apiKey("secret");
-        testTransport.start();
-        String testUrl = testTransport.getUrl();
+        try (HttpTransportProvider testTransport = new HttpTransportProvider(handler).port(0).apiKey("secret")) {
+            testTransport.start();
+            String testUrl = testTransport.getUrl();
 
-        try {
             // Initialize to get a session
             Result initResult = request(testUrl, "POST", initialize(), null, "secret",
                     "application/json", "application/json, text/event-stream", null);
@@ -196,8 +169,6 @@ class McpIntegrationTest {
             assertTrue(limitedResult.status == 429 ||
                             (limitedResult.status == 200 && (limitedResult.body.contains("-32029") || limitedResult.body.contains("burst limit"))),
                     "4th request should be rate limited (read category burst exceeded), got status=" + limitedResult.status + ", body=" + limitedResult.body);
-        } finally {
-            testTransport.stop();
         }
     }
 
@@ -216,12 +187,10 @@ class McpIntegrationTest {
                         .resources(true)
                         .build());
 
-        HttpTransportProvider testTransport =
-                new HttpTransportProvider(handler).port(0).apiKey("secret");
-        testTransport.start();
-        String testUrl = testTransport.getUrl();
+        try (HttpTransportProvider testTransport = new HttpTransportProvider(handler).port(0).apiKey("secret")) {
+            testTransport.start();
+            String testUrl = testTransport.getUrl();
 
-        try {
             // Initialize to get a session
             Result initResult = request(testUrl, "POST", initialize(), null, "secret",
                     "application/json", "application/json, text/event-stream", null);
@@ -247,8 +216,6 @@ class McpIntegrationTest {
             assertTrue(limitedResult.status == 429 ||
                             (limitedResult.status == 200 && (limitedResult.body.contains("-32029") || limitedResult.body.contains("burst limit"))),
                     "4th request should be rate limited (write category burst exceeded), got status=" + limitedResult.status + ", body=" + limitedResult.body);
-        } finally {
-            testTransport.stop();
         }
     }
 
@@ -261,12 +228,10 @@ class McpIntegrationTest {
                         .trustXForwardedFor(true)
                         .build());
 
-        HttpTransportProvider testTransport =
-                new HttpTransportProvider(handler).port(0).apiKey("secret");
-        testTransport.start();
-        String testUrl = testTransport.getUrl();
+        try (HttpTransportProvider testTransport = new HttpTransportProvider(handler).port(0).apiKey("secret")) {
+            testTransport.start();
+            String testUrl = testTransport.getUrl();
 
-        try {
             // Initialize without X-Forwarded-For - should work
             Result initResult = request(testUrl, "POST", initialize(), null, "secret",
                     "application/json", "application/json, text/event-stream", null);
@@ -290,8 +255,6 @@ class McpIntegrationTest {
                     "{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"ping\"}",
                     session, "secret", "application/json", "application/json, text/event-stream", "192.168.1.1");
             assertEquals(200, differentIpResult.status, "Request with different X-Forwarded-For IP should succeed");
-        } finally {
-            testTransport.stop();
         }
     }
 
@@ -304,24 +267,21 @@ class McpIntegrationTest {
                         .trustXForwardedFor(false)  // Default is false
                         .build());
 
-        HttpTransportProvider testTransport =
-                new HttpTransportProvider(handler).port(0).apiKey("secret");
-        testTransport.start();
-        String testUrl = testTransport.getUrl();
+        try (HttpTransportProvider testTransport = new HttpTransportProvider(handler).port(0).apiKey("secret")) {
+            testTransport.start();
+            String testUrl = testTransport.getUrl();
 
-        try {
             // Even with X-Forwarded-For header, should use actual remote IP when trustXForwardedFor=false
             String xffRequest = "{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"ping\"}";
             Result xffResult = request(testUrl, "POST", xffRequest, null, "secret",
                     "application/json", "application/json, text/event-stream", "203.0.113.1");
             assertEquals(200, xffResult.status, "Request should succeed regardless of X-Forwarded-For when disabled");
-        } finally {
-            testTransport.stop();
         }
     }
 
     // ====== Helper Methods ======
 
+    // noinspection SameReturnValue
     private String initialize() {
         return "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1\"}}}";
     }

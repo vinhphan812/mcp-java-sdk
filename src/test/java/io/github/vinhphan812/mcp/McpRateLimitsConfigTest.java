@@ -3,7 +3,6 @@ package io.github.vinhphan812.mcp;
 import io.github.vinhphan812.mcp.api.config.McpSecurityDefaults;
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.api.config.RateLimits;
-import io.github.vinhphan812.mcp.core.McpProtocolHandler;
 import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
@@ -23,6 +22,25 @@ class McpRateLimitsConfigTest {
     }
 
     @Test
+    void destructiveDefaultsAreImmutable() {
+        assertThrows(UnsupportedOperationException.class,
+                () -> McpSecurityDefaults.DESTRUCTIVE_TOOLS.add("unexpected-tool"));
+        assertEquals(6, McpSecurityDefaults.DESTRUCTIVE_TOOLS.size());
+    }
+
+    @Test
+    void destructiveToolOverridesAreDefensiveCopies() {
+        java.util.Set<String> override = new java.util.LinkedHashSet<>();
+        override.add("custom-dangerous-tool");
+
+        RateLimits limits = RateLimits.builder().destructiveTools(override).build();
+        override.add("added-after-build");
+
+        assertEquals(Collections.singleton("custom-dangerous-tool"), limits.destructiveTools);
+        assertThrows(UnsupportedOperationException.class,
+                () -> limits.destructiveTools.add("unexpected-tool"));
+    }
+    @Test
     void customRateLimitsAreStoredInConfig() {
         RateLimits limits = RateLimits.builder()
                 .maxConcurrentSessions(2)
@@ -33,7 +51,7 @@ class McpRateLimitsConfigTest {
                 .build();
 
         McpServerConfig config = McpServerConfig.builder().rateLimits(limits).build();
-        assertTrue(config.rateLimits == limits);
+        assertSame(limits, config.rateLimits);
         assertEquals(2, config.rateLimits.maxConcurrentSessions);
         assertEquals(5, config.rateLimits.maxRequestsPerIpPerMinute);
         assertEquals(4, config.rateLimits.readBurst);

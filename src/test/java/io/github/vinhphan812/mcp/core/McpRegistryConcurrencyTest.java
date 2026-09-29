@@ -1,7 +1,6 @@
 package io.github.vinhphan812.mcp.core;
 
 import io.github.vinhphan812.mcp.api.handler.McpToolHandler;
-import io.github.vinhphan812.mcp.api.spi.McpRegistryChangeListener;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -58,7 +57,7 @@ class McpRegistryConcurrencyTest {
      * and requiredScopes cannot alter the next read.
      */
     @Test
-    void getToolDefinitionReturnsDetachedCopy() throws Exception {
+    void getToolDefinitionReturnsDetachedCopy() {
         List<String> required = new ArrayList<>();
         required.add("name");
         Map<String, Object> outputSchema = new LinkedHashMap<>();
@@ -111,10 +110,10 @@ class McpRegistryConcurrencyTest {
      * Test: getRegisteredTools/resources/templates/prompts return detached copies.
      */
     @Test
-    void getRegisteredDefinitionsReturnDetachedCopies() throws Exception {
+    void getRegisteredDefinitionsReturnDetachedCopies() {
         // Register tools
-        registry.registerTool("tool1", "desc1", createInputSchema(), new ArrayList<String>(), createHandler());
-        registry.registerTool("tool2", "desc2", createInputSchema(), new ArrayList<String>(), createHandler());
+        registry.registerTool("tool1", "desc1", createInputSchema(), new ArrayList<>(), createHandler());
+        registry.registerTool("tool2", "desc2", createInputSchema(), new ArrayList<>(), createHandler());
 
         // Register resources
         registry.registerResource("uri1", "res1", "desc1", "text/plain", (String uri) -> "data");
@@ -171,7 +170,7 @@ class McpRegistryConcurrencyTest {
                 try {
                     startLatch.await(); // Wait for all threads to be ready
                     registry.registerTool("tool" + index, "desc" + index, createInputSchema(),
-                            new ArrayList<String>(), createHandler());
+                            new ArrayList<>(), createHandler());
                     successCount.incrementAndGet();
                 } catch (IllegalArgumentException e) {
                     failureCount.incrementAndGet();
@@ -217,7 +216,7 @@ class McpRegistryConcurrencyTest {
                 try {
                     startLatch.await();
                     registry.registerTool(toolName, "duplicate description", createInputSchema(),
-                            new ArrayList<String>(), createHandler());
+                            new ArrayList<>(), createHandler());
                     successCount.incrementAndGet();
                 } catch (IllegalArgumentException e) {
                     // Expected for duplicates
@@ -271,7 +270,7 @@ class McpRegistryConcurrencyTest {
                     for (int i = 0; i < toolsPerWriter; i++) {
                         try {
                             registry.registerTool("writer" + writerId + "_tool" + i,
-                                    "desc", createInputSchema(), new ArrayList<String>(), createHandler());
+                                    "desc", createInputSchema(), new ArrayList<>(), createHandler());
                         } catch (Exception e) {
                             writeErrors.incrementAndGet();
                         }
@@ -330,21 +329,18 @@ class McpRegistryConcurrencyTest {
      * notification occurs once per successful registration after publication.
      */
     @Test
-    void listenerNotificationOccursOnceAfterRegistration() throws Exception {
+    void listenerNotificationOccursOnceAfterRegistration() {
         final AtomicInteger notificationCount = new AtomicInteger(0);
         final List<String> notificationTypes = new ArrayList<>();
 
-        registry.addRegistryChangeListener(new McpRegistryChangeListener() {
-            @Override
-            public void onRegistryChanged(String listType) {
-                notificationCount.incrementAndGet();
-                notificationTypes.add(listType);
-            }
+        registry.addRegistryChangeListener(listType -> {
+            notificationCount.incrementAndGet();
+            notificationTypes.add(listType);
         });
 
         // Register multiple tools
-        registry.registerTool("tool1", "desc1", createInputSchema(), new ArrayList<String>(), createHandler());
-        registry.registerTool("tool2", "desc2", createInputSchema(), new ArrayList<String>(), createHandler());
+        registry.registerTool("tool1", "desc1", createInputSchema(), new ArrayList<>(), createHandler());
+        registry.registerTool("tool2", "desc2", createInputSchema(), new ArrayList<>(), createHandler());
 
         // Register resource
         registry.registerResource("uri1", "res1", "desc1", "text/plain", (String uri) -> "data");
@@ -370,16 +366,13 @@ class McpRegistryConcurrencyTest {
      * Test: Listener exception does not roll back completed registration.
      */
     @Test
-    void listenerExceptionDoesNotRollbackRegistration() throws Exception {
-        registry.addRegistryChangeListener(new McpRegistryChangeListener() {
-            @Override
-            public void onRegistryChanged(String listType) {
-                throw new RuntimeException("Listener failure");
-            }
+    void listenerExceptionDoesNotRollbackRegistration() {
+        registry.addRegistryChangeListener(listType -> {
+            throw new RuntimeException("Listener failure");
         });
 
         // This should succeed despite listener throwing
-        registry.registerTool("tool1", "desc1", createInputSchema(), new ArrayList<String>(), createHandler());
+        registry.registerTool("tool1", "desc1", createInputSchema(), new ArrayList<>(), createHandler());
 
         // Verify registration succeeded
         assertEquals(1, registry.getRegisteredTools().size());
@@ -406,7 +399,7 @@ class McpRegistryConcurrencyTest {
                 try {
                     startLatch.await();
                     registry.registerTool("authTool" + index, "desc", createInputSchema(),
-                            new ArrayList<String>(), scopes, true, createHandler());
+                            new ArrayList<>(), scopes, true, createHandler());
                     successCount.incrementAndGet();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();

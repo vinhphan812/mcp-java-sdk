@@ -62,7 +62,7 @@ class McpProtocolHandlerReplayTest {
     private String sessionId;
 
     @BeforeEach
-    void setUp() throws Exception {
+    void setUp() {
         executor = Executors.newFixedThreadPool(PRODUCER_THREADS + 4);
         handler = new McpProtocolHandler(
                 new McpRegistry(),
@@ -181,6 +181,7 @@ class McpProtocolHandlerReplayTest {
         // The lost range should be 1..5 (or slightly more if eviction happened later
         // due to concurrent threads).  We verify the gap covers the beginning.
         String gapData = extractGapData(result);
+        assertNotNull(gapData, "Gap data should not be null");
         assertTrue(gapData.matches("\\{\"from\":\\s*1,\\s*\"to\":\\s*\\d+\\}"),
                 "Gap should start from 1, got: " + gapData);
 

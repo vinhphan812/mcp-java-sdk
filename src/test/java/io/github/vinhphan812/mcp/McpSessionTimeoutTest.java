@@ -42,11 +42,13 @@ class McpSessionTimeoutTest {
         McpRegistry registry = new McpRegistry();
         McpProtocolHandler handler = new McpProtocolHandler(registry);
 
+        //noinspection IgnoreResultOfCall
         handler.handleRequestResponse(
                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"ownerId\":\"user1\"}}",
                 null).getSessionId();
 
         handler.terminateSession(
+                //noinspection IgnoreResultOfCall
                 handler.handleRequestResponse(
                         "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"initialize\",\"params\":{\"ownerId\":\"user1\"}}",
                         null).getSessionId());

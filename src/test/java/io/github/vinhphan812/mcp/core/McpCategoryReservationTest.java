@@ -19,11 +19,10 @@ package io.github.vinhphan812.mcp.core;
 import io.github.vinhphan812.mcp.api.config.McpSecurityDefaults;
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.api.config.RateLimits;
-import io.github.vinhphan812.mcp.api.handler.McpToolHandler;
 import io.github.vinhphan812.mcp.api.handler.McpResourceHandler;
+import io.github.vinhphan812.mcp.api.handler.McpToolHandler;
 import io.github.vinhphan812.mcp.api.utils.ConcurrencyHook;
 
-import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -86,16 +85,16 @@ class McpCategoryReservationTest {
         McpRegistry registry = new McpRegistry();
         // Register all tools so tests can use tools/call with explicit scopes
         registry.registerTool("readTool", "A read tool",
-                new java.util.LinkedHashMap<String, Object>(),
-                java.util.Collections.<String>emptyList(), java.util.Arrays.asList("read"), false,
+                new java.util.LinkedHashMap<>(),
+                java.util.Collections.emptyList(), java.util.Collections.singletonList("read"), false,
                 blockingHandler(readHook));
         registry.registerTool("writeTool", "A write tool",
-                new java.util.LinkedHashMap<String, Object>(),
-                java.util.Collections.<String>emptyList(), java.util.Arrays.asList("write"), false,
+                new java.util.LinkedHashMap<>(),
+                java.util.Collections.emptyList(), java.util.Collections.singletonList("write"), false,
                 blockingHandler(writeHook));
         registry.registerTool("adminTool", "An admin tool",
-                new java.util.LinkedHashMap<String, Object>(),
-                java.util.Collections.<String>emptyList(), java.util.Arrays.asList("admin"), false,
+                new java.util.LinkedHashMap<>(),
+                java.util.Collections.emptyList(), java.util.Collections.singletonList("admin"), false,
                 blockingHandler(adminHook));
         // Register a resource so resources/subscribe (write category) succeeds
         registry.registerResource("test://x", "Test Resource", "A test resource",
@@ -150,14 +149,11 @@ class McpCategoryReservationTest {
     }
 
     private static McpToolHandler blockingHandler(final ConcurrencyHook hook) {
-        return new McpToolHandler() {
-            @Override
-            public Map<String, Object> call(Map<String, Object> params) throws Exception {
-                if (hook != null) {
-                    hook.blockIfAdmitted();
-                }
-                return new java.util.LinkedHashMap<String, Object>();
+        return params -> {
+            if (hook != null) {
+                hook.blockIfAdmitted();
             }
+            return new java.util.LinkedHashMap<>();
         };
     }
 
@@ -347,7 +343,7 @@ class McpCategoryReservationTest {
         emptySchema.put("required", new java.util.ArrayList<>());
         ctx.registry.registerTool("throwingTool", "A throwing tool",
                 emptySchema,
-                java.util.Arrays.asList("read"),
+                java.util.Collections.singletonList("read"),
                 (McpToolHandler) params -> {
                     throw THROWING_ERROR;
                 });
@@ -413,11 +409,9 @@ class McpCategoryReservationTest {
         TestContext ctx = makeContext(1, 1, 1);
 
         try {
-            // Find the session's CategoryRateLimitState and block it
-            McpProtocolHandler.CategoryRateLimitState cl =
-                    (McpProtocolHandler.CategoryRateLimitState) ctx.handler.getSessionCategoryLimits(ctx.readSessionId);
-            cl.setAbuseScore(McpSecurityDefaults.ABUSE_SCORE_BLOCK_THRESHOLD);
-            cl.setBlocked(true);
+            // Block the session via public accessor
+            ctx.handler.setSessionCategoryAbuseScore(ctx.readSessionId, McpSecurityDefaults.ABUSE_SCORE_BLOCK_THRESHOLD);
+            ctx.handler.setSessionCategoryBlocked(ctx.readSessionId, true);
 
             // Blocked session denies
             String req1 = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}";
@@ -427,7 +421,7 @@ class McpCategoryReservationTest {
                     "Blocked session should be denied -32029; got: " + r1.getBody());
 
             // Clear block — slot was never consumed (no CAS ran), so cap=1 is still free
-            cl.setBlocked(false);
+            ctx.handler.setSessionCategoryBlocked(ctx.readSessionId, false);
             String req2 = "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}";
             McpProtocolHandler.McpResponse r2 =
                     ctx.handler.handleRequestResponse(req2, ctx.readSessionId, null);
@@ -447,9 +441,9 @@ class McpCategoryReservationTest {
      * Records the maximum observed in-flight count per category and asserts it
      * never exceeds the configured cap.
      *
-     * <p>Uses AtomicInteger as a proxy for the concurrent counter value, sampled
+     * Uses AtomicInteger as a proxy for the concurrent counter value, sampled
      * via the handler's test seam after all threads have entered the barrier.
-     * No Thread.sleep or Thread.yield.
+     * This test does not use Thread.sleep or Thread.yield.
      */
     @org.junit.jupiter.api.Test
     void stress_fiftyConcurrent_noOverAdmission() throws Exception {
@@ -487,15 +481,11 @@ class McpCategoryReservationTest {
                                 // because threads release at different times, but we also directly
                                 // observe the counter below)
                             }
-                            // Sample the actual counter while other threads may still be in-flight
-                            McpProtocolHandler.CategoryRateLimitState limits =
-                                    (McpProtocolHandler.CategoryRateLimitState) ctx.handler.getSessionCategoryLimits(ctx.readSessionId);
-                            if (limits != null) {
-                                int val = limits.readConcurrent.get();
-                                for (; ; ) {
-                                    if (val <= readMax.get()) break;
-                                    if (readMax.compareAndSet(readMax.get(), val)) break;
-                                }
+                            // Sample the read-concurrent counter while other threads may still be in-flight
+                            int val = ctx.handler.getSessionCategoryReadConcurrent(ctx.readSessionId);
+                            for (; ; ) {
+                                if (val <= readMax.get()) break;
+                                if (readMax.compareAndSet(readMax.get(), val)) break;
                             }
                         } catch (Exception e) {
                             // ignore
@@ -525,14 +515,10 @@ class McpCategoryReservationTest {
                             if (isAdmitted(r.getBody())) {
                                 writeAdmitted.incrementAndGet();
                             }
-                            McpProtocolHandler.CategoryRateLimitState limitsW =
-                                    (McpProtocolHandler.CategoryRateLimitState) ctx.handler.getSessionCategoryLimits(ctx.writeSessionId);
-                            if (limitsW != null) {
-                                int val = limitsW.writeConcurrent.get();
-                                for (; ; ) {
-                                    if (val <= writeMax.get()) break;
-                                    if (writeMax.compareAndSet(writeMax.get(), val)) break;
-                                }
+                            int valW = ctx.handler.getSessionCategoryWriteConcurrent(ctx.writeSessionId);
+                            for (; ; ) {
+                                if (valW <= writeMax.get()) break;
+                                if (writeMax.compareAndSet(writeMax.get(), valW)) break;
                             }
                         } catch (Exception e) {
                             // ignore
@@ -562,14 +548,10 @@ class McpCategoryReservationTest {
                             if (isAdmitted(r.getBody())) {
                                 adminAdmitted.incrementAndGet();
                             }
-                            McpProtocolHandler.CategoryRateLimitState limitsA =
-                                    (McpProtocolHandler.CategoryRateLimitState) ctx.handler.getSessionCategoryLimits(ctx.adminSessionId);
-                            if (limitsA != null) {
-                                int val = limitsA.adminConcurrent.get();
-                                for (; ; ) {
-                                    if (val <= adminMax.get()) break;
-                                    if (adminMax.compareAndSet(adminMax.get(), val)) break;
-                                }
+                            int valA = ctx.handler.getSessionCategoryAdminConcurrent(ctx.adminSessionId);
+                            for (; ; ) {
+                                if (valA <= adminMax.get()) break;
+                                if (adminMax.compareAndSet(adminMax.get(), valA)) break;
                             }
                         } catch (Exception e) {
                             // ignore

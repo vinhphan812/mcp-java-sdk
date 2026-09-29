@@ -13,7 +13,7 @@ class McpClientCapabilitiesTest {
     @Test
     void serializesElicitationAndExperimentalCapabilities() {
         Map<String, Object> experimental = new LinkedHashMap<>();
-        experimental.put("vendor.feature", new LinkedHashMap<String, Object>());
+        experimental.put("vendor.feature", new LinkedHashMap<>());
         McpClientCapabilities capabilities = McpClientCapabilities.builder()
                 .elicitation()
                 .experimental(experimental)

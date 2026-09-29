@@ -5,7 +5,6 @@ import io.github.vinhphan812.mcp.core.McpProtocolHandler;
 import io.github.vinhphan812.mcp.core.McpRegistry;
 import org.junit.jupiter.api.Test;
 
-import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -41,6 +40,7 @@ class SseConnectionLimitTest {
             // Initialize
             String initReq = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1\"}}}";
             
+            assertNotNull(url, "Transport URL must be available after start");
             HttpURLConnection initConn = (HttpURLConnection) new URL(url).openConnection();
             initConn.setRequestMethod("POST");
             initConn.setDoOutput(true);
