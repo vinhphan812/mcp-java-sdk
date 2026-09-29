@@ -37,6 +37,8 @@ dependencies {
      */
     implementation 'org.glassfish.grizzly:grizzly-http-server:4.0.2'
 
+    implementation 'com.google.guava:guava:33.3.0-jre'
+
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
