@@ -1,6 +1,5 @@
 package io.github.vinhphan812.mcp.api.config;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -119,9 +118,7 @@ public final class RateLimits {
         private int abuseScoreBlockThreshold = McpSecurityDefaults.ABUSE_SCORE_BLOCK_THRESHOLD;
         private long rateLimitWindowMs = McpSecurityDefaults.RATE_LIMIT_WINDOW_MS_DEFAULT;
         private long rateLimitSustainedWindowMs = McpSecurityDefaults.RATE_LIMIT_SUSTAINED_WINDOW_MS_DEFAULT;
-        private Set<String> destructiveTools = new LinkedHashSet<>(Arrays.asList(
-                "shutdown", "delete_action", "delete_prompt", "set_mcp_api_key",
-                "revoke_mcp_api_key", "upload_file"));
+        private Set<String> destructiveTools = new LinkedHashSet<>(McpSecurityDefaults.DESTRUCTIVE_TOOLS);
 
         public Builder maxConcurrentSessions(int v) {
             maxConcurrentSessions = positive(v, "maxConcurrentSessions");
@@ -204,7 +201,7 @@ public final class RateLimits {
         }
 
         public Builder destructiveTools(Set<String> tools) {
-            destructiveTools = tools == null ? new LinkedHashSet<String>() : new LinkedHashSet<>(tools);
+            destructiveTools = tools == null ? new LinkedHashSet<>() : new LinkedHashSet<>(tools);
             return this;
         }
 

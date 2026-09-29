@@ -114,10 +114,6 @@ public class DefaultApiKeyStore implements ApiKeyStore {
      * Gracefully shuts down the background scheduler.
      * Does not block; previously scheduled tasks are allowed to complete.
      */
-    /**
-     * Gracefully shuts down the background scheduler.
-     * Does not block; previously scheduled tasks are allowed to complete.
-     */
     public void shutdown() {
         if (scheduler != null) scheduler.shutdown();
     }

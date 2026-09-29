@@ -15,7 +15,6 @@ import io.github.vinhphan812.mcp.api.dto.McpBlobContent;
  * and accommodates implementations that read from I/O, network, or storage
  * sources which may throw checked exceptions.
  */
-//noinspection RedundantThrows
 public interface McpBlobResourceHandler extends McpResourceHandler {
 
     /**

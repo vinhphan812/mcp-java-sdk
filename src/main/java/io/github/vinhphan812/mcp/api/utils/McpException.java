@@ -1,7 +1,5 @@
 package io.github.vinhphan812.mcp.api.utils;
 
-import java.util.Map;
-
 /**
  * A unchecked exception carrying a JSON-RPC error code and message.
  * <p>

@@ -264,7 +264,7 @@ public final class McpServerConfig {
 
         /**
          * Sets the queue overflow listener. When the notification queue for a session reaches
-         * {@link McpProtocolHandler#MAX_PENDING_NOTIFICATIONS_PER_SESSION}, the listener is
+         * {@code MAX_PENDING_NOTIFICATIONS_PER_SESSION}, the listener is
          * notified. If no listener is configured, a {@link McpProtocolHandler.QueueOverflowException}
          * is thrown.
          *

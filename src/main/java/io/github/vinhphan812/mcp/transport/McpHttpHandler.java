@@ -4,7 +4,6 @@ import com.google.gson.JsonObject;
 import io.github.vinhphan812.mcp.api.utils.McpError;
 import io.github.vinhphan812.mcp.api.utils.McpGson;
 import io.github.vinhphan812.mcp.api.utils.McpHttpHeaders;
-import io.github.vinhphan812.mcp.api.utils.McpJsonRpc;
 import io.github.vinhphan812.mcp.api.utils.McpMethodNames;
 import io.github.vinhphan812.mcp.core.McpProtocolHandler;
 import org.glassfish.grizzly.http.server.HttpHandler;
@@ -206,17 +205,17 @@ public final class McpHttpHandler extends HttpHandler {
 
     // ── shared validation ────────────────────────────────────────────────
 
-    /** Returns true on pass; writes a 4xx error and returns false on failure. */
-    private boolean validateRequest(Request request, Response response) throws IOException {
+    /** Returns true when the request is invalid (writes a 4xx error); false when valid. */
+    private boolean isInvalidRequest(Request request, Response response) throws IOException {
         if (isInvalidOrigin(request)) {
             writeError(response, 403, "Forbidden Origin");
-            return false;
+            return true;
         }
         if (isUnauthorized(request)) {
             writeError(response, 401, "Unauthorized");
-            return false;
+            return true;
         }
-        return true;
+        return false;
     }
 
     private boolean isInvalidOrigin(Request request) {
@@ -262,7 +261,7 @@ public final class McpHttpHandler extends HttpHandler {
     private static String sseConnected(String sid) { return SseEventFormatter.connected(sid); }
 
     /** SSE message frame. */
-    private static String sseMessage(String id, String body) { return SseEventFormatter.message(id, body); }
+    private static String sseMessage(String body) { return SseEventFormatter.message("0", body); }
 
     /** Sets SSE response headers. Call before any body write. */
     private void setSseHeaders(Response response, boolean keepAlive) {
@@ -285,7 +284,7 @@ public final class McpHttpHandler extends HttpHandler {
 
     // ── POST ──────────────────────────────────────────────────────────────
     private void handlePost(Request request, Response response) throws IOException {
-        if (!validateRequest(request, response)) return;
+        if (isInvalidRequest(request, response)) return;
 
         if (!validContentType(request)) {
             writeError(response, 415, "Content-Type must be application/json");
@@ -386,7 +385,7 @@ public final class McpHttpHandler extends HttpHandler {
             response.setStatus(200);
             if (sessionId != null) response.setHeader(McpHttpHeaders.SESSION, sessionId);
             // First event: the JSON-RPC response
-            response.getWriter().write(sseMessage("0", result.getBody()));
+            response.getWriter().write(sseMessage(result.getBody()));
             response.getWriter().flush();
             // Live polling loop
             runSsePollingLoop(response, sessionId);
@@ -398,7 +397,6 @@ public final class McpHttpHandler extends HttpHandler {
     /** Live SSE polling: send pending events or ping every second, up to 5 minutes. */
     private void runSsePollingLoop(Response response, String sessionId) throws IOException {
         long start = System.currentTimeMillis();
-        //noinspection BusyWait
         while (!Thread.currentThread().isInterrupted() && handler.hasSession(sessionId)
                 && System.currentTimeMillis() - start < 300_000L) {
             try { Thread.sleep(1000); } catch (InterruptedException e) {
@@ -433,7 +431,7 @@ public final class McpHttpHandler extends HttpHandler {
 
     // ── GET ───────────────────────────────────────────────────────────────
     private void handleGet(Request request, Response response) throws IOException {
-        if (!validateRequest(request, response)) return;
+        if (isInvalidRequest(request, response)) return;
         String sessionId = request.getHeader(McpHttpHeaders.SESSION);
         if (sessionId == null || !handler.hasSession(sessionId)) {
             writeError(response, 400, "Missing or invalid Mcp-Session-Id header");
@@ -478,7 +476,7 @@ public final class McpHttpHandler extends HttpHandler {
 
     // ── DELETE ──────────────────────────────────────────────────────────
     private void handleDelete(Request request, Response response) throws IOException {
-        if (!validateRequest(request, response)) return;
+        if (isInvalidRequest(request, response)) return;
         String sessionId = request.getHeader(McpHttpHeaders.SESSION);
         if (sessionId == null || !handler.hasSession(sessionId)) {
             writeError(response, 404, "Unknown MCP session");
@@ -512,17 +510,13 @@ public final class McpHttpHandler extends HttpHandler {
     }
 
     /** Writes an HTTP error using the error map returned by {@link McpError}. */
-    @SuppressWarnings("unchecked")
     private static void writeError(Response r, Map<String, Object> error) throws IOException {
         int status = (Integer) error.get("code");
         String message = (String) error.get("message");
         r.setContentType("application/json");
         r.setCharacterEncoding("UTF-8");
         r.setStatus(status);
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("jsonrpc", McpJsonRpc.VERSION);
-        payload.put("id", null);
-        payload.put("error", error);
+        Map<String, Object> payload = McpError.jsonRpcEnvelope(null, error);
         r.getWriter().write(McpGson.get().toJson(payload));
     }
 
@@ -544,10 +538,7 @@ public final class McpHttpHandler extends HttpHandler {
         Map<String, Object> error = new LinkedHashMap<>();
         error.put("code", status);
         error.put("message", msg);
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("jsonrpc", McpJsonRpc.VERSION);
-        payload.put("id", null);
-        payload.put("error", error);
+        Map<String, Object> payload = McpError.jsonRpcEnvelope(null, error);
         r.getWriter().write(McpGson.get().toJson(payload));
     }
 }

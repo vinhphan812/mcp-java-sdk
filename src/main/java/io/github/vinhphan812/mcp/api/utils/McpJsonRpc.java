@@ -5,7 +5,7 @@ package io.github.vinhphan812.mcp.api.utils;
  *
  * <p>Protocol version strings come from the MCP specification.  Both
  * {@code 2025-03-26} and {@code 2025-06-18} are accepted by the server
- * (the handler checks {@link io.github.vinhphan812.mcp.api.utils.McpJsonRpc#supportsProtocolVersion}).
+ * (the handler validates the negotiated protocol version).
  */
 public final class McpJsonRpc {
 

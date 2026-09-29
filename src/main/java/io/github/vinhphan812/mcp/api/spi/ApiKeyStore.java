@@ -3,7 +3,7 @@ package io.github.vinhphan812.mcp.api.spi;
 /**
  * SPI for managing API keys used for request authentication/authorization.
  *
- * Implementations should be thread-safe for concurrent access to {@link #isValid(String)},
+ * <p>Implementations should be thread-safe for concurrent access to {@link #isValid(String)},
  * {@link #rotateKey()}, and {@link #setKey(String)} methods.
  */
 public interface ApiKeyStore {

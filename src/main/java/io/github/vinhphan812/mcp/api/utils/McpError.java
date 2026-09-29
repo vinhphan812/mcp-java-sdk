@@ -35,6 +35,23 @@ public final class McpError {
         return error;
     }
 
+    /**
+     * Builds a JSON-RPC response envelope without any transport concerns.
+     * The returned map is data only; callers decide how it is serialized and
+     * where it is written.
+     *
+     * @param id request identifier, possibly null for transport-generated errors
+     * @param error JSON-RPC error object
+     * @return JSON-RPC response envelope
+     */
+    public static Map<String, Object> jsonRpcEnvelope(Object id, Map<String, Object> error) {
+        Map<String, Object> response = new LinkedHashMap<>(3);
+        response.put("jsonrpc", McpJsonRpc.VERSION);
+        response.put("id", id);
+        response.put("error", error);
+        return response;
+    }
+
     // ── JSON-RPC reserved codes ────────────────────────────────────────────────
 
     /**
