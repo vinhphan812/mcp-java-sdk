@@ -474,7 +474,7 @@ Releases: https://github.com/vinhphan812/mcp-java-sdk/releases
 The library runs inside an Android app or robot service process. A phone or robot can act as an MCP server — no separate
 backend needed. Android API 21+ is the typical target; verify Grizzly compatibility on the target runtime.
 
-See [docs/PROJECT-GUIDE.md](docs/PROJECT-GUIDE.md) for Android hosting guidance and runtime verification checklist.
+See [docs/guides/PROJECT-GUIDE.md](docs/guides/PROJECT-GUIDE.md) for Android hosting guidance and runtime verification checklist.
 
 ### Excluded
 

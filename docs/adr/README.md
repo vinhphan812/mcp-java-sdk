@@ -6,7 +6,9 @@ ADRs document significant design decisions, the context that motivated them, and
 permanent record of why the system is built the way it is.
 
 See
-also: [PROJECT-GUIDE.md](../PROJECT-GUIDE.md) | [API-REFERENCE.md](../API-REFERENCE.md) | [IMPLEMENTATION-STATUS.md](../IMPLEMENTATION-STATUS.md)
+- [Project Guide](../guides/PROJECT-GUIDE.md)
+- [API Reference](../guides/API-REFERENCE.md)
+- [Implementation Status](../guides/IMPLEMENTATION-STATUS.md)
 
 ## ADR relationship
 

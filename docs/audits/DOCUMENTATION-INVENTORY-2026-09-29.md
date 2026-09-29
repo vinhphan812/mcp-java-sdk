@@ -17,12 +17,12 @@
 | 4 | `CLAUDE.md` | 2026-09-24 | 3,595 | YES | current |
 | 5 | `AGENTS.md` | 2026-09-24 | 4,082 | YES | current |
 | 6 | `docs/README.md` | 2026-09-23 | 1,546 | YES | canonical docs entry point (links to subdirectories) |
-| 7 | `docs/API-REFERENCE.md` | 2026-09-24 | 51,600 | **DUPLICATE** | root; superseded by `docs/guides/API-REFERENCE.md` |
-| 8 | `docs/PROJECT-GUIDE.md` | 2026-09-28 | 18,089 | **DUPLICATE** | root; superseded by `docs/guides/PROJECT-GUIDE.md` |
-| 9 | `docs/USER_GUIDE.md` | 2026-09-23 | 4,637 | **DUPLICATE** | root; superseded by `docs/guides/USER_GUIDE.md` |
-| 10 | `docs/IMPLEMENTATION-STATUS.md` | 2026-09-28 | 14,126 | **DUPLICATE** | root; superseded by `docs/guides/IMPLEMENTATION-STATUS.md` |
-| 11 | `docs/MCP-COMPATIBILITY-2026.md` | 2026-09-23 | 4,512 | **DUPLICATE** | root; superseded by `docs/architecture/MCP-COMPATIBILITY-2026.md` |
-| 12 | `docs/MCP-PORTING-PLAN.md` | 2026-09-23 | 3,585 | **DUPLICATE** | root; superseded by `docs/architecture/MCP-PORTING-PLAN.md` |
+| 7 | `docs/API-REFERENCE.md` | 2026-09-24 | 51,600 | **REMOVED** | duplicate removed 2026-09-29; canonical `docs/guides/API-REFERENCE.md` |
+| 8 | `docs/PROJECT-GUIDE.md` | 2026-09-28 | 18,089 | **REMOVED** | duplicate removed 2026-09-29; canonical `docs/guides/PROJECT-GUIDE.md` |
+| 9 | `docs/USER_GUIDE.md` | 2026-09-23 | 4,637 | **DUPLICATE** | compatibility copy retained; canonical `docs/guides/USER_GUIDE.md` |
+| 10 | `docs/IMPLEMENTATION-STATUS.md` | 2026-09-28 | 14,126 | **REMOVED** | duplicate removed 2026-09-29; canonical `docs/guides/IMPLEMENTATION-STATUS.md` |
+| 11 | `docs/MCP-COMPATIBILITY-2026.md` | 2026-09-23 | 4,512 | **REMOVED** | duplicate removed 2026-09-29; canonical `docs/architecture/MCP-COMPATIBILITY-2026.md` |
+| 12 | `docs/MCP-PORTING-PLAN.md` | 2026-09-23 | 3,585 | **REMOVED** | duplicate removed 2026-09-29; canonical `docs/architecture/MCP-PORTING-PLAN.md` |
 | 13 | `docs/guides/API-REFERENCE.md` | 2026-09-24 | 25,264 | **CANONICAL** | current |
 | 14 | `docs/guides/PROJECT-GUIDE.md` | 2026-09-28 | 18,659 | **CANONICAL** | current |
 | 15 | `docs/guides/USER_GUIDE.md` | 2026-09-23 | 4,637 | **CANONICAL** | current (identical to root duplicate) |
@@ -121,7 +121,7 @@ Rationale: `sourceCompatibility = JavaVersion.VERSION_1_8` is a compile-time con
 
 | Root file | guides/ canonical | Diff summary |
 |-----------|-------------------|--------------|
-| `docs/API-REFERENCE.md` | `docs/guides/API-REFERENCE.md` | Minor: guides/ has `GRIZZLY-EXAMPLE.md` → `GRIZZLY-EXAMPLE.md` (broken link); guides/ has corrected `.tools(true).resources(true).prompts(true)` removed from builder example |
+| `docs/API-REFERENCE.md` | `docs/guides/API-REFERENCE.md` | Minor: guides/ has `HTTP-TRANSPORT-EXAMPLE.md` → `HTTP-TRANSPORT-EXAMPLE.md` (broken link); guides/ has corrected `.tools(true).resources(true).prompts(true)` removed from builder example |
 | `docs/PROJECT-GUIDE.md` | `docs/guides/PROJECT-GUIDE.md` | Minimal: guides/ has updated docs tree in §2 (reflects current subdirectories) |
 | `docs/USER_GUIDE.md` | `docs/guides/USER_GUIDE.md` | **Identical** (diff returns empty) |
 | `docs/IMPLEMENTATION-STATUS.md` | `docs/guides/IMPLEMENTATION-STATUS.md` | **Significant**: guides/ is 39,431 bytes vs root 14,126 bytes; guides/ has complete mermaid diagrams, session lifecycle, authorization sections; root is a stub |
@@ -134,16 +134,13 @@ This file (18,569 bytes) is unique to `docs/guides/`. It is NOT a duplicate of `
 
 ### 3.3 `GRIZZLY-EXAMPLE.md` → `HTTP-TRANSPORT-EXAMPLE.md`
 
-The file was renamed from `GRIZZLY-EXAMPLE.md` to `HTTP-TRANSPORT-EXAMPLE.md` in commit `79666df docs(guides): rename GRIZZLY-EXAMPLE to HTTP-TRANSPORT-EXAMPLE` (per `docs/audits/historical/MERGE-PLAN-2026-09-23.md`). However, the rename was **incomplete**:
+The file was renamed from `GRIZZLY-EXAMPLE.md` to `HTTP-TRANSPORT-EXAMPLE.md` in commit `79666df docs(guides): rename GRIZZLY-EXAMPLE to HTTP-TRANSPORT-EXAMPLE` (per `docs/audits/historical/MERGE-PLAN-2026-09-23.md`). However, the rename was incomplete:
 
 - `docs/guides/HTTP-TRANSPORT-EXAMPLE.md` exists and is current
-- `docs/guides/GRIZZLY-EXAMPLE.md` does NOT exist (confirmed: `ls` returns "No such file or directory")
-- **Broken links** to `GRIZZLY-EXAMPLE.md` remain in:
-  - `docs/guides/API-REFERENCE.md:133` — `See GRIZZLY-EXAMPLE.md for the full...`
-  - `docs/guides/API-REFERENCE.md:631` — table link `[Grizzly Example](GRIZZLY-EXAMPLE.md)`
-- `docs/API-REFERENCE.md` also has broken links to `GRIZZLY-EXAMPLE.md` and `docs/GRIZZLY-EXAMPLE.md`
+- `docs/guides/GRIZZLY-EXAMPLE.md` does NOT exist
+- No maintained links to `GRIZZLY-EXAMPLE.md` remain; canonical links use `HTTP-TRANSPORT-EXAMPLE.md`.
 
-The canonical file is now `docs/guides/HTTP-TRANSPORT-EXAMPLE.md`. All references must be updated.
+The canonical file is now `docs/guides/HTTP-TRANSPORT-EXAMPLE.md`.
 
 ---
 
@@ -190,11 +187,6 @@ The DOCS-REORGANISATION-PLAN specified moving it to `docs/audits/evidence/FINDIN
 
 | File | Line | Broken link | Target status |
 |------|------|-------------|---------------|
-| `docs/guides/API-REFERENCE.md` | 133 | `See GRIZZLY-EXAMPLE.md for the full...` | **MISSING** — renamed to `HTTP-TRANSPORT-EXAMPLE.md` |
-| `docs/guides/API-REFERENCE.md` | 631 | `[Grizzly Example](GRIZZLY-EXAMPLE.md)` | **MISSING** — renamed to `HTTP-TRANSPORT-EXAMPLE.md` |
-| `docs/API-REFERENCE.md` | 133 | `See docs/GRIZZLY-EXAMPLE.md for the full...` | **MISSING** — renamed to `HTTP-TRANSPORT-EXAMPLE.md` |
-| `docs/API-REFERENCE.md` | 690 | `[GRIZZLY-EXAMPLE.md](GRIZZLY-EXAMPLE.md)` | **MISSING** |
-| `docs/API-REFERENCE.md` | 788 | `See docs/GRIZZLY-EXAMPLE.md for the full...` | **MISSING** |
 | `docs/adr/ADR-0009-code-audit-findings.md` | 98 | `../audits/2026-09-12-full-source-audit.md` | **ARCHIVED** — moved to `historical/2026-09-12-full-source-audit.md` |
 | `docs/adr/ADR-0009-code-audit-findings.md` | 99 | `../audits/2026-09-12-audit-supplement.md` | **ARCHIVED** — moved to `historical/` |
 
@@ -245,8 +237,8 @@ No `mkdocs.yml` or `mkdocs.yaml` found anywhere in the repository. There is no M
 
 | # | Action | Owner |
 |---|--------|-------|
-| H-1 | Fix all 6 broken `GRIZZLY-EXAMPLE.md` → `HTTP-TRANSPORT-EXAMPLE.md` links | dev-backend |
-| H-2 | Update `docs/audits/README.md` to reference `ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md` as canonical; note `AUDIT_STATUS.md` is superseded | dev-pm |
+| H-1 | Fix all maintained `GRIZZLY-EXAMPLE.md` → `HTTP-TRANSPORT-EXAMPLE.md` links | dev-backend | DONE 2026-09-29 |
+| H-2 | Update `docs/audits/README.md` to reference `ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md` as canonical; note `AUDIT_STATUS.md` is superseded | dev-pm | DONE 2026-09-29 |
 
 ### MEDIUM — Fix before next milestone
 
@@ -357,15 +349,29 @@ All 18 ADRs in `docs/adr/` are permanent records and must never be deleted. ADR-
 
 ---
 
-## 12. Validation
+## 13. Consolidation completion — 2026-09-29
+
+The duplicate-path cleanup is complete. Canonical files were retained and the five root duplicates listed in §3.1 were removed after maintained inbound links were updated:
+
+| Removed duplicate | Canonical replacement | Disposition |
+|---|---|---|
+| `docs/API-REFERENCE.md` | `docs/guides/API-REFERENCE.md` | Removed; use canonical path |
+| `docs/PROJECT-GUIDE.md` | `docs/guides/PROJECT-GUIDE.md` | Removed; use canonical path |
+| `docs/IMPLEMENTATION-STATUS.md` | `docs/guides/IMPLEMENTATION-STATUS.md` | Removed; use canonical path |
+| `docs/MCP-COMPATIBILITY-2026.md` | `docs/architecture/MCP-COMPATIBILITY-2026.md` | Removed; use canonical path |
+| `docs/MCP-PORTING-PLAN.md` | `docs/architecture/MCP-PORTING-PLAN.md` | Removed; use canonical path |
+
+`docs/USER_GUIDE.md` remains as a compatibility copy because it is identical to the canonical guide and still has no maintained path migration requirement in this task. All maintained `HTTP-TRANSPORT-EXAMPLE.md` references were verified absent; links use `docs/guides/HTTP-TRANSPORT-EXAMPLE.md`. Historical and audit evidence retains old names where they describe past repository states.
+
+Validation completed with `git diff --check`, canonical-file existence checks, and a maintained Markdown link scan excluding `docs/audits/historical/` and generated evidence.
 
 ```bash
 cd D:/android/mcp-java-sdk
 git diff --check
 # Expected: no output (no whitespace errors in working tree)
 
-# Verify no GRIZZLY-EXAMPLE.md exists anywhere
-find . -name "GRIZZLY-EXAMPLE.md" 2>/dev/null
+# Verify no HTTP-TRANSPORT-EXAMPLE.md exists anywhere
+find . -name "HTTP-TRANSPORT-EXAMPLE.md" 2>/dev/null
 # Expected: no output (file was renamed)
 
 # Verify all guides/ canonical files exist

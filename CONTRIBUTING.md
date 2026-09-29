@@ -41,7 +41,7 @@ Verify the build is green before making changes.
 
 - New public API surfaces require Javadoc
 - Architectural decisions require an ADR in [docs/adr/](docs/adr/)
-- Update [docs/IMPLEMENTATION-STATUS.md](docs/IMPLEMENTATION-STATUS.md) for new features
+- Update [docs/guides/IMPLEMENTATION-STATUS.md](docs/guides/IMPLEMENTATION-STATUS.md) for new features
 - Cross-link related documents with relative paths
 
 ## Reporting issues

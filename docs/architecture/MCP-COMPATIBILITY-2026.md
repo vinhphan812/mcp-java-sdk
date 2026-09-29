@@ -5,9 +5,9 @@ external-client interoperability.
 
 Reference documentation:
 
-- [PROJECT-GUIDE.md](../guides/PROJECT-GUIDE.md) — architecture and usage guide.
-- [API-REFERENCE.md](../guides/API-REFERENCE.md) — complete public API surface.
-- [IMPLEMENTATION-STATUS.md](../guides/IMPLEMENTATION-STATUS.md) — completed, incomplete, and unverified areas.
+- [Project Guide](../guides/PROJECT-GUIDE.md) — architecture and usage guide.
+- [API Reference](../guides/API-REFERENCE.md) — complete public API surface.
+- [Implementation Status](../guides/IMPLEMENTATION-STATUS.md) — completed, incomplete, and unverified areas.
 - [HTTP-TRANSPORT-EXAMPLE.md](../guides/HTTP-TRANSPORT-EXAMPLE.md) — standalone HTTP/SSE transport example.
 - [MCP-PORTING-PLAN.md](./MCP-PORTING-PLAN.md) — package inventory and porting notes.
 - [docs/adr/](../adr/) — architecture decision records documenting key design choices.
