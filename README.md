@@ -9,6 +9,9 @@ server, exposing tools, resources, and prompts over HTTP to MCP clients on the s
 [![Java](https://img.shields.io/badge/Java-11+-orange)](https://adoptium.net/)
 [![License](https://img.shields.io/github/license/vinhphan812/mcp-java-sdk)](LICENSE)
 [![GitHub Repo stars](https://img.shields.io/github/stars/vinhphan812/mcp-java-sdk?style=flat)](https://github.com/vinhphan812/mcp-java-sdk)
+[![Code size](https://img.shields.io/github/languages/code-size/vinhphan812/mcp-java-sdk)](https://github.com/vinhphan812/mcp-java-sdk)
+[![Repository size](https://img.shields.io/github/repo-size/vinhphan812/mcp-java-sdk)](https://github.com/vinhphan812/mcp-java-sdk)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/vinhphan812/mcp-java-sdk)
 
 ---
 
