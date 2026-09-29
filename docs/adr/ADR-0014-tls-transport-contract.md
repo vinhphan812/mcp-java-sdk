@@ -91,9 +91,10 @@ terminated by a reverse proxy.
 
 Rationale: Clients need to know the correct URL scheme to connect, regardless of how TLS is terminated internally.
 
-### Cleanup Tasks (at the major-release removal phase — not yet scheduled)
+### Cleanup Tasks (deferred to the next named major release)
 
-> These tasks apply only when a major release is explicitly approved and scheduled. They must not be
+> CLOSED FOR THE CURRENT RELEASE: these are future-work items, not outstanding implementation defects.
+> They apply only when a major release is explicitly approved and scheduled. They must not be
 > started before a named major version is selected and a migration window is planned.
 
 1. Delete `src/main/java/io/github/vinhphan812/mcp/api/config/TlsConfig.java`

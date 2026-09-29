@@ -4,7 +4,7 @@
 **Date:** 2026-09-22
 **Last Updated:** 2026-09-22
 **Author:** dev-architect
-**Implementation Status:** In Progress (Phase 1-3 completed)
+**Implementation Status:** In Progress (Phases 1-3 completed; Phase 2/3 disposition recorded below)
 
 ## Context
 
@@ -216,12 +216,27 @@ When responding to legacy clients:
 
 ### Migration Path
 
-|| Phase | Action | Timeline | Status ||
-|-------|--------|----------|----------|--------|
+| Phase | Action | Timeline | Status |
+|-------|--------|----------|--------|
 | Phase 1 | Implement dual-mode detection + handlers | This ADR | **Completed** |
-| Phase 2 | Log deprecation warning for legacy mode | Next sprint | Pending |
-| Phase 3 | Add config flag to disable legacy | Future | Pending |
-| Phase 4 | Remove legacy (major version) | v2.0 | Planned — open Q1/Q2/Q3 resolved 2026-09-28 |
+| Phase 2 | Log deprecation warning for legacy mode | Deferred until legacy usage telemetry exists | **Deferred** |
+| Phase 3 | Add config flag to disable legacy | **Already available** as `McpServerConfig.Builder.streamableHttp(boolean)`; no second disable flag is needed | **Closed** |
+| Phase 4 | Remove legacy (major version) | v2.0, after migration evidence | Planned — separate major-release work |
+
+#### Phase 2 disposition — deferred
+
+A deprecation warning in `McpHttpHandler` is not actionable in the current release. The handler has no
+stable application logger/telemetry contract for emitting a warning without imposing a new logging API or
+repeating warnings for every legacy request. Legacy mode remains an intentional compatibility path, and its
+future removal is already tracked as Phase 4. Revisit Phase 2 when a named major-release migration window
+and usage telemetry exist; until then, the documentation's legacy/deprecated labeling is the operative notice.
+
+#### Phase 3 disposition — closed
+
+The requested configuration control already exists: `McpServerConfig.Builder.streamableHttp(boolean)`
+defaults to `true`, and setting it to `false` selects legacy HTTP+SSE mode. `McpHttpHandler.Builder.transportMode(TransportMode)`
+also provides explicit transport selection. Adding another flag to disable legacy mode would duplicate the
+existing contract and is therefore unnecessary. The Phase 3 item is closed with no source change.
 
 ### Implementation Status (2026-09-22)
 

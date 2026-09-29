@@ -1,16 +1,14 @@
 # ADR-0017 — SSE Permit Acquisition and Response Flow
 
-**Status:** Active — Normative for legacy HTTP+SSE mode
+**Status:** Historical — superseded by ADR-0016
 **Date:** 2026-09-20
-**Last Updated:** 2026-09-28
+**Last Updated:** 2026-09-29
 **Reference:** `McpHttpHandler.handleGet()` (SSE management lives here)
-**Supersedes:** (none — prior to this ADR there was no written permit-ordering contract)
+**Superseded by:** [ADR-0016](ADR-0016-sse-permit-flow-verification.md), the normative SSE permit-ordering contract
 
-> **Note (2026-09-28):** ADR-0017 is the normative contract for SSE permit ordering in legacy HTTP+SSE mode.
-> ADR-0018 (transport contract) defers to this document for the permit-acquisition sequence.
-> ADR-0017 and ADR-0018 are complementary, not sequential: ADR-0017 specifies *how* permits are ordered
-> within legacy GET handling; ADR-0018 specifies *which* transport mode to use.
-> There is no ADR-0016 — the prior "Superseded by ADR-0016" claim was an error.
+> This ADR records the original permit-ordering problem and its historical specification. ADR-0016 is the
+> single source of truth for the corrected implementation and acceptance criteria. References to this ADR in
+> test specifications identify the historical problem statement, not a current normative contract.
 
 ## Context
 

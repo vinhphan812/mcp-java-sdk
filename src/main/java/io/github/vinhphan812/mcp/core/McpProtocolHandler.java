@@ -28,6 +28,9 @@ import io.github.vinhphan812.mcp.api.logging.McpLogger;
 import io.github.vinhphan812.mcp.api.spi.McpAuthorization;
 import io.github.vinhphan812.mcp.api.spi.McpRegistrar;
 import io.github.vinhphan812.mcp.api.spi.McpRegistryChangeListener;
+import static io.github.vinhphan812.mcp.api.spi.McpAuthorization.ADMIN;
+import static io.github.vinhphan812.mcp.api.spi.McpAuthorization.READ;
+import static io.github.vinhphan812.mcp.api.spi.McpAuthorization.WRITE;
 import io.github.vinhphan812.mcp.api.utils.*;
 
 import java.nio.charset.StandardCharsets;
@@ -398,15 +401,15 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     }
 
     int getSessionCategoryReadConcurrent(String sessionId) {
-        return categoryRateLimitController.concurrent(sessionId, CategoryRateLimitController.READ);
+        return categoryRateLimitController.concurrent(sessionId, READ);
     }
 
     int getSessionCategoryWriteConcurrent(String sessionId) {
-        return categoryRateLimitController.concurrent(sessionId, CategoryRateLimitController.WRITE);
+        return categoryRateLimitController.concurrent(sessionId, WRITE);
     }
 
     int getSessionCategoryAdminConcurrent(String sessionId) {
-        return categoryRateLimitController.concurrent(sessionId, CategoryRateLimitController.ADMIN);
+        return categoryRateLimitController.concurrent(sessionId, ADMIN);
     }
 
     /**

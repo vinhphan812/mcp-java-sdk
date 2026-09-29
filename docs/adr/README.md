@@ -59,7 +59,7 @@ flowchart LR
 | [ADR-0014](ADR-0014-tls-transport-contract.md)                | TLS Transport Contract: Reverse-Proxy-Only Termination                          | Accepted | 2026-09-20 |
 | [ADR-0015](ADR-0015-concurrent-collection-strategy.md)        | Concurrent Collection Strategy for Registry                                      | Accepted | 2026-09-20 |
 | [ADR-0016](ADR-0016-sse-permit-flow-verification.md)         | SSE Permit Flow Verification and Implementation Plan                             | Accepted | 2026-09-20 |
-| [ADR-0017](ADR-0017-sse-permit-response-flow.md)              | SSE Permit Acquisition and Response Flow                                         | Superseded | 2026-09-20 |
+| [ADR-0017](ADR-0017-sse-permit-response-flow.md)              | SSE Permit Acquisition and Response Flow                                         | Historical | 2026-09-20 |
 | [ADR-0018](ADR-0018-transport-contract-http-sse-vs-streamable-http.md) | Transport Contract: Legacy HTTP+SSE vs Modern Streamable HTTP            | Accepted | 2026-09-22 |
 
 ## When to create an ADR

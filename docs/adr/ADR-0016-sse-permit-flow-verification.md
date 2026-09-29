@@ -3,7 +3,7 @@
 **Status:** Accepted
 **Date:** 2026-09-20
 **Reference:** `McpHttpHandler.handleGet()` (lines 301-372)
-**Supersedes:** ADR-0017 (draft status - this document captures verified findings)
+**Supersedes:** ADR-0017 (historical problem statement; this document is the normative contract)
 
 ## Context
 

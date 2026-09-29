@@ -5,6 +5,13 @@
 **Accepted:** 2026-09-14 — all 10 phases implemented.
 **Authors:** MCP Java SDK team
 
+## Category constants consolidation (2026-09-29)
+
+The category names are defined only by the public `McpAuthorization` SPI (`READ`, `WRITE`, and `ADMIN`).
+`CategoryRateLimitController` imports those constants statically for its internal rate-limit logic instead of
+redeclaring them. This preserves the public SPI contract for consumers while preventing the internal core class
+from becoming a second public dependency or source of drift.
+
 ## Follow-up: Configurable RateLimits (2026-09-14)
 
 The security and rate-limit values are configurable through the immutable `RateLimits` value object in `api/config`. Use

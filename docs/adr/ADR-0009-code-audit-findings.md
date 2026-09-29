@@ -48,15 +48,14 @@ variables or secret stores.
 
 The following findings were reviewed and accepted without code changes:
 
-### Concurrency: queue size check in SSE polling
+### Concurrency: defensive queue check in SSE polling
 
-`pendingEvents.size() > 0` followed by `pendingEvents.poll()` is not
-atomic. In the worst case the queue is drained between the check and the poll,
-causing one unnecessary sleep-cycle before the next check.
-This is benign: no data is lost and the event is delivered on the next poll.
-The race window is sub-millisecond and SSE delivery has a 1-second polling
-interval. Fixing this with finer-grained locking or compare-and-set would add
-complexity without practical benefit.
+`pendingEvents.size() > 0` followed by `pendingEvents.poll()` was initially
+reported as a possible non-atomic polling defect. This is a **false positive**.
+`ConcurrentLinkedQueue.poll()` is safe when the queue is empty and returns `null`;
+the size check is defensive and does not create data loss or an invalid state.
+A concurrent drain can at most cause the current iteration to observe `null` and
+continue to the next polling cycle. No code change is required.
 
 ### Long ID precision in JSON-RPC responses
 

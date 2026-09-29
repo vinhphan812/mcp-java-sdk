@@ -9,16 +9,16 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
+import static io.github.vinhphan812.mcp.api.spi.McpAuthorization.ADMIN;
+import static io.github.vinhphan812.mcp.api.spi.McpAuthorization.READ;
+import static io.github.vinhphan812.mcp.api.spi.McpAuthorization.WRITE;
+
 /**
  * Owns stateful per-session category admission, quotas, destructive-tool caps,
  * and abuse scoring.  Protocol handlers only ask this component to check or
  * reserve capacity; the mutable state never crosses this boundary.
  */
 public final class CategoryRateLimitController {
-    public static final String READ = "read";
-    public static final String WRITE = "write";
-    public static final String ADMIN = "admin";
-
     private final RateLimits rateLimits;
     private final Logger logger;
     private final ConcurrentHashMap<String, State> sessions = new ConcurrentHashMap<>();
