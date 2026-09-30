@@ -39,11 +39,25 @@ public final class McpHttpHandler extends HttpHandler {
 
     private static final int DEFAULT_MAX_SSE = 4;
 
+    /** Methods advertised in the CORS preflight {@code Access-Control-Allow-Methods} header. */
+    private static final String CORS_ALLOW_METHODS = "POST, GET, DELETE, OPTIONS";
+
+    /**
+     * Headers advertised in the CORS preflight
+     * {@code Access-Control-Allow-Headers} header.
+     */
+    private static final String CORS_ALLOW_HEADERS =
+            "Content-Type, Accept, Authorization, Mcp-Session-Id, "
+                    + "Mcp-Protocol-Version, Last-Event-ID";
+
+    /** Seconds for which a browser may cache the preflight result. */
+    private static final String CORS_MAX_AGE = "86400";
+
     // ── fields ────────────────────────────────────────────────────────────────
     private final McpProtocolHandler handler;
     private final String endpoint;
     private final Supplier<String> apiKeySupplier;
-    private final Set<String> allowedOrigins;
+    private final CorsOriginPolicy corsPolicy;
     private final int maxRequestBodyBytes;
     private final Semaphore sseConnections;
     private final boolean trustXForwardedFor;
@@ -56,8 +70,7 @@ public final class McpHttpHandler extends HttpHandler {
         private final McpProtocolHandler handler;
         private String endpoint = "/mcp";
         private Supplier<String> apiKeySupplier;
-        private Set<String> allowedOrigins = Collections.unmodifiableSet(
-                new HashSet<>(Arrays.asList("http://localhost", "http://127.0.0.1", "https://localhost")));
+        private CorsOriginPolicy corsPolicy = CorsOriginPolicy.DEFAULT;
         private int maxRequestBodyBytes = 1024 * 1024;
         private int maxSseConnections = DEFAULT_MAX_SSE;
         private boolean trustXForwardedFor;
@@ -95,15 +108,22 @@ public final class McpHttpHandler extends HttpHandler {
             return this;
         }
 
+        /**
+         * Sets allowed origins, replacing the loopback-default policy.
+         *
+         * <p>The set is passed to {@link CorsOriginPolicy#of(Collection)},
+         * which normalises each value (lower-case, trimmed) and enforces
+         * non-null, non-blank entries.
+         *
+         * <p>When the supplied collection is empty, only loopback origins are
+         * accepted (the default behaviour). When non-empty, both loopback and
+         * the listed non-loopback origins are accepted.
+         *
+         * @param v allowed origins; may be empty, never {@code null}
+         * @return this builder
+         */
         public Builder allowedOrigins(Set<String> v) {
-            if (v == null) throw new IllegalArgumentException("allowedOrigins cannot be null");
-            Set<String> n = new HashSet<>();
-            for (String o : v) {
-                if (o == null || o.trim().isEmpty())
-                    throw new IllegalArgumentException("allowedOrigins cannot contain blank values");
-                n.add(o.trim().toLowerCase(Locale.ROOT));
-            }
-            this.allowedOrigins = Collections.unmodifiableSet(n);
+            this.corsPolicy = CorsOriginPolicy.of(v);
             return this;
         }
 
@@ -131,7 +151,7 @@ public final class McpHttpHandler extends HttpHandler {
         this.handler = b.handler;
         this.endpoint = b.endpoint;
         this.apiKeySupplier = b.apiKeySupplier;
-        this.allowedOrigins = b.allowedOrigins;
+        this.corsPolicy = b.corsPolicy;
         this.maxRequestBodyBytes = b.maxRequestBodyBytes;
         this.sseConnections = new Semaphore(b.maxSseConnections);
         this.trustXForwardedFor = b.trustXForwardedFor;
@@ -179,6 +199,31 @@ public final class McpHttpHandler extends HttpHandler {
                 .trustXForwardedFor(trustFwd).transportMode(mode));
     }
 
+    /**
+     * Constructs a handler with an explicit CORS origin policy.
+     *
+     * @param h         protocol handler
+     * @param e         endpoint path
+     * @param s         API key supplier (may be null)
+     * @param cors      CORS origin policy
+     * @param maxBody   max request body bytes
+     * @param maxSse    max concurrent SSE connections
+     * @param trustFwd  whether to trust X-Forwarded-For
+     * @param mode      transport mode
+     */
+    public McpHttpHandler(McpProtocolHandler h, String e, Supplier<String> s,
+                          CorsOriginPolicy cors, int maxBody, int maxSse,
+                          boolean trustFwd, TransportMode mode) {
+        this.handler = h;
+        this.endpoint = e.trim().startsWith("/") ? e.trim() : "/" + e.trim();
+        this.apiKeySupplier = s;
+        this.corsPolicy = cors != null ? cors : CorsOriginPolicy.DEFAULT;
+        this.maxRequestBodyBytes = maxBody;
+        this.sseConnections = new Semaphore(maxSse);
+        this.trustXForwardedFor = trustFwd;
+        this.transportMode = mode != null ? mode : TransportMode.AUTO;
+    }
+
     // ── routing ────────────────────────────────────────────────────────────
     @Override
     public void service(Request request, Response response) throws Exception {
@@ -188,6 +233,9 @@ public final class McpHttpHandler extends HttpHandler {
             return;
         }
         switch (request.getMethod().toString().toUpperCase(Locale.ROOT)) {
+            case "OPTIONS":
+                handleOptions(request, response);
+                break;
             case "POST":
                 handlePost(request, response);
                 break;
@@ -203,11 +251,55 @@ public final class McpHttpHandler extends HttpHandler {
         }
     }
 
+    // ── CORS ────────────────────────────────────────────────────────────────
+
+    /**
+     * Returns the value of the {@code Origin} header on the request, or
+     * {@code null} when absent or blank.
+     */
+    private String requestOrigin(Request request) {
+        String o = request.getHeader("Origin");
+        if (o == null || o.trim().isEmpty()) return null;
+        return o.trim();
+    }
+
+    /**
+     * Writes CORS response headers onto {@code response}.
+     *
+     * <p>When the request carried an {@code Origin} header, sets:
+     * <ul>
+     *   <li>{@code Access-Control-Allow-Origin} — echoing the matching origin,
+     *       or {@code "null"} when the origin was rejected
+     *   <li>{@code Vary: Origin} — informs caching layers that the response
+     *       varies by origin
+     * </ul>
+     *
+     * <p>No {@code Access-Control-Allow-Credentials} header is emitted; bearer
+     * authentication is orthogonal to CORS.
+     */
+    private void writeCorsHeaders(Response response, String origin) {
+        if (origin == null) {
+            // No Origin header → not a browser request → no CORS headers.
+            return;
+        }
+        String allowOrigin = corsPolicy.allowedOriginValue(origin);
+        response.setHeader("Access-Control-Allow-Origin", allowOrigin);
+        response.setHeader("Vary", "Origin");
+    }
+
     // ── shared validation ────────────────────────────────────────────────
 
-    /** Returns true when the request is invalid (writes a 4xx error); false when valid. */
+    /**
+     * Returns true when the request is invalid (writes a 4xx error); false when valid.
+     *
+     * <p>Note: for OPTIONS preflight requests, callers must use
+     * {@link #handleOptions} directly — this method does not handle
+     * preflight-specific responses.
+     */
     private boolean isInvalidRequest(Request request, Response response) throws IOException {
-        if (isInvalidOrigin(request)) {
+        String origin = requestOrigin(request);
+        if (!corsPolicy.accepts(origin)) {
+            writeCorsHeaders(response, origin);
             writeError(response, 403, "Forbidden Origin");
             return true;
         }
@@ -218,11 +310,24 @@ public final class McpHttpHandler extends HttpHandler {
         return false;
     }
 
-    private boolean isInvalidOrigin(Request request) {
-        String origin = request.getHeader("Origin");
-        if (origin == null || origin.trim().isEmpty()) return false;
-        for (String a : allowedOrigins) if (a.equalsIgnoreCase(origin.trim())) return false;
-        return true;
+    /**
+     * Handles an OPTIONS preflight request.
+     *
+     * <p>Writes preflight response headers and returns HTTP 200 if the origin
+     * is accepted; HTTP 403 if rejected.
+     */
+    private void handleOptions(Request request, Response response) throws IOException {
+        String origin = requestOrigin(request);
+        if (corsPolicy.accepts(origin)) {
+            writeCorsHeaders(response, origin);
+            response.setHeader("Access-Control-Allow-Methods", CORS_ALLOW_METHODS);
+            response.setHeader("Access-Control-Allow-Headers", CORS_ALLOW_HEADERS);
+            response.setHeader("Access-Control-Max-Age", CORS_MAX_AGE);
+            response.setStatus(200);
+        } else {
+            writeCorsHeaders(response, origin);
+            writeError(response, 403, "Forbidden Origin");
+        }
     }
 
     private boolean isUnauthorized(Request request) {
@@ -284,6 +389,7 @@ public final class McpHttpHandler extends HttpHandler {
 
     // ── POST ──────────────────────────────────────────────────────────────
     private void handlePost(Request request, Response response) throws IOException {
+        String origin = requestOrigin(request);
         if (isInvalidRequest(request, response)) return;
 
         if (!validContentType(request)) {
@@ -337,19 +443,21 @@ public final class McpHttpHandler extends HttpHandler {
         McpProtocolHandler.McpResponse result = handler.handleRequestResponse(body, sessionId, clientIp);
 
         if (result.getBody() == null) {
+            writeCorsHeaders(response, origin);
             response.setStatus(202);
             return;
         }
 
         // Server-driven SSE streaming on POST
         if (isModernClient(request) && sessionId != null && handler.hasPendingNotifications(sessionId)) {
-            handlePostStreaming(response, result);
+            handlePostStreaming(response, result, origin);
             return;
         }
 
         // Normal JSON response
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
+        writeCorsHeaders(response, origin);
         if (result.getSessionId() != null) response.setHeader(McpHttpHeaders.SESSION, result.getSessionId());
         response.setStatus(200);
         response.getWriter().write(result.getBody());
@@ -374,7 +482,8 @@ public final class McpHttpHandler extends HttpHandler {
     // ── POST streaming ─────────────────────────────────────────────────────
 
     /** POST response as SSE: initial JSON then live notification polling. */
-    private void handlePostStreaming(Response response, McpProtocolHandler.McpResponse result) throws IOException {
+    private void handlePostStreaming(Response response, McpProtocolHandler.McpResponse result,
+                                    String origin) throws IOException {
         if (!sseConnections.tryAcquire()) {
             writeError(response, McpError.httpTooManyRequests("Too many active SSE connections"));
             return;
@@ -382,6 +491,7 @@ public final class McpHttpHandler extends HttpHandler {
         String sessionId = result.getSessionId();
         try {
             setSseHeaders(response, true);
+            writeCorsHeaders(response, origin);
             response.setStatus(200);
             if (sessionId != null) response.setHeader(McpHttpHeaders.SESSION, sessionId);
             // First event: the JSON-RPC response
@@ -431,6 +541,7 @@ public final class McpHttpHandler extends HttpHandler {
 
     // ── GET ───────────────────────────────────────────────────────────────
     private void handleGet(Request request, Response response) throws IOException {
+        String origin = requestOrigin(request);
         if (isInvalidRequest(request, response)) return;
         String sessionId = request.getHeader(McpHttpHeaders.SESSION);
         if (sessionId == null || !handler.hasSession(sessionId)) {
@@ -446,7 +557,7 @@ public final class McpHttpHandler extends HttpHandler {
         }
 
         if (effectiveMode(request) == TransportMode.STREAMABLE_HTTP) {
-            handleGetReplayOnly(response, sessionId, lastEventId);
+            handleGetReplayOnly(response, sessionId, lastEventId, origin);
             return;
         }
 
@@ -457,6 +568,7 @@ public final class McpHttpHandler extends HttpHandler {
         }
         try {
             setSseHeaders(response, true);
+            writeCorsHeaders(response, origin);
             response.setStatus(200);
             if (lastEventId != null) response.getWriter().write(handler.getMissedEvents(sessionId, lastEventId));
             response.getWriter().write(sseConnected(sessionId));
@@ -466,8 +578,10 @@ public final class McpHttpHandler extends HttpHandler {
         finally { sseConnections.release(); }
     }
 
-    private void handleGetReplayOnly(Response response, String sessionId, Long lastEventId) throws IOException {
+    private void handleGetReplayOnly(Response response, String sessionId, Long lastEventId,
+                                    String origin) throws IOException {
         setSseHeaders(response, false);
+        writeCorsHeaders(response, origin);
         response.setStatus(200);
         if (lastEventId != null) response.getWriter().write(handler.getMissedEvents(sessionId, lastEventId));
         response.getWriter().write(sseConnected(sessionId));
@@ -476,6 +590,7 @@ public final class McpHttpHandler extends HttpHandler {
 
     // ── DELETE ──────────────────────────────────────────────────────────
     private void handleDelete(Request request, Response response) throws IOException {
+        String origin = requestOrigin(request);
         if (isInvalidRequest(request, response)) return;
         String sessionId = request.getHeader(McpHttpHeaders.SESSION);
         if (sessionId == null || !handler.hasSession(sessionId)) {
@@ -483,6 +598,7 @@ public final class McpHttpHandler extends HttpHandler {
             return;
         }
         handler.terminateSession(sessionId);
+        writeCorsHeaders(response, origin);
         response.setStatus(204);
     }
 

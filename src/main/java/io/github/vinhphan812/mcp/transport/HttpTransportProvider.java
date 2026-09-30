@@ -20,7 +20,7 @@ public final class HttpTransportProvider implements AutoCloseable {
     private String endpoint = "/mcp";
     private String urlScheme = "http";
     private Supplier<String> apiKeySupplier;
-    private Set<String> allowedOrigins = new HashSet<>(Arrays.asList("http://localhost", "http://127.0.0.1", "https://localhost"));
+    private CorsOriginPolicy corsPolicy = CorsOriginPolicy.DEFAULT;
     private int maxRequestBodyBytes = 1024 * 1024;
     private TransportMode transportMode = TransportMode.AUTO;
     private HttpServer server;
@@ -96,15 +96,20 @@ public final class HttpTransportProvider implements AutoCloseable {
     }
 
     /**
-     * Configure accepted browser origins. Values are normalized case-insensitively.
+     * Configure accepted browser origins beyond the built-in loopback rule.
+     * Values are normalised case-insensitively and validated at build time.
      *
-     * @param values allowed origin values.
-     * @return this provider.
-     * @throws IllegalArgumentException if values is null.
+     * <p>When the supplied set is empty (the default), only loopback origins
+     * are accepted (localhost, 127.0.0.1, [::1], with any port).
+     * When non-empty, both loopback and the listed non-loopback origins are accepted.
+     *
+     * @param values allowed non-loopback origins; may be empty, never {@code null}
+     * @return this provider
+     * @throws IllegalArgumentException if values is null
      */
     public HttpTransportProvider allowedOrigins(java.util.Set<String> values) {
         if (values == null) throw new IllegalArgumentException("allowedOrigins cannot be null");
-        allowedOrigins = new java.util.HashSet<>(values);
+        corsPolicy = CorsOriginPolicy.of(values);
         return this;
     }
 
@@ -169,7 +174,7 @@ public final class HttpTransportProvider implements AutoCloseable {
     public synchronized void start() throws IOExceptionUnchecked {
         if (isRunning()) return;
         try {
-            McpHttpHandler httpHandler = new McpHttpHandler(handler, endpoint, apiKeySupplier, allowedOrigins, maxRequestBodyBytes, 4, handler.getConfig().trustXForwardedFor, transportMode);
+            McpHttpHandler httpHandler = new McpHttpHandler(handler, endpoint, apiKeySupplier, corsPolicy, maxRequestBodyBytes, 4, handler.getConfig().trustXForwardedFor, transportMode);
             server = new HttpServer();
             server.addListener(new NetworkListener(LISTENER_NAME, host, port));
             server.getServerConfiguration().addHttpHandler(httpHandler, endpoint);

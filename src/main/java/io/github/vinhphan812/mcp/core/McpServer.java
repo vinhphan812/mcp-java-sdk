@@ -4,6 +4,8 @@ import io.github.vinhphan812.mcp.api.McpReflectionRegistrar;
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.transport.HttpTransportProvider;
 
+import java.util.Collections;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /** Portable MCP server bootstrap combining registry, protocol handler, and transport. */
@@ -18,6 +20,9 @@ public final class McpServer implements AutoCloseable {
                 builder.config == null ? McpServerConfig.builder().build() : builder.config);
         transport = new HttpTransportProvider(protocolHandler)
                 .host(builder.host).port(builder.port).endpoint(builder.endpoint);
+        if (builder.allowedOrigins != null) {
+            transport.allowedOrigins(builder.allowedOrigins);
+        }
         if (builder.apiKeySupplier != null) {
             transport.apiKeySupplier(builder.apiKeySupplier);
         } else if (builder.apiKey != null) {
@@ -107,6 +112,7 @@ public final class McpServer implements AutoCloseable {
         private String endpoint = "/mcp";
         private String apiKey;
         private Supplier<String> apiKeySupplier;
+        private Set<String> allowedOrigins;
 
         /** Sets registry.
          * @param value registry instance.
@@ -161,6 +167,26 @@ public final class McpServer implements AutoCloseable {
          * @return this builder. */
         public Builder apiKeySupplier(Supplier<String> supplier) {
             apiKeySupplier = supplier;
+            return this;
+        }
+
+        /**
+         * Configures explicit non-loopback allowed origins in addition to the
+         * built-in loopback rule.
+         *
+         * <p>The built-in loopback rule accepts any origin whose host resolves
+         * to {@code 127.0.0.0/8} or {@code ::1} regardless of port.
+         * Setting this field allows additional non-loopback origins to be
+         * accepted, such as {@code "https://app.example.com"}.
+         *
+         * <p>When this is not set (null), only loopback origins are accepted.
+         *
+         * @param origins set of allowed non-loopback origins; may be empty,
+         *                never {@code null}
+         * @return this builder
+         */
+        public Builder allowedOrigins(Set<String> origins) {
+            allowedOrigins = origins;
             return this;
         }
 
