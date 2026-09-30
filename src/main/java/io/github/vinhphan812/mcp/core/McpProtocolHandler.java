@@ -28,9 +28,6 @@ import io.github.vinhphan812.mcp.api.logging.McpLogger;
 import io.github.vinhphan812.mcp.api.spi.McpAuthorization;
 import io.github.vinhphan812.mcp.api.spi.McpRegistrar;
 import io.github.vinhphan812.mcp.api.spi.McpRegistryChangeListener;
-import static io.github.vinhphan812.mcp.api.spi.McpAuthorization.ADMIN;
-import static io.github.vinhphan812.mcp.api.spi.McpAuthorization.READ;
-import static io.github.vinhphan812.mcp.api.spi.McpAuthorization.WRITE;
 import io.github.vinhphan812.mcp.api.utils.*;
 
 import java.nio.charset.StandardCharsets;
@@ -41,6 +38,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
+
+import static io.github.vinhphan812.mcp.api.spi.McpAuthorization.*;
 
 /**
  * Lightweight MCP protocol handler that implements JSON-RPC 2.0 for MCP
@@ -182,7 +181,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         }
 
         void enqueueEvent(String body) {
-            synchronized(this) {
+            synchronized (this) {
                 if (pendingEvents.size() >= maxQueuedEvents) pendingEvents.poll();
                 pendingEvents.offer(new SseEvent(nextEventId.getAndIncrement(), body));
             }
@@ -1627,7 +1626,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             long gapFrom = afterEventId + 1;
             long gapTo = firstEvent.id - 1;
             sb.append("event: gap\ndata: {\"from\":").append(gapFrom)
-              .append(",\"to\":").append(gapTo).append("}\n\n");
+                    .append(",\"to\":").append(gapTo).append("}\n\n");
         }
         for (SseEvent event : state.pendingEvents) {
             if (event.id > afterEventId) {
@@ -1720,22 +1719,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     }
 
     private Map<String, Object> errorResourceResult(String message) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        List<Map<String, Object>> contents = new ArrayList<>();
-        Map<String, Object> contentItem = new LinkedHashMap<>();
-        contentItem.put("uri", "error");
-        contentItem.put("mimeType", "application/json");
-
-        Map<String, String> errorPayload = new LinkedHashMap<>();
-        errorPayload.put("error", message == null ? "Unknown resource error" : message);
-        try {
-            contentItem.put("text", mapper.toJson(errorPayload));
-        } catch (Exception serializationFailure) {
-            contentItem.put("text", "{\"error\":\"Unable to serialize resource error\"}");
-        }
-        contents.add(contentItem);
-        result.put("contents", contents);
-        return result;
+        return McpError.resourceResult(message);
     }
 
     private Map<String, Object> errorPromptResult(String message) {
