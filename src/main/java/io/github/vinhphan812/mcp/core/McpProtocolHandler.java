@@ -928,9 +928,12 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             throw McpException.taskNotComplete(task.getTaskId());
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("taskId", task.getTaskId());
-        if (task.getStatus() == McpTask.Status.FAILED || task.getStatus() == McpTask.Status.CANCELLED)
+        if (task.getStatus() == McpTask.Status.FAILED || task.getStatus() == McpTask.Status.CANCELLED) {
             out.put("error", task.getError());
-        else if (task.getResult() != null) out.put("result", task.getResult());
+        } else {
+            // COMPLETED: always include result (null is valid — empty-result task)
+            out.put("result", task.getResult());
+        }
         return out;
     }
 

@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.api.dto.McpTask;
+import io.github.vinhphan812.mcp.api.utils.McpGson;
 import io.github.vinhphan812.mcp.core.McpProtocolHandler;
 import io.github.vinhphan812.mcp.core.McpRegistry;
 import org.junit.jupiter.api.Test;
@@ -11,7 +12,9 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class McpTasksTest {
-    private final Gson gson = new Gson();
+    // Use McpGson so null result fields are preserved during deserialization,
+    // matching production serialization behaviour.
+    private final Gson gson = McpGson.get();
 
     private McpProtocolHandler handler() {
         McpServerConfig config = McpServerConfig.builder()
@@ -132,9 +135,18 @@ class McpTasksTest {
         JsonObject result = request(handler, session, 2, "tasks/result", "{\"taskId\":\"" + completed.getTaskId() + "\"}");
         assertEquals("value", result.getAsJsonObject("result").get("result").getAsString());
 
+        // Regression: null result must still appear in response (not silently omitted).
+        // Previously the `if (task.getResult() != null)` guard silently dropped null results.
+        McpTask empty = handler.createTask();
+        handler.completeTask(empty.getTaskId(), null);
+        JsonObject emptyResult = request(handler, session, 4, "tasks/result", "{\"taskId\":\"" + empty.getTaskId() + "\"}");
+        // response.result is the tasks/result payload; its inner "result" field must be null
+        assertTrue(emptyResult.getAsJsonObject("result").has("result"));
+        assertTrue(emptyResult.getAsJsonObject("result").get("result").isJsonNull());
+
         McpTask failed = handler.createTask();
         handler.failTask(failed.getTaskId(), "boom");
-        JsonObject error = request(handler, session, 3, "tasks/result", "{\"taskId\":\"" + failed.getTaskId() + "\"}");
+        JsonObject error = request(handler, session, 5, "tasks/result", "{\"taskId\":\"" + failed.getTaskId() + "\"}");
         assertEquals("boom", error.getAsJsonObject("result").get("error").getAsString());
     }
 
