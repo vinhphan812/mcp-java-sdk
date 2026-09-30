@@ -472,8 +472,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     @SuppressWarnings("unchecked")
     public McpResponse handleRequestResponse(String requestBody, String sessionId, String clientIp) {
         Object id = null;
-        String method = null;
-        List<String> toolScopes = null;
+        String method;
+        List<String> toolScopes;
         String reservedCategory = null;
         try {
             Map<String, Object> request = mapper.fromJson(requestBody, new TypeToken<Map<String, Object>>() {
@@ -862,10 +862,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
     private Map<String, Object> handleInitialize(Map<String, Object> params,
                                                  String newSessionId, String clientIp) {
-        String ownerId = null;
-        if (params != null && params.get("ownerId") instanceof String) {
-            ownerId = (String) params.get("ownerId");
-        }
+        String ownerId = (params != null && params.get("ownerId") instanceof String)
+                ? (String) params.get("ownerId") : null;
         SessionState state = handleSessionCreate(newSessionId, clientIp, ownerId);
 
         LOGGER.info("Initialized session: " + newSessionId
@@ -1083,7 +1081,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
         // Lookup tool definition for schema and scopes
         Map<String, Object> definition = registry.getToolDefinition(name);
-        List<String> requiredScopes = null;
+        List<String> requiredScopes = (definition != null)
+                ? (List<String>) definition.get("requiredScopes") : null;
         if (definition != null) {
             // Schema validation — check required params
             Map<String, Object> inputSchema = (Map<String, Object>) definition.get("inputSchema");
