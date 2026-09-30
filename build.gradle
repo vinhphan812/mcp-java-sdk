@@ -12,14 +12,14 @@ def releaseVersion = System.getenv('GITHUB_REF_NAME')?.with { ref ->
 version = providers.gradleProperty('sdkVersion').orElse(releaseVersion ?: '1.0-SNAPSHOT').get()
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
     withSourcesJar()
     withJavadocJar()
 }
 
 tasks.withType(JavaCompile).configureEach {
-    options.compilerArgs += ['-Xlint:unchecked', '-Xlint:-options']
+    options.compilerArgs += ['-Xlint:unchecked']
 }
 
 repositories {
