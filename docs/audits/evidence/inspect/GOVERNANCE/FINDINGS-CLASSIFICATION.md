@@ -1,4 +1,10 @@
-# IDE Inspection Findings — Current Source Classification
+# IDE Inspection Findings — Historical Classification (Superseded)
+
+> **This file is superseded.** The current authoritative document is
+> [INSPECTION-GOVERNANCE.md](./INSPECTION-GOVERNANCE.md), which supersedes this
+> file as of 2026-09-30.
+
+---
 
 Date: 2026-09-29 (revalidation pass)
 Inspection tool: IntelliJ IDEA 2024.3 (IU-243.28141.41)

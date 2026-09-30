@@ -23,7 +23,7 @@
 
 ### Additional resources
 
-- [Finding classifications](../inspect/FINDINGS-CLASSIFICATION.md) — source-revalidated findings for maintainers
+- [Inspection governance policy and worklist](./evidence/inspect/GOVERNANCE/INSPECTION-GOVERNANCE.md) — current authoritative classification
 
 ## Categories
 
