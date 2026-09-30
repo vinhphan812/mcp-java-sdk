@@ -11,7 +11,7 @@ also: [PROJECT-GUIDE.md](PROJECT-GUIDE.md) | [API-REFERENCE.md](API-REFERENCE.md
 sequenceDiagram
     participant C as HTTP Client
     participant G as Grizzly
-    participant H as McpGrizzlyHandler
+    participant H as McpHttpHandler
     participant P as McpProtocolHandler
     participant R as McpRegistry
 

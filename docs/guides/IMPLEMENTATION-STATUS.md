@@ -1,7 +1,111 @@
-# ADR-0011 Implementation Plan — Security and Rate Limiting
+# Implementation Status
 
-This document tracks the phased implementation of ADR-0011. Each phase is self-contained, testable, and leaves the
-codebase in a buildable state.
+Capability matrix for `mcp-java-sdk`. Every row is backed by source evidence (class, method, or test). "Implemented" means a working handler exists; "Not implemented" means no handler exists; "Conditional" means the feature requires specific runtime or deployment configuration.
+
+---
+
+## Protocol Methods
+
+| Method | Status | Evidence |
+|--------|--------|----------|
+| `initialize` | **Implemented** | `McpProtocolHandler.handleRequestResponse()`: init dispatch; `McpIntegrationTest` |
+| `ping` | **Implemented** | `McpProtocolHandler.java:665`: `case McpMethodNames.PING: result = new LinkedHashMap<>();`; `isSessionOptional()` at line 700; `StreamableHttpModeTest:144-148`; `McpRateLimitTest:419` |
+| `tools/list` | **Implemented** | `McpMethodNames.TOOLS_LIST`; `handleToolsList()` |
+| `tools/call` | **Implemented** | `McpMethodNames.TOOLS_CALL`; `handleToolsCall()` |
+| `resources/list` | **Implemented** | `McpMethodNames.RESOURCES_LIST`; `handleResourcesList()` |
+| `resources/read` | **Implemented** | `McpMethodNames.RESOURCES_READ`; `handleResourcesRead()` |
+| `resources/templates/list` | **Implemented** | case `"resources/templates/list"` dispatch |
+| `resources/subscribe` | **Implemented** | `McpMethodNames.RESOURCES_SUBSCRIBE`; subscription map in `SessionState` |
+| `resources/unsubscribe` | **Implemented** | `McpMethodNames.RESOURCES_UNSUBSCRIBE` |
+| `prompts/list` | **Implemented** | `McpMethodNames.PROMPTS_LIST`; `handlePromptsList()` |
+| `prompts/get` | **Implemented** | `McpMethodNames.PROMPTS_GET`; `handlePromptsGet()` |
+| `tasks/create` | **Implemented** | `McpMethodNames.TASKS_CREATE`; P2 checklist item |
+| `tasks/get` | **Implemented** | `McpMethodNames.TASKS_GET` |
+| `tasks/cancel` | **Implemented** | `McpMethodNames.TASKS_CANCEL`; `handleNotificationCancelled()` |
+| `tasks/result` | **Implemented** | `McpMethodNames.TASKS_RESULT` |
+| `completion/complete` | **Implemented** | `McpMethodNames.COMPLETION_COMPLETE`; `McpCompletionProvider` |
+| `logging/setLevel` | **Implemented** | `McpMethodNames.LOGGING_SET_LEVEL`; `handleSetLogLevel()` |
+| `sampling/createMessage` | **Not implemented** | No handler dispatch in `McpProtocolHandler`; `MCP-COMPATIBILITY-2026.md` P2 item |
+| `roots/list` | **Not implemented** | No handler in `McpProtocolHandler`; no `roots` field in `McpServerConfig` |
+| `elicitation` | **Not implemented** | `McpClientCapabilities` has elicitation fields but `McpProtocolHandler` has no handler dispatch; `MCP-COMPATIBILITY-2026.md` P2 item |
+
+---
+
+## Notifications
+
+| Notification | Status | Evidence |
+|-------------|--------|----------|
+| `notifications/initialized` | **Implemented** | `McpMethodNames.NOTIF_INITIALIZED`; `isSessionOptional()` |
+| `notifications/tools/list_changed` | **Implemented** | `McpMethodNames.NOTIF_TOOLS_LIST_CHANGED`; P1 checklist |
+| `notifications/resources/list_changed` | **Implemented** | `McpMethodNames.NOTIF_RESOURCES_LIST_CHANGED`; P1 checklist |
+| `notifications/prompts/list_changed` | **Implemented** | `McpMethodNames.NOTIF_PROMPTS_LIST_CHANGED`; P1 checklist |
+| `notifications/message` | **Implemented** | `McpMethodNames.NOTIF_MESSAGE`; `handleNotificationMessage()` |
+| `notifications/cancelled` | **Implemented** | `McpMethodNames.NOTIF_CANCELLED`; `handleNotificationCancelled()` |
+| `notifications/progress` | **Implemented** | `McpMethodNames.NOTIF_PROGRESS`; P2 checklist |
+| `notifications/resources/updated` | **Implemented** | `McpMethodNames.NOTIF_RESOURCES_UPDATED`; `notifyResourceUpdated()` |
+| `tasks/task` | **Implemented** | `McpMethodNames.NOTIF_TASK`; server-initiated task notification |
+
+---
+
+## Transports
+
+| Transport | Status | Evidence |
+|-----------|--------|----------|
+| **Streamable HTTP** | **Implemented** | `transport/` package; `GrizzlyStreamableServerTransportProvider`; `StreamableHttpModeTest` |
+| **HTTP POST** (JSON-RPC) | **Implemented** | POST handler in `McpHttpHandler`; `McpIntegrationTest` |
+| **HTTP GET** (SSE event stream) | **Implemented** | SSE handler in `McpHttpHandler`; `StreamableHttpModeTest` |
+| **HTTP DELETE** (session teardown) | **Implemented** | DELETE handler in `McpHttpHandler` |
+| **STDIO** | **Not implemented** | No STDIO handler or transport; `MCP-COMPATIBILITY-2026.md` P2 item |
+| **WebSocket** | **Not implemented** | No WebSocket handler; `PROJECT-GUIDE.md` §9; consumer uses external bridge |
+| **In-process TLS (HTTPS)** | **Not implemented** | `TlsConfig` unused (0 code references); `StreamableServerTransportProvider` creates plain `NetworkListener`; ADR-0013/ADR-0014: reverse-proxy-only TLS |
+
+---
+
+## Hosting Environments
+
+| Environment | Status | Evidence |
+|-------------|--------|----------|
+| **Java 11+ server** | **Supported** | Full SDK including Grizzly; `build.gradle` targets Java 11 bytecode; ADR-0019 |
+| **Java 8+ runtime** (portable core only) | **Supported** | `annotations/` + `api/` + `core/` compile to Java 8 bytecode v52; ADR-0001 |
+| **Android with Grizzly transport** | **Conditional** | Full SDK requires JVM 11+ (Grizzly 4.0.x bytecode v55); Android API 21 is **not** sufficient; ADR-0019. Portable core may run on Android API 21+ if application supplies an alternative HTTP transport. Verify target runtime before using Grizzly. |
+| **ROSA / Android robot** | **Conditional** | Same constraint as Android: full SDK needs JVM 11+; portable core is Android-API-agnostic; consumer supplies domain models and transport |
+
+---
+
+## Security & Session
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| Bearer token auth | **Implemented** | `McpServerConfig.apiKeySupplier()`; `McpHttpHandler` Bearer comparison; `McpIntegrationTest` auth matrix |
+| Origin / CORS policy | **Implemented** | `McpHttpHandler` Origin rejection; ADR-0021 loopback-origin policy |
+| Rate limiting (IP + session) | **Implemented** | `McpRateLimitTest`; ADR-0011 Phase 1-3 |
+| Per-category rate limits (read/write/admin) | **Implemented** | `CategoryRateLimitState`; burst/sustained/concurrent caps; `McpRateLimitTest` |
+| Destructive tool caps | **Implemented** | `DESTRUCTIVE_TOOLS` set; lifetime + cooldown; ADR-0011 Phase 3 |
+| Abuse scoring | **Implemented** | `addAbuseScore()`; SEVERE block at threshold; ADR-0011 Phase 3 |
+| Queue overflow handling | **Implemented** | `MAX_PENDING_NOTIFICATIONS_PER_SESSION`; `QueueOverflowListener`; ADR-0011 Phase 4 |
+| `McpAuthorization` SPI | **Implemented** | `api/spi/McpAuthorization`; `McpServerConfig.Builder.authorization()`; ADR-0011 Phase 5 |
+| In-process TLS (HTTPS) | **Not implemented** | ADR-0014: reverse-proxy-only TLS; `TlsConfig` deprecated |
+| Max concurrent sessions | **Implemented** | `MAX_CONCURRENT_SESSIONS = 10`; returns `-32029`; ADR-0011 Phase 2 |
+
+---
+
+## References
+
+| Source | Topic |
+|--------|-------|
+| `src/main/java/io/github/vinhphan812/mcp/api/utils/McpMethodNames.java` | Canonical method name constants |
+| `src/main/java/io/github/vinhphan812/mcp/core/McpProtocolHandler.java` | Protocol dispatch and handlers |
+| `src/main/java/io/github/vinhphan812/mcp/api/config/McpServerConfig.java` | Server configuration |
+| `src/test/java/io/github/vinhphan812/mcp/McpIntegrationTest.java` | Integration tests |
+| `src/test/java/io/github/vinhphan812/mcp/StreamableHttpModeTest.java` | HTTP transport tests |
+| `src/test/java/io/github/vinhphan812/mcp/McpRateLimitTest.java` | Security/rate-limit tests |
+| `docs/adr/ADR-0001-portable-java8-core.md` | Portable Java 8 core design |
+| `docs/adr/ADR-0002-grizzly-transport-isolation.md` | Grizzly transport isolation |
+| `docs/adr/ADR-0011-security-rate-limiting.md` | Security and rate limiting design |
+| `docs/adr/ADR-0013-tls-strategy-analysis.md` | TLS strategy analysis |
+| `docs/adr/ADR-0014-tls-transport-contract.md` | TLS transport contract |
+| `docs/adr/ADR-0019-java-runtime-floor.md` | Java 11 runtime floor for Grizzly |
+| `docs/architecture/MCP-COMPATIBILITY-2026.md` | MCP 2026 compatibility matrix
 
 ---
 

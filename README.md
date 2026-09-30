@@ -245,8 +245,8 @@ flowchart TB
     end
 
     subgraph Transport["transport/"]
-        Grizzly["GrizzlyStreamableServerTransportProvider"]
-        Handler["McpGrizzlyHandler"]
+        Grizzly["HttpTransportProvider"]
+        Handler["McpHttpHandler"]
     end
 
     subgraph Core["core/"]
@@ -282,7 +282,7 @@ flowchart TB
 ```mermaid
 sequenceDiagram
     participant C as MCP Client
-    participant T as McpGrizzlyHandler
+    participant T as McpHttpHandler
     participant P as McpProtocolHandler
     participant R as McpRegistry
     participant S as SessionState
@@ -341,7 +341,7 @@ graph TD
     CF --> C1["McpServerConfig,\nMcpClientCapabilities"]
     L --> L1["McpLogger, JulMcpLogger"]
     Core --> C2["McpServer,\nMcpProtocolHandler,\nMcpRegistry"]
-    Trans --> T1["GrizzlyStreamableServerTransportProvider,\nMcpGrizzlyHandler"]
+    Trans --> T1["HttpTransportProvider,\nMcpHttpHandler"]
 ```
 
 ---
@@ -472,7 +472,9 @@ Releases: https://github.com/vinhphan812/mcp-java-sdk/releases
 ### Android and robot hosting
 
 The library runs inside an Android app or robot service process. A phone or robot can act as an MCP server — no separate
-backend needed. Android API 21+ is the typical target; verify Grizzly compatibility on the target runtime.
+backend needed. The full SDK requires JVM 11+ (Grizzly 4.0.x bytecode v55); Android API 21 does not
+provide JVM 11. The portable core (`annotations/` + `api/` + `core/`) may run on Android API 21+ if the
+application supplies an alternative HTTP transport. Verify the target runtime before using Grizzly transport.
 
 See [docs/guides/PROJECT-GUIDE.md](docs/guides/PROJECT-GUIDE.md) for Android hosting guidance and runtime verification checklist.
 
@@ -483,7 +485,7 @@ See [docs/guides/PROJECT-GUIDE.md](docs/guides/PROJECT-GUIDE.md) for Android hos
 - Robot/ROSA domain models (belong in the consuming application)
 - Authentication backends (supply through the public API)
 - Persistence (supply through resources or application code)
-- Sampling / elicitation (protocol extension, not yet implemented)
+- Sampling / elicitation / roots (protocol extension, not yet implemented)
 
 ### Dependencies
 
