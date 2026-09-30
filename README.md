@@ -123,7 +123,7 @@ cd mcp-java-sdk
 
 ## Quick start
 
-A minimal example that starts an MCP server on Android (API 22+) or any Java 11+ runtime:
+A minimal example that starts an MCP server on any Java 11+ runtime — desktop, server, or Android with a compatible Java 11+ runtime:
 
 ```java
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
@@ -417,7 +417,7 @@ Override version for local build:
 Build validation:
 
 - **Tests**: 49 tests pass
-- **Java compatibility**: source/target Java 8 (bytecode 52)
+- **Java compatibility**: source/target Java 11 (bytecode 55); full SDK requires Java 11+ runtime
 - **Javadoc**: 0 warnings
 - **CI**: [.github/workflows/ci.yml](.github/workflows/ci.yml)
 
