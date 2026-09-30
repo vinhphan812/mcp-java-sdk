@@ -24,6 +24,7 @@ import io.github.vinhphan812.mcp.core.McpRegistry;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -461,7 +462,7 @@ class McpRateLimitTest {
     }
 
     private void registerAdminTool(McpRegistry registry) {
-        registry.registerTool(ADMIN_TOOL, "Admin action tool", Map.of(), List.of("admin"),
+        registry.registerTool(ADMIN_TOOL, "Admin action tool", Map.of(), Collections.singletonList("admin"),
                 (McpToolHandler) args -> {
                     Map<String, Object> result = new LinkedHashMap<>();
                     result.put("status", "admin action completed");

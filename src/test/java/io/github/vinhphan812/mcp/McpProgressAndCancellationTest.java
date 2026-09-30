@@ -7,6 +7,7 @@ import io.github.vinhphan812.mcp.core.McpProtocolHandler;
 import io.github.vinhphan812.mcp.core.McpRegistry;
 import org.junit.jupiter.api.Test;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 
@@ -33,7 +34,7 @@ class McpProgressAndCancellationTest {
     void toolCallEmitsProgressNotificationsWhenProgressTokenSupplied() {
         McpRegistry registry = new McpRegistry();
         registry.registerTool("noop", "No-op tool",
-                new LinkedHashMap<>(), List.of(),
+                new LinkedHashMap<>(), Collections.emptyList(),
                 params -> new LinkedHashMap<>());
 
         McpProtocolHandler handler = new McpProtocolHandler(registry,
