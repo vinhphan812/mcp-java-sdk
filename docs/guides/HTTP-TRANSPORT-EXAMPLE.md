@@ -1,6 +1,6 @@
 # HTTP Transport Example
 
-`examples/src/main/java/io/github/vinhphan812/mcp/examples/HttpExample.java` is a standalone Java 8 server using the
+`examples/src/main/java/io/github/vinhphan812/mcp/examples/HttpExample.java` is a standalone Java 11 server using the
 SDK's HTTP transport (`HttpTransportProvider`). It binds to `http://127.0.0.1:3011/mcp` and demonstrates a coherent small
 catalogue domain.
 

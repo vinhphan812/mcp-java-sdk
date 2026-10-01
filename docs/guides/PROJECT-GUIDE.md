@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-`mcp-java-sdk` is an independent, portable MCP server SDK targeting Java 8. It is separated from Android, ROSA (Robot
+`mcp-java-sdk` is an independent, portable MCP server SDK targeting Java 11. It is separated from Android, ROSA (Robot
 Operating System Android), and application-specific services.
 
 The implementation baseline is MCP `2025-11-25`. MCP `2026-07-28` is used only as a comparison reference; the SDK does
@@ -16,7 +16,7 @@ The SDK currently provides a practical subset:
 - Grizzly Streamable HTTP transport;
 - session headers and basic lifecycle management;
 - annotation-based reflection registration;
-- a Java 8-compatible server bootstrap.
+- a Java 11-compatible server bootstrap;
 
 The SDK is not a full MCP implementation. Unsupported or unverified features are listed in section 8.
 
@@ -104,7 +104,7 @@ production package.
 
 ## 4. Runtime and dependencies
 
-- Java source/target: 8
+- Java source/target: 11 (bytecode v55; runtime Java 11+)
 - Build tool: Gradle Wrapper
 - Gson: `2.11.0`
 - Grizzly HTTP server: `4.0.2`

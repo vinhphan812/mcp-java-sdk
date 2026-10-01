@@ -65,10 +65,10 @@ Capability matrix for `mcp-java-sdk`. Every row is backed by source evidence (cl
 
 | Environment | Status | Evidence |
 |-------------|--------|----------|
-| **Java 11+ server** | **Supported** | Full SDK including Grizzly; `build.gradle` targets Java 11 bytecode; ADR-0019 |
-| **Java 8+ runtime** (portable core only) | **Supported** | `annotations/` + `api/` + `core/` compile to Java 8 bytecode v52; ADR-0001 |
-| **Android with Grizzly transport** | **Conditional** | Full SDK requires JVM 11+ (Grizzly 4.0.x bytecode v55); Android API 21 is **not** sufficient; ADR-0019. Portable core may run on Android API 21+ if application supplies an alternative HTTP transport. Verify target runtime before using Grizzly. |
-| **ROSA / Android robot** | **Conditional** | Same constraint as Android: full SDK needs JVM 11+; portable core is Android-API-agnostic; consumer supplies domain models and transport |
+| **Java 11+ runtime** | **Supported** | Published SDK including Grizzly; root and examples builds target Java 11 bytecode v55; ADR-0019 |
+| **Java 8 runtime** | **Not supported** | The current published artifact is Java 11 bytecode; a Java 8 core artifact is not published |
+| **Android with Grizzly transport** | **Conditional** | Published SDK requires JVM 11+ (Grizzly and SDK bytecode v55); Android API 21 is **not** sufficient; ADR-0019. A separately supplied alternative transport may reuse the API/core design, but is outside the published artifact. Verify target runtime before use. |
+| **ROSA / Android robot** | **Conditional** | Published SDK requires JVM 11+; an independently supplied transport may reuse the API/core design, but is outside the published artifact |
 
 ---
 
@@ -1026,9 +1026,9 @@ protocolHandler = new McpProtocolHandler(registry, config,
 
 - `docs/adr/ADR-0011-security-rate-limiting.md` — update status to Accepted
 - `docs/adr/README.md` — update ADR-0011 status
-- `docs/API-REFERENCE.md` — add `McpAuthorization` SPI section
-- `docs/PROJECT-GUIDE.md` — add security section
-- `docs/IMPLEMENTATION-STATUS.md` — mark security features as Implemented
+- `docs/guides/API-REFERENCE.md` — add `McpAuthorization` SPI section
+- `docs/guides/PROJECT-GUIDE.md` — add security section
+- `docs/guides/IMPLEMENTATION-STATUS.md` — mark security features as Implemented
 
 ### Update ADR status
 
@@ -1121,9 +1121,9 @@ Mark `McpAuthorization` SPI and all rate-limiting features as Implemented.
 | `McpOwnerSessionTest.java`                    | New test                                         |
 | `docs/adr/ADR-0011-security-rate-limiting.md` | Update status → Accepted                         |
 | `docs/adr/ADR-0011-implementation-plan.md`    | This document                                    |
-| `docs/API-REFERENCE.md`                       | Add McpAuthorization section                     |
-| `docs/PROJECT-GUIDE.md`                       | Add security section                             |
-| `docs/IMPLEMENTATION-STATUS.md`               | Mark features implemented                        |
+| `docs/guides/API-REFERENCE.md`                       | Add McpAuthorization section                     |
+| `docs/guides/PROJECT-GUIDE.md`                       | Add security section                             |
+| `docs/guides/IMPLEMENTATION-STATUS.md`               | Mark features implemented                        |
 | `docs/adr/README.md`                          | Update ADR-0011 status                           |
 
 ---

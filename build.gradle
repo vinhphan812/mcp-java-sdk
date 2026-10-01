@@ -1,15 +1,27 @@
 plugins {
     id 'java'
     id 'maven-publish'
+    // CycloneDX software bill-of-materials (SBOM)
+    id 'org.cyclonedx.bom' version '1.10.0'
 }
 
-group = 'io.github.vinhphan812.mcp'
 // Release tags (for example v1.2.3) publish as 1.2.3. sdkVersion is
 // available for local/reproducible builds without changing this file.
 def releaseVersion = System.getenv('GITHUB_REF_NAME')?.with { ref ->
     ref.startsWith('v') ? ref.substring(1) : null
 }
-version = providers.gradleProperty('sdkVersion').orElse(releaseVersion ?: '1.0-SNAPSHOT').get()
+def sdkVersion = providers.gradleProperty('sdkVersion').orElse(releaseVersion ?: '1.0-SNAPSHOT').get()
+
+cyclonedxBom {
+    // Include runtimeClasspath to capture all transitive implementation dependencies.
+    includeConfigs = ['runtimeClasspath']
+    // Output JSON (CycloneDX schema 1.5, per v1.10.x plugin capabilities).
+    outputFormat = 'json'
+    schemaVersion = '1.5'
+}
+
+group = 'io.github.vinhphan812.mcp'
+version = sdkVersion
 
 java {
     sourceCompatibility = JavaVersion.VERSION_11
@@ -31,10 +43,9 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.11.0'
 
     /*
-     * Grizzly 4.0.2 is retained for Java 8/JVM compatibility. The reported
-     * CVE-2024-45687 applies to affected Payara distributions; this SDK does
-     * not include Payara. The transport sanitises response headers and SSE
-     * data before emission. Reassess this dependency before a release.
+     * Grizzly 4.0.2 is compiled for Java 11 bytecode and establishes the
+     * published SDK's Java 11 runtime floor. The transport sanitises response
+     * headers and SSE data before emission. Reassess this dependency before a release.
      */
     implementation 'org.glassfish.grizzly:grizzly-http-server:4.0.2'
 

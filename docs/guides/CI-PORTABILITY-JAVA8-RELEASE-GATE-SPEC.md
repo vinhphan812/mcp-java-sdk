@@ -1,4 +1,4 @@
-# CI Portability, Java 8 Compatibility Evidence, and Release Gate Specification
+# CI Portability, Java 11 Compatibility Evidence, and Release Gate Specification
 
 **Task:** t_94c8b631  
 **Author:** dev-ops triage audit  
@@ -75,35 +75,29 @@ is valid and used successfully in CI.
 
 ---
 
-## 2. JAVA 8 COMPATIBILITY EVIDENCE STRATEGY
+## 2. JAVA 11 COMPATIBILITY EVIDENCE STRATEGY
 
 ### 2.1 Current State
 
-Both Gradle build files declare Java 8 compatibility:
+Both Gradle build files declare Java 11 compatibility:
 
 **`build.gradle` (root, lines 14–16):**
 
 ```groovy
 java {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
 ```
 
 **`examples/build.gradle` (lines 27–29):**
 
 ```groovy
 java {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
 ```
 
-However, the CI runner (`ubuntu-latest`) installs **JDK 17** (ci.yml line 19: `java-version: '17'`). The
-`sourceCompatibility`/`targetCompatibility` settings are **compile-time constraints only** — they do not prevent the
-code from using JDK 17 APIs at compile time. If the codebase accidentally uses a JDK 9+ API (e.g., `List.of()`,
-`Stream.takeWhile()`, `var` keyword), the compiler will accept it (since the toolchain is JDK 17) but the resulting
-bytecode will fail at runtime on a JDK 8 JVM.
-
-No toolchain provision is present in either build file.
+The `sourceCompatibility`/`targetCompatibility` settings target Java 11 bytecode and the published SDK requires a Java 11+ JVM. They do not replace API compatibility checks, but Java 8 runtime compatibility is no longer a release goal.
 
 ### 2.2 Recommended Fix — Gradle Toolchain (Preferred)
 
@@ -118,18 +112,16 @@ java {
 ```
 
 When `gradle/actions/setup-gradle@v4` is used, the GitHub Actions runner auto-detects and provisions the correct JDK
-toolchain version via ` JDK auto-detection`. However, a JDK 8 toolchain requires a JDK 8 installation on the runner —
-currently not present.
+toolchain version via ` JDK auto-detection`. The published SDK requires a Java 11 toolchain or newer.
 
-**Option A — Toolchain download (recommended):**  
-Install JDK 8 alongside JDK 17 in the workflow using `actions/setup-java@v4` with a matrix, or add a separate job that
-runs with JDK 8:
+**Option A — Toolchain download (recommended):**
+If CI needs an explicit toolchain, provision JDK 11 or newer with `actions/setup-java@v4`:
 
 ```yaml
 - uses: actions/setup-java@v4
   with:
     distribution: temurin
-    java-version: '8'
+    java-version: '11'
     cache: 'gradle'
 ```
 
@@ -139,28 +131,27 @@ The Maven `animal-sniffer-maven-plugin` has no direct Gradle equivalent, but the
 However, the toolchain approach is cleaner.
 
 **Option C — bytecode inspection post-compile (supplementary):**  
-After compilation, run a class file inspector to confirm the bytecode major version is 52 (Java 8):
+After compilation, run a class file inspector to confirm the bytecode major version is 55 (Java 11):
 
 ```bash
 javap -v build/classes/java/main/io/github/vinhphan812/mcp/.../McpServer.class | grep 'major version'
-# Expected: major version 52
+# Expected: major version 55
 ```
 
 This is a non-blocking evidence-gathering step — it produces an artifact the release reviewer can inspect.
 
 ### 2.3 Evidence Collection
 
-The following files/logs prove Java 8 compatibility:
+The following files/logs prove Java 11 compatibility:
 
 | Evidence                        | Location                                | Purpose                                              |
 |---------------------------------|-----------------------------------------|------------------------------------------------------|
-| JUnit test XML results          | `build/test-results/test/*.xml`         | Tests ran and passed on JDK 8                        |
-| Bytecode major version          | `javap -v` output artifact              | Confirms class files are Java 8 (major=52)           |
+| JUnit test XML results          | `build/test-results/test/*.xml`         | Tests ran and passed on JDK 11+                     |
+| Bytecode major version          | `javap -v` output artifact              | Confirms class files are Java 11 (major=55)         |
 | Animal sniffer report           | `build/reports/animal-sniffer/`         | API compatibility report (if toolchain plugin added) |
-| Gradle toolchain resolution log | CI logs (search "Using Java toolchain") | Confirms JDK 8 was used to compile                   |
+| Gradle toolchain resolution log | CI logs (search "Using Java toolchain") | Confirms the selected JDK was used to compile       |
 
-Current state: 22 test suites, 0 failures, 0 errors — confirms SDK classes compile and tests pass. No bytecode version
-evidence or toolchain enforcement exists yet.
+Current state: the project targets Java 11 and the build passes. Bytecode inspection can provide an additional major-version evidence artifact.
 
 ### 2.4 Files to Modify
 
@@ -171,20 +162,16 @@ evidence or toolchain enforcement exists yet.
 
 ### 2.5 Acceptance Criteria
 
-- [ ] JDK 8 toolchain configured in `build.gradle` and `examples/build.gradle`
-- [ ] CI runs on JDK 8 (install via `actions/setup-java` with `java-version: '8'`, or matrix with both JDK versions)
-- [ ] Bytecode major version 52 artifact collected in CI (javap step)
-- [ ] All existing tests pass under JDK 8 toolchain
-- [ ] Examples compilation succeeds under JDK 8 toolchain
+- Java 11 source/target declarations are present in both build files
+- CI and release checks run on supported JDK versions (11 and 17)
+- Bytecode major version 55 evidence is available when release governance requires it
 
 ### 2.6 Rollback / Compatibility Notes
 
 - Gradle toolchain is non-invasive: if JDK 8 is not installed, Gradle downloads it automatically (`ToolchainManagement`
   auto-provisioning). This requires network access in CI.
-- If network access is restricted, install JDK 8 explicitly in the workflow.
-- `sourceCompatibility`/`targetCompatibility` can be removed once toolchain is set (toolchain implies them), but
-  retaining both is harmless.
-- JDK 8 toolchain + JDK 17 host is supported: Gradle can cross-compile when toolchain is set.
+- If network access is restricted, install a supported JDK (11 or 17) explicitly in the workflow.
+- The Java 11 source/target declarations are the compatibility contract; do not add a Java 8 toolchain without a new ADR.
 
 ---
 
@@ -313,8 +300,9 @@ Fix `./gradlew.bat` in ci.yml. This is a one-line correction with no side effect
 **Phase 2 (CI hardening):**  
 Add examples compilation to release.yml; add test artifact upload to both workflows.
 
-**Phase 3 (Java 8 enforcement):**  
-Configure toolchain in build.gradle + examples/build.gradle; install JDK 8 in CI runner; add bytecode inspection step.
+**Phase 3 (Java 11 enforcement):**
+
+Maintain Java 11 source/target declarations in both build files and add bytecode inspection evidence if release governance requires it.
 
 **Phase 4 (Release governance):**  
 Add clean-checkout pre-flight gate to release.yml; configure artifact retention policy.
@@ -329,17 +317,17 @@ Add clean-checkout pre-flight gate to release.yml; configure artifact retention 
 | release.yml gradlew.bat fix     | Same as ci.yml                                                               |
 | release.yml test artifacts      | Same as ci.yml                                                               |
 | release.yml clean gate          | Pre-flight job blocks release if `git status --porcelain` is non-empty       |
-| build.gradle toolchain          | `java.toolchain.languageVersion = JavaLanguageVersion.of(8)` present         |
-| examples/build.gradle toolchain | Same as root                                                                 |
-| CI JDK 8                        | `actions/setup-java` with `java-version: '8'` or toolchain auto-provisioning |
-| Bytecode evidence               | CI logs or artifact show `major version 52` for compiled classes             |
+| build.gradle source/target | `JavaVersion.VERSION_11` present |
+| examples/build.gradle source/target | Same as root |
+| CI JDK versions | Java 11 and Java 17 |
+| Bytecode evidence               | CI logs or artifact show `major version 55` for compiled classes             |
 
 ### 4.4 Rollback Considerations
 
 | Change                                | Rollback Action                                                                         |
 |---------------------------------------|-----------------------------------------------------------------------------------------|
 | ci.yml `./gradlew.bat` -> `./gradlew` | Revert to `./gradlew.bat` (regression to broken state, but rollbackable)                |
-| Add JDK 8 toolchain                   | Remove `java.toolchain {}` block from both build files; remove JDK 8 setup step from CI |
+| Java 11 toolchain                    | Preserve `java { sourceCompatibility = JavaVersion.VERSION_11 }` in both build files; update CI JDK setup if required |
 | Add clean checkout gate               | Remove `pre-flight` job from release.yml                                                |
 | Add test artifact upload              | Remove upload-artifact steps; no data loss (artifacts are copies)                       |
 

@@ -8,9 +8,7 @@
 ## Context
 
 The SDK build declares Guava 33.3.0-jre while the production source currently has no
-Guava imports. The SDK is compiled for Java 8 and describes `annotations/`, `api/`,
-and `core/` as portable Java-core packages. It also has JVM/Grizzly transport code
-and Android/Cruzr-adjacent consumers.
+Guava imports. The SDK is compiled for Java 11 and describes its published `annotations/`, `api/`, `core/`, and `transport/` component as a Java 11 artifact. It also has JVM/Grizzly transport code and Android/Cruzr-adjacent consumers.
 
 Guava is an implementation dependency, not an SDK contract. The JRE artifact is
 appropriate for the supported JVM distribution, but it is not evidence that the
@@ -28,7 +26,7 @@ this policy does not expand the Android support claim in ADR-0001.
    protected signatures, fields, return values, thrown types, callback contracts,
    SPI interfaces, and serialized values continue to use JDK types and SDK types.
    In particular, use `Map`, `List`, and `Set` (and JDK/SDK interfaces) at boundaries.
-3. The published JVM artifact remains Java 8 compatible and uses
+3. The published JVM artifact targets Java 11 bytecode and requires a Java 11+ runtime. It uses
    `com.google.guava:guava:33.3.0-jre`. Do not substitute `-android` in the JVM
    publication. An Android variant, if needed, requires a separate dependency
    graph and device/API-level validation; it is not implied by this decision.
@@ -76,7 +74,7 @@ Its observed runtime graph is Guava plus `failureaccess:1.0.2`, the empty
 `checker-qual:3.43.0`, and `error_prone_annotations:2.28.0`. Release review must
 re-run the dependency report, inspect Maven Central metadata/licensing, and check
 Gradle dependency updates plus the project's vulnerability scanner. Upgrade only
-through a reviewed version change, with Java 8 compilation and the supported JVM
+through a reviewed version change, with Java 11 compilation and the supported JVM
 runtime test suite as gates. Reassess Android compatibility for every dependency
 or variant change; do not infer it from the JVM graph.
 
@@ -88,10 +86,10 @@ Child migration tasks must:
   `implementation`;
 - use only the approved internal APIs and add focused regression tests for any
   changed collection semantics;
-- preserve Java 8 bytecode/source compatibility and existing wire/API behaviour;
+- preserve Java 11 bytecode/source compatibility and existing wire/API behaviour;
 - avoid `HttpHeaders`, `MediaType`, `Charsets`, deprecated Guava constants, and
   churn-only replacements;
-- report the changed package, boundary review, dependency graph, and Java 8
+- report the changed package, boundary review, dependency graph, and Java 11
   compile/test results;
 - stop and request an ADR if a change requires Guava in a public contract or
   requires changing the Android support claim.
@@ -101,5 +99,5 @@ Child migration tasks must:
 At decision time, `./gradlew dependencies --configuration runtimeClasspath`
 completed successfully. It resolved `guava:33.3.0-jre` and the transitive graph
 listed above. `build.gradle` confirms `sourceCompatibility` and
-`targetCompatibility` are both `JavaVersion.VERSION_1_8`. A source scan found no
+`targetCompatibility` are both `JavaVersion.VERSION_11`. A source scan found no
 production `com.google.common` imports before migration.

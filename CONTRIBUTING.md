@@ -25,7 +25,7 @@ Verify the build is green before making changes.
 
 ## Code standards
 
-- Java 8 source/target compatibility
+- Java 11 source/target compatibility (bytecode v55); the published SDK requires a Java 11+ runtime
 - No new `@SuppressWarnings` for IntelliJ-specific inspection IDs (use `//noinspection` comments instead)
 - New public API methods require Javadoc
 - No direct console writes or stack-trace printing in production source

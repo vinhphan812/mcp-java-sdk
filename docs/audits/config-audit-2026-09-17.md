@@ -127,7 +127,7 @@ Status: **COMPLETED** by child task `t_e69f8107`.
 - `examples/src/main/java/io/github/vinhphan812/mcp/examples/GrizzlyExample.java` — deleted
 - `examples/src/main/java/io/github/vinhphan812/mcp/examples/MainExample.java` — created
 - `docs/GRIZZLY-EXAMPLE.md` — already updated (title is "# Main MCP Example", all links point to MainExample.java)
-- `docs/PROJECT-GUIDE.md` — no reference to GrizzlyExample found
+- `docs/guides/PROJECT-GUIDE.md` — no reference to GrizzlyExample found
 - `docs/audits/historical/LOC-AUDIT.md` — historical file, not updated (acceptable; it records a past snapshot)
 
 Build passes with no reference errors.

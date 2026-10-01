@@ -9,7 +9,7 @@ v1.0.1 is a maintenance release that consolidates protocol and transport interna
 ## Compatibility
 
 - Full SDK runtime requirement: Java 11 or later.
-- The project source and target compatibility settings remain Java 8, but the bundled Grizzly 4.0.2 HTTP/SSE transport uses Java 11 bytecode. Applications using the transport therefore require Java 11+.
+- The project source and target compatibility settings are Java 11 (bytecode v55), matching the bundled Grizzly 4.0.2 HTTP/SSE transport. The published SDK therefore requires Java 11+.
 - CI validates Java 11 and Java 17.
 - The legacy HTTP+SSE transport remains supported. Streamable HTTP support remains documented as an in-progress migration path; see ADR-0018.
 

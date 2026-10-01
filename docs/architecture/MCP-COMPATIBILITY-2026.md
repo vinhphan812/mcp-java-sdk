@@ -14,12 +14,12 @@ Reference documentation:
 
 ## Scope
 
-This project is a lightweight Java 8-compatible MCP server implementation. It is not the official
+This project is a lightweight Java 11-compatible MCP server implementation. It is not the official
 `modelcontextprotocol/java-sdk` and does not claim full feature parity.
 
 ## Target baseline
 
-Target protocol baseline: `2025-11-25` (the latest stable baseline implemented by this Java 8 SDK). The newer
+Target protocol baseline: `2025-11-25` (the latest stable baseline implemented by this Java 11 SDK). The newer
 documentation/specification snapshot `2026-07-28` was used for audit comparison but is not advertised as implemented.
 
 The server must accept a client protocol version only when it is supported. Unsupported versions must return an

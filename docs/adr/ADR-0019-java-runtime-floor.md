@@ -7,16 +7,16 @@
 
 ## Context
 
-The MCP Java SDK ships two logical layers with different bytecode targets:
+The MCP Java SDK publishes one Gradle Java component whose current source and target compatibility are Java 11:
 
 | Layer | Packages | `sourceCompatibility` | Bytecode version | Intended runtime |
 |-------|----------|---------------------|-----------------|-----------------|
-| Portable core | `annotations/`, `api/`, `core/` | Java 8 | v52 | Any JVM 8+ |
-| Transport | `transport/` (Grizzly) | Java 8* | **v55** | JVM 11+ |
+| SDK classes | `annotations/`, `api/`, `core/`, `transport/` | Java 11 | **v55** | JVM 11+ |
+| Examples | `examples/` | Java 11 | **v55** | JVM 11+ |
 
-*`build.gradle` declares `sourceCompatibility = JavaVersion.VERSION_1_8`, but Grizzly 4.0.2 transitive bytecode is compiled for v55 (Java 11).
+`build.gradle` declares `sourceCompatibility = JavaVersion.VERSION_11` and `targetCompatibility = JavaVersion.VERSION_11`. Grizzly 4.0.2 dependencies are also compiled for v55 (Java 11).
 
-When the Grizzly HTTP/SSE transport is used, the effective JVM minimum is Java 11. This ADR establishes the documented runtime contract and the rationale for the choice.
+The Java 11 floor therefore applies to the published SDK and its Grizzly HTTP/SSE transport. This ADR establishes the documented bytecode and runtime contract and the rationale for the choice.
 
 ## Evidence
 
@@ -35,11 +35,11 @@ Total Grizzly classes:         891 classes  bytecode v55 (Java 11)
 ### SDK own classes
 
 ```
-SDK own classes:  79 classes  bytecode v52 (Java 8)  ✓
+SDK own classes:  79 classes  bytecode v55 (Java 11)  ✓
 Guava 33.3.0-jre: 2017 classes bytecode v52 (Java 8)  ✓
 ```
 
-The SDK's own code is pure Java 8 bytecode. Grizzly is the sole source of the v55 requirement.
+The SDK's own code is Java 11 bytecode. Guava remains Java 8 bytecode but does not lower the SDK's runtime floor. Grizzly is also v55.
 
 ### No Java-8-compatible Grizzly exists
 
@@ -49,7 +49,7 @@ Grizzly 2.4.x was the last series targeting Java 8 bytecode. It is unmaintained 
 
 ### Option A — Java 11+ runtime floor (selected)
 
-Accept that the Grizzly transport requires JVM 11+. Document this clearly. No code changes needed — `build.gradle` already targets Java 8 bytecode but Grizzly pulls in the v55 runtime requirement transitively.
+Adopt Java 11 as the published SDK's source, target, bytecode, and runtime floor. The root `build.gradle` and examples build both target Java 11, matching the Grizzly v55 dependency graph.
 
 **Pros:**
 - No dual-artifact or split-transport maintenance burden.
@@ -58,7 +58,7 @@ Accept that the Grizzly transport requires JVM 11+. Document this clearly. No co
 
 **Cons:**
 - Pure-Java-8 JVM environments (some embedded/IoT targets) cannot run the transport layer.
-- The portable `core/` + `api/` packages remain runnable on JVM 8+ but are only tested on JVM 11+.
+- The portable package design does not provide a separately published Java 8 artifact and is only tested on JVM 11+.
 
 ### Option B — Find or build a Java-8-compatible transport
 
@@ -68,34 +68,34 @@ Investigate alternatives such as embedded Jetty, Undertow, or a custom NIO serve
 
 ### Option C — Split transport artifacts
 
-Publish two artifacts: one with Grizzly (Java 11+) and one with a Java-8-compatible transport.
+Publish separate artifacts only if a future Java 8-compatible transport is intentionally supported.
 
-**Rejected:** Dual-artifact maintenance burden for no confirmed Java 8 consumer with HTTP/SSE requirements. The portable core is already available as a separate dependency for pure-Java-8 use.
+**Rejected for now:** The current published component is consistently Java 11; introducing a Java 8 core artifact would require an explicit publication design and compatibility tests.
 
 ## Decision
 
-**Option A — Java 11+ runtime floor.**
+**Option A — Java 11+ source, bytecode, and runtime floor.**
 
-The Grizzly 4.0.x transport is the only maintained, feature-complete HTTP/SSE transport available. Its Java 11 bytecode requirement is non-negotiable and applies to all consumers who use the transport layer. The portable `core/` and `api/` packages remain pure Java 8 bytecode and are runnable on any JVM 8+, but the full SDK (including transport) requires JVM 11+.
+The Gradle Java component and examples target Java 11, and the Grizzly 4.0.x transport is compiled for Java 11 bytecode. The published SDK therefore requires JVM 11+. A separately published Java 8 core is not part of the current artifact contract.
 
 ## Runtime Contract
 
 | Configuration | Minimum JVM |
 |---|---|
-| Portable core only (`annotations/` + `api/` + `core/`) | Java 8 (bytecode v52) |
-| Full SDK (including `transport/` with Grizzly) | **Java 11** |
+| Published SDK (`annotations/`, `api/`, `core/`, `transport/`) | **Java 11 (bytecode v55)** |
+| Examples | **Java 11 (bytecode v55)** |
 | CI test matrix | Java 11, Java 17 |
 | Release build | Java 17 |
 
-The `sourceCompatibility = JavaVersion.VERSION_1_8` setting in `build.gradle` means the SDK's own classes compile to Java 8 bytecode. This is correct and should be preserved. It does **not** change the runtime requirement imposed by Grizzly.
+The root and examples Gradle builds both declare Java 11 source and target compatibility. A Java 8-compatible core is not currently published or supported by this artifact.
 
 ## Affected Documentation
 
-The following files previously claimed "Java 8" in their compatibility statements. They have been updated to reflect the Java 11+ runtime floor:
+The following files previously claimed "Java 8" in their compatibility statements. They have been updated to reflect the Java 11 source/target and runtime contract:
 
-- `README.md` — line 3, Java badge, quick-start caption
-- `docs/adr/ADR-0001-portable-java8-core.md` — consequences section (ADR-0019 note added)
-- `docs/adr/ADR-0002-grizzly-transport-isolation.md` — context (ADR-0019 note added)
+- `CONTRIBUTING.md`, `RELEASE-NOTES.md`, and user/project/transport guides — current Java compatibility statements
+- `docs/architecture/guava-dependency-policy.md` — published artifact and validation contract
+- `examples/build.gradle` — example source/target compatibility
 
 ## References
 

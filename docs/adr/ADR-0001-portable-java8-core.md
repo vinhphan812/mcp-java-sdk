@@ -42,9 +42,7 @@ HTTP server).
   the consuming application or a separate adapter.
 - The library does not claim Android API 21 compatibility without device or emulator evidence.
 - Grizzly is a JVM/server-oriented dependency; its behaviour on Android must be verified before production use.
-  > **Note (ADR-0019):** Grizzly 4.0.2 is compiled for Java 11 bytecode. When the transport layer is used, the
-  > effective runtime floor is Java 11+. The portable `core/` and `api/` packages (Java 8 bytecode) remain
-  > runnable on any JVM 8+ environment; see [ADR-0019](../adr/ADR-0019-java-runtime-floor.md) for full evidence.
+  > **Note (ADR-0019):** The current published SDK artifact is compiled for Java 11 bytecode and requires Java 11+. The package design remains portable and transport-isolated, but a Java 8 core artifact is not currently published.
 
 ## Verification
 
