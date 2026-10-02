@@ -6,6 +6,7 @@ ADRs document significant design decisions, the context that motivated them, and
 permanent record of why the system is built the way it is.
 
 See
+
 - [Project Guide](../guides/PROJECT-GUIDE.md)
 - [API Reference](../guides/API-REFERENCE.md)
 - [Implementation Status](../guides/IMPLEMENTATION-STATUS.md)
@@ -43,28 +44,28 @@ flowchart LR
 
 ## Index
 
-| ID                                                             | Title                                                                           | Status   | Date       |
-|----------------------------------------------------------------|---------------------------------------------------------------------------------|----------|------------|
-| [ADR-0001](ADR-0001-portable-java8-core.md)                    | Portable Java 8 Core Without Android SDK                                        | Accepted | 2026-09-01 |
-| [ADR-0002](ADR-0002-grizzly-transport-isolation.md)            | Grizzly Transport Isolation (one-way transport → core dependency)              | Accepted | 2026-09-01 |
-| [ADR-0003](ADR-0003-json-rpc-envelope-protocol-versioning.md)  | JSON-RPC 2.0 Envelope, Protocol Versioning, and Capability Advertisement        | Accepted | 2026-09-01 |
-| [ADR-0004](ADR-0004-session-management.md)                     | Session Management and Lifecycle                                                | Accepted | 2026-09-01 |
-| [ADR-0005](ADR-0005-sse-notifications-event-queue.md)          | Server-Initiated Notifications via SSE Event Queue                              | Accepted | 2026-09-01 |
-| [ADR-0006](ADR-0006-security-model.md)                         | Security Model: Origin, Authentication, and Input Validation                    | Accepted | 2026-09-01 |
-| [ADR-0007](ADR-0007-annotation-registration.md)                | Annotation-Based Registration with Reflection Registrar                         | Accepted | 2026-09-01 |
-| [ADR-0008](ADR-0008-protocol-baseline-compatibility.md)        | Protocol Baseline and Compatibility Scope                                       | Accepted | 2026-09-01 |
-| [ADR-0009](ADR-0009-code-audit-2026-09-11.md)                  | Code Audit Findings (2026-09-11)                                                | Accepted | 2026-09-11 |
-| [ADR-0010](ADR-0010-api-package-restructure.md)                | `api/` Package Restructure by Category                                          | Accepted | 2026-09-11 |
-| [ADR-0011](ADR-0011-security-rate-limiting.md)                 | Security and Rate Limiting (owner sessions, per-category limits, abuse scoring) | Accepted | 2026-09-14 |
-| [ADR-0012](ADR-0012-configurable-rate-limits.md)               | Configurable Rate Limits and Security Constants                                  | Accepted | 2026-09-14 |
-| [ADR-0013](ADR-0013-tls-strategy-analysis.md)                 | TLS Strategy: Reverse-Proxy-Only vs In-Process TLS                              | Accepted | 2026-09-20 |
-| [ADR-0014](ADR-0014-tls-transport-contract.md)                | TLS Transport Contract: Reverse-Proxy-Only Termination                          | Accepted | 2026-09-20 |
-| [ADR-0015](ADR-0015-concurrent-collection-strategy.md)        | Concurrent Collection Strategy for Registry                                      | Accepted | 2026-09-20 |
-| [ADR-0016](ADR-0016-sse-permit-flow-verification.md)         | SSE Permit Flow Verification and Implementation Plan                             | Accepted | 2026-09-20 |
-| [ADR-0017](ADR-0017-sse-permit-response-flow.md)              | SSE Permit Acquisition and Response Flow                                         | Historical | 2026-09-20 |
-| [ADR-0018](ADR-0018-transport-contract-http-sse-vs-streamable-http.md) | Transport Contract: Legacy HTTP+SSE vs Modern Streamable HTTP            | Accepted | 2026-09-22 |
-| [ADR-0019](ADR-0019-java-runtime-floor.md)                          | Java Runtime Floor: Java 11+ Required for Grizzly Transport              | Accepted | 2026-09-29 |
-| [ADR-0021](ADR-0021-cors-loopback-origin-policy.md)                 | CORS Loopback Origin Policy: Preflight, Allowlist, and Response Headers | Accepted | 2026-09-30 |
+| ID                                                                     | Title                                                                           | Status     | Date       |
+|------------------------------------------------------------------------|---------------------------------------------------------------------------------|------------|------------|
+| [ADR-0001](ADR-0001-portable-java8-core.md)                            | Portable Java 8 Core Without Android SDK                                        | Accepted   | 2026-09-01 |
+| [ADR-0002](ADR-0002-grizzly-transport-isolation.md)                    | Grizzly Transport Isolation (one-way transport → core dependency)               | Accepted   | 2026-09-01 |
+| [ADR-0003](ADR-0003-json-rpc-envelope-protocol-versioning.md)          | JSON-RPC 2.0 Envelope, Protocol Versioning, and Capability Advertisement        | Accepted   | 2026-09-01 |
+| [ADR-0004](ADR-0004-session-management.md)                             | Session Management and Lifecycle                                                | Accepted   | 2026-09-01 |
+| [ADR-0005](ADR-0005-sse-notifications-event-queue.md)                  | Server-Initiated Notifications via SSE Event Queue                              | Accepted   | 2026-09-01 |
+| [ADR-0006](ADR-0006-security-model.md)                                 | Security Model: Origin, Authentication, and Input Validation                    | Accepted   | 2026-09-01 |
+| [ADR-0007](ADR-0007-annotation-registration.md)                        | Annotation-Based Registration with Reflection Registrar                         | Accepted   | 2026-09-01 |
+| [ADR-0008](ADR-0008-protocol-baseline-compatibility.md)                | Protocol Baseline and Compatibility Scope                                       | Accepted   | 2026-09-01 |
+| [ADR-0009](ADR-0009-code-audit-2026-09-11.md)                          | Code Audit Findings (2026-09-11)                                                | Accepted   | 2026-09-11 |
+| [ADR-0010](ADR-0010-api-package-restructure.md)                        | `api/` Package Restructure by Category                                          | Accepted   | 2026-09-11 |
+| [ADR-0011](ADR-0011-security-rate-limiting.md)                         | Security and Rate Limiting (owner sessions, per-category limits, abuse scoring) | Accepted   | 2026-09-14 |
+| [ADR-0012](ADR-0012-configurable-rate-limits.md)                       | Configurable Rate Limits and Security Constants                                 | Accepted   | 2026-09-14 |
+| [ADR-0013](ADR-0013-tls-strategy-analysis.md)                          | TLS Strategy: Reverse-Proxy-Only vs In-Process TLS                              | Accepted   | 2026-09-20 |
+| [ADR-0014](ADR-0014-tls-transport-contract.md)                         | TLS Transport Contract: Reverse-Proxy-Only Termination                          | Accepted   | 2026-09-20 |
+| [ADR-0015](ADR-0015-concurrent-collection-strategy.md)                 | Concurrent Collection Strategy for Registry                                     | Accepted   | 2026-09-20 |
+| [ADR-0016](ADR-0016-sse-permit-flow-verification.md)                   | SSE Permit Flow Verification and Implementation Plan                            | Accepted   | 2026-09-20 |
+| [ADR-0017](ADR-0017-sse-permit-response-flow.md)                       | SSE Permit Acquisition and Response Flow                                        | Historical | 2026-09-20 |
+| [ADR-0018](ADR-0018-transport-contract-http-sse-vs-streamable-http.md) | Transport Contract: Legacy HTTP+SSE vs Modern Streamable HTTP                   | Accepted   | 2026-09-22 |
+| [ADR-0019](ADR-0019-java-runtime-floor.md)                             | Java Runtime Floor: Java 11+ Required for Grizzly Transport                     | Accepted   | 2026-09-29 |
+| [ADR-0021](ADR-0021-cors-loopback-origin-policy.md)                    | CORS Loopback Origin Policy: Preflight, Allowlist, and Response Headers         | Accepted   | 2026-09-30 |
 
 ## When to create an ADR
 

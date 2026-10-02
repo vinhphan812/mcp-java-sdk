@@ -41,10 +41,10 @@ scheme; it does not enable TLS in the SDK.
 1. Keep the public class and its current constructor/default factory behavior.
 2. Mark the class, constructor, and `defaults()` factory deprecated in a future
    implementation task, with Javadoc stating:
-   - the class does not configure TLS;
-   - TLS termination is external (reverse proxy/load balancer/ingress);
-   - no replacement SDK TLS API is planned;
-   - removal is reserved for the next explicitly planned major release.
+    - the class does not configure TLS;
+    - TLS termination is external (reverse proxy/load balancer/ingress);
+    - no replacement SDK TLS API is planned;
+    - removal is reserved for the next explicitly planned major release.
 3. Do not add a `tls(TlsConfig)` builder method or otherwise increase the public
    surface.
 4. Add a migration note directing users to configure TLS at the deployment edge
@@ -122,12 +122,12 @@ including no newly enabled TLS.
 - [ ] ADR-0014 explicitly records deprecate-now/retain-until-named-major/remove-in-that-major policy.
 - [ ] `TlsConfig` remains source- and binary-present during the compatibility phase.
 - [ ] Deprecation Javadoc explicitly says the class is non-functional and names
-      reverse-proxy termination as the supported model.
+  reverse-proxy termination as the supported model.
 - [ ] No `tls(TlsConfig)` method or in-process TLS implementation is introduced.
 - [ ] `scheme("https")` behavior and documentation remain unchanged.
 - [ ] The changelog does not claim removal before the major release is prepared.
 - [ ] Before removal, repository references and published API surface are audited;
-      the major-release notes contain migration guidance.
+  the major-release notes contain migration guidance.
 - [ ] The removal release passes compilation, tests, Javadoc, and API-diff checks.
 
 ## Validation commands

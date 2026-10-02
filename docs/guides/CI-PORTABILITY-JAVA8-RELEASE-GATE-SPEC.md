@@ -97,7 +97,8 @@ java {
     targetCompatibility = JavaVersion.VERSION_11
 ```
 
-The `sourceCompatibility`/`targetCompatibility` settings target Java 11 bytecode and the published SDK requires a Java 11+ JVM. They do not replace API compatibility checks, but Java 8 runtime compatibility is no longer a release goal.
+The `sourceCompatibility`/`targetCompatibility` settings target Java 11 bytecode and the published SDK requires a Java
+11+ JVM. They do not replace API compatibility checks, but Java 8 runtime compatibility is no longer a release goal.
 
 ### 2.2 Recommended Fix — Gradle Toolchain (Preferred)
 
@@ -146,12 +147,13 @@ The following files/logs prove Java 11 compatibility:
 
 | Evidence                        | Location                                | Purpose                                              |
 |---------------------------------|-----------------------------------------|------------------------------------------------------|
-| JUnit test XML results          | `build/test-results/test/*.xml`         | Tests ran and passed on JDK 11+                     |
-| Bytecode major version          | `javap -v` output artifact              | Confirms class files are Java 11 (major=55)         |
+| JUnit test XML results          | `build/test-results/test/*.xml`         | Tests ran and passed on JDK 11+                      |
+| Bytecode major version          | `javap -v` output artifact              | Confirms class files are Java 11 (major=55)          |
 | Animal sniffer report           | `build/reports/animal-sniffer/`         | API compatibility report (if toolchain plugin added) |
-| Gradle toolchain resolution log | CI logs (search "Using Java toolchain") | Confirms the selected JDK was used to compile       |
+| Gradle toolchain resolution log | CI logs (search "Using Java toolchain") | Confirms the selected JDK was used to compile        |
 
-Current state: the project targets Java 11 and the build passes. Bytecode inspection can provide an additional major-version evidence artifact.
+Current state: the project targets Java 11 and the build passes. Bytecode inspection can provide an additional
+major-version evidence artifact.
 
 ### 2.4 Files to Modify
 
@@ -171,7 +173,8 @@ Current state: the project targets Java 11 and the build passes. Bytecode inspec
 - Gradle toolchain is non-invasive: if JDK 8 is not installed, Gradle downloads it automatically (`ToolchainManagement`
   auto-provisioning). This requires network access in CI.
 - If network access is restricted, install a supported JDK (11 or 17) explicitly in the workflow.
-- The Java 11 source/target declarations are the compatibility contract; do not add a Java 8 toolchain without a new ADR.
+- The Java 11 source/target declarations are the compatibility contract; do not add a Java 8 toolchain without a new
+  ADR.
 
 ---
 
@@ -302,34 +305,35 @@ Add examples compilation to release.yml; add test artifact upload to both workfl
 
 **Phase 3 (Java 11 enforcement):**
 
-Maintain Java 11 source/target declarations in both build files and add bytecode inspection evidence if release governance requires it.
+Maintain Java 11 source/target declarations in both build files and add bytecode inspection evidence if release
+governance requires it.
 
 **Phase 4 (Release governance):**  
 Add clean-checkout pre-flight gate to release.yml; configure artifact retention policy.
 
 ### 4.3 Acceptance Criteria Summary
 
-| Change                          | Criteria                                                                     |
-|---------------------------------|------------------------------------------------------------------------------|
-| ci.yml gradlew.bat fix          | `./gradlew.bat` absent; `./gradlew -p examples compileJava` present          |
-| ci.yml test artifacts           | `actions/upload-artifact@v4` step uploads `build/test-results/test/`         |
-| release.yml examples gate       | `examples/compileJava` runs before publish step                              |
-| release.yml gradlew.bat fix     | Same as ci.yml                                                               |
-| release.yml test artifacts      | Same as ci.yml                                                               |
-| release.yml clean gate          | Pre-flight job blocks release if `git status --porcelain` is non-empty       |
-| build.gradle source/target | `JavaVersion.VERSION_11` present |
-| examples/build.gradle source/target | Same as root |
-| CI JDK versions | Java 11 and Java 17 |
-| Bytecode evidence               | CI logs or artifact show `major version 55` for compiled classes             |
+| Change                              | Criteria                                                               |
+|-------------------------------------|------------------------------------------------------------------------|
+| ci.yml gradlew.bat fix              | `./gradlew.bat` absent; `./gradlew -p examples compileJava` present    |
+| ci.yml test artifacts               | `actions/upload-artifact@v4` step uploads `build/test-results/test/`   |
+| release.yml examples gate           | `examples/compileJava` runs before publish step                        |
+| release.yml gradlew.bat fix         | Same as ci.yml                                                         |
+| release.yml test artifacts          | Same as ci.yml                                                         |
+| release.yml clean gate              | Pre-flight job blocks release if `git status --porcelain` is non-empty |
+| build.gradle source/target          | `JavaVersion.VERSION_11` present                                       |
+| examples/build.gradle source/target | Same as root                                                           |
+| CI JDK versions                     | Java 11 and Java 17                                                    |
+| Bytecode evidence                   | CI logs or artifact show `major version 55` for compiled classes       |
 
 ### 4.4 Rollback Considerations
 
-| Change                                | Rollback Action                                                                         |
-|---------------------------------------|-----------------------------------------------------------------------------------------|
-| ci.yml `./gradlew.bat` -> `./gradlew` | Revert to `./gradlew.bat` (regression to broken state, but rollbackable)                |
-| Java 11 toolchain                    | Preserve `java { sourceCompatibility = JavaVersion.VERSION_11 }` in both build files; update CI JDK setup if required |
-| Add clean checkout gate               | Remove `pre-flight` job from release.yml                                                |
-| Add test artifact upload              | Remove upload-artifact steps; no data loss (artifacts are copies)                       |
+| Change                                | Rollback Action                                                                                                       |
+|---------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| ci.yml `./gradlew.bat` -> `./gradlew` | Revert to `./gradlew.bat` (regression to broken state, but rollbackable)                                              |
+| Java 11 toolchain                     | Preserve `java { sourceCompatibility = JavaVersion.VERSION_11 }` in both build files; update CI JDK setup if required |
+| Add clean checkout gate               | Remove `pre-flight` job from release.yml                                                                              |
+| Add test artifact upload              | Remove upload-artifact steps; no data loss (artifacts are copies)                                                     |
 
 ### 4.5 Compatibility Concerns with Existing CI Infrastructure
 

@@ -1,8 +1,9 @@
 # MCP Java SDK
 
 Portable Java 11+ library for hosting an [MCP](https://modelcontextprotocol.io) server inside any Java application —
-including Android apps, Android/ROSA robots, desktop services, and backend servers. A phone or robot can act as an MCP
-server, exposing tools, resources, and prompts over HTTP to MCP clients on the same device or network.
+including desktop services and backend servers. The core packages (`annotations/`, `api/`, `core/`) are architecturally
+compatible with Android API 22+ with desugaring but have **not been verified on Android devices**. The full SDK with
+Grizzly transport requires JVM 11+ and is not compatible with standard Android runtime environments.
 
 [![CI](https://github.com/vinhphan812/mcp-java-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/vinhphan812/mcp-java-sdk/actions)
 [![Release](https://img.shields.io/github/v/release/vinhphan812/mcp-java-sdk?label=latest)](https://github.com/vinhphan812/mcp-java-sdk/releases/latest)
@@ -123,7 +124,7 @@ cd mcp-java-sdk
 
 ## Quick start
 
-A minimal example that starts an MCP server on any Java 11+ runtime — desktop, server, or Android with a compatible Java 11+ runtime:
+A minimal example that starts an MCP server on a Java 11+ runtime (desktop, server, or another JVM-based host):
 
 ```java
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
@@ -220,17 +221,57 @@ public class Main {
 ```bash
 # Start the server, then in another terminal:
 
+# ── Legacy session-based (2025-11-25) ──────────────────────────────────────
+
 # 1. Initialize session
 curl -s -X POST http://127.0.0.1:3011/mcp \
   -H "Content-Type: application/json" \
-  -H "Accept: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}'
 
-# 2. Call a tool
+# 2. Call a tool (include the Mcp-Session-Id from step 1)
 curl -s -X POST http://127.0.0.1:3011/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -H "Mcp-Session-Id: <session-id-from-step-1>" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"hello","arguments":{"name":"World"}}}'
+
+# ── MCP 2026-07-28 stateless (SEP-2243 routing headers) ────────────────────
+
+# server/discover — no session, no initialize required
+curl -s -X POST http://127.0.0.1:3011/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Mcp-Protocol-Version: 2026-07-28" \
+  -H "Mcp-Method: server/discover" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"server/discover"}'
+
+# tools/list — stateless, no session, Mcp-Method required
+curl -s -X POST http://127.0.0.1:3011/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Mcp-Protocol-Version: 2026-07-28" \
+  -H "Mcp-Method: tools/list" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
+
+# tools/call — Mcp-Method + Mcp-Name headers required (must match body)
+curl -s -X POST http://127.0.0.1:3011/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Mcp-Protocol-Version: 2026-07-28" \
+  -H "Mcp-Method: tools/call" \
+  -H "Mcp-Name: hello" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"hello","arguments":{"name":"World"}}}'
+
+# Header validation: mismatched headers → 400
+curl -s -X POST http://127.0.0.1:3011/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Mcp-Protocol-Version: 2026-07-28" \
+  -H "Mcp-Method: tools/call" \
+  -H "Mcp-Name: wrong_name" \
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"hello","arguments":{}}}'
+# → 400 "Mcp-Name header does not match request parameters"
 ```
 
 ---
@@ -469,14 +510,17 @@ Releases: https://github.com/vinhphan812/mcp-java-sdk/releases
 - SSE notifications, progress/cancellation, `tasks/create`
 - JSON-RPC 2.0, protocol versioning, Origin/CORS security
 
-### Android and robot hosting
+### Android and robot hosting (conditional, unverified)
 
-The library runs inside an Android app or robot service process. A phone or robot can act as an MCP server — no separate
-backend needed. The full SDK requires JVM 11+ (Grizzly 4.0.x bytecode v55); Android API 21 does not
-provide JVM 11. The portable core (`annotations/` + `api/` + `core/`) may run on Android API 21+ if the
-application supplies an alternative HTTP transport. Verify the target runtime before using Grizzly transport.
+The SDK does not currently claim verified Android or Android/ROSA device support. The core packages
+(`annotations/`, `api/`, and `core/`) contain no Android imports and are architecturally compatible with Android API 22+
+when desugaring is enabled, but no Android emulator or physical-device startup, bind, MCP tool-call, or shutdown test has
+been completed. The full SDK includes Grizzly 4.0.x, compiled as Java 11 bytecode (v55), and is not compatible with the
+standard Android runtime. Android consumers must provide an alternative HTTP transport and validate the dependency graph
+on the target API level.
 
-See [docs/guides/PROJECT-GUIDE.md](docs/guides/PROJECT-GUIDE.md) for Android hosting guidance and runtime verification checklist.
+See [docs/android/android-support-verification.md](docs/android/android-support-verification.md) for the reproducible
+verification record and remaining device requirements.
 
 ### Excluded
 

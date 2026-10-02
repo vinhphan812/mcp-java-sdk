@@ -128,4 +128,125 @@ class McpProtocolHandlerTest {
         assertNull(response.getBody());
         assertEquals(initialized.getSessionId(), response.getSessionId());
     }
+
+    // ── Stateless protocol (2026-07-28) ────────────────────────────────────────
+
+    @Test
+    void statelessInitializeDoesNotCreateSession() {
+        McpServerConfig config = McpServerConfig.builder()
+                .protocolMode(McpServerConfig.ProtocolMode.STATELESS)
+                .serverName("stateless-server")
+                .serverVersion("3.0.0")
+                .build();
+        McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(), config);
+        McpProtocolHandler.McpResponse response = handler.handleRequestResponse(
+                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}", null);
+
+        assertNotNull(response.getBody());
+        // No session should be created in stateless mode
+        assertNull(response.getSessionId());
+        assertFalse(handler.hasSession(response.getSessionId())); // null check
+        JsonObject body = new com.google.gson.Gson().fromJson(response.getBody(), JsonObject.class);
+        assertEquals("2026-07-28", body.getAsJsonObject("result").get("protocolVersion").getAsString());
+        assertEquals("stateless-server", body.getAsJsonObject("result")
+                .getAsJsonObject("serverInfo").get("name").getAsString());
+    }
+
+    @Test
+    void statelessToolsListWithoutInitialize() {
+        McpServerConfig config = McpServerConfig.builder()
+                .protocolMode(McpServerConfig.ProtocolMode.STATELESS)
+                .build();
+        McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(), config);
+
+        // tools/list works without prior initialize in stateless mode
+        String response = handler.handleRequest(
+                "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}", null);
+        assertTrue(response.contains("\"result\""), "Expected success response, got: " + response);
+        assertFalse(response.contains("-32600"), "Should not be invalid request: " + response);
+    }
+
+    @Test
+    void statelessToolsCallWithoutInitialize() {
+        McpServerConfig config = McpServerConfig.builder()
+                .protocolMode(McpServerConfig.ProtocolMode.STATELESS)
+                .build();
+        McpRegistry registry = new McpRegistry();
+        Map<String, Object> echoTool = new LinkedHashMap<>();
+        echoTool.put("description", "Echoes input");
+        echoTool.put("inputSchema", Collections.singletonMap("properties",
+                Collections.singletonMap("message", Collections.singletonMap("type", "string"))));
+        echoTool.put("execute", (java.util.function.Function<Map<String, Object>, Map<String, Object>>) args -> {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("echo", args.get("message"));
+            return result;
+        });
+        registry.registerToolProvider("echo", echoTool);
+
+        McpProtocolHandler handler = new McpProtocolHandler(registry, config);
+
+        // tools/call works without prior initialize in stateless mode
+        String response = handler.handleRequest(
+                "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\",\"arguments\":{\"message\":\"hello stateless\"}}}", null);
+        assertTrue(response.contains("\"result\""), "Expected success response, got: " + response);
+        assertFalse(response.contains("Missing or invalid MCP session"), "Should not require session: " + response);
+        assertTrue(response.contains("hello stateless"), "Should return echoed value: " + response);
+    }
+
+    @Test
+    void statelessPromptsListWithoutInitialize() {
+        McpServerConfig config = McpServerConfig.builder()
+                .protocolMode(McpServerConfig.ProtocolMode.STATELESS)
+                .prompts(true)
+                .build();
+        McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(), config);
+
+        String response = handler.handleRequest(
+                "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"prompts/list\",\"params\":{}}", null);
+        assertTrue(response.contains("\"result\""), "Expected success response, got: " + response);
+    }
+
+    @Test
+    void statelessInitializeAdvertisesNoSubscribeCapability() {
+        McpServerConfig config = McpServerConfig.builder()
+                .protocolMode(McpServerConfig.ProtocolMode.STATELESS)
+                .resources(true)
+                .resourceSubscriptions(true)
+                .build();
+        McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(), config);
+        McpProtocolHandler.McpResponse response = handler.handleRequestResponse(
+                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}", null);
+
+        assertNotNull(response.getBody());
+        JsonObject caps = new com.google.gson.Gson().fromJson(response.getBody(), JsonObject.class)
+                .getAsJsonObject("result").getAsJsonObject("capabilities")
+                .getAsJsonObject("resources");
+        // subscribe should be absent in stateless mode
+        assertFalse(caps.has("subscribe"), "subscribe should not be advertised in stateless mode");
+    }
+
+    @Test
+    void sessionedToolsListRequiresInitialize() {
+        // Verify sessioned (default) mode still requires initialize for tools/list
+        McpServerConfig config = McpServerConfig.builder()
+                .protocolMode(McpServerConfig.ProtocolMode.SESSIONED)
+                .build();
+        McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(), config);
+
+        String response = handler.handleRequest(
+                "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/list\",\"params\":{}}", null);
+        assertTrue(response.contains("Missing or invalid MCP session"),
+                "SESSIONED mode should require session: " + response);
+    }
+
+    @Test
+    void supportsProtocolVersionRecognizesStateless() {
+        McpServerConfig config = McpServerConfig.builder()
+                .protocolMode(McpServerConfig.ProtocolMode.STATELESS)
+                .build();
+        McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(), config);
+        assertTrue(handler.supportsProtocolVersion("2026-07-28"));
+        assertTrue(handler.supportsProtocolVersion("2025-11-25")); // still accepts sessioned versions
+        assertTrue(handler.supportsProtocolVersion(null));      // null always accepted
+    }
 }

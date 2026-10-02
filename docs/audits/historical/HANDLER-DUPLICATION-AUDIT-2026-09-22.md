@@ -21,8 +21,10 @@ constructor.
 - `McpHttpHandler(McpProtocolHandler handler)` - line 94
 - `McpHttpHandler(McpProtocolHandler, String endpoint, Supplier<String> apiKeySupplier)` - line 107
 -
+
 `McpHttpHandler(McpProtocolHandler, String endpoint, Supplier<String>, Set<String> allowedOrigins, int maxRequestBodyBytes)` -
 line 124
+
 - `McpHttpHandler(..., int maxRequestBodyBytes, boolean trustXForwardedFor)` - line 143
 - `McpHttpHandler(..., int maxRequestBodyBytes, int maxSseConnections)` - line 162
 - `McpHttpHandler(..., int maxSseConnections, boolean trustXForwardedFor)` - line 183

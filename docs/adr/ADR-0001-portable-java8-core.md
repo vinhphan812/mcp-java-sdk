@@ -42,7 +42,8 @@ HTTP server).
   the consuming application or a separate adapter.
 - The library does not claim Android API 21 compatibility without device or emulator evidence.
 - Grizzly is a JVM/server-oriented dependency; its behaviour on Android must be verified before production use.
-  > **Note (ADR-0019):** The current published SDK artifact is compiled for Java 11 bytecode and requires Java 11+. The package design remains portable and transport-isolated, but a Java 8 core artifact is not currently published.
+  > **Note (ADR-0019):** The current published SDK artifact is compiled for Java 11 bytecode and requires Java 11+. The
+  package design remains portable and transport-isolated, but a Java 8 core artifact is not currently published.
 
 ## Verification
 
@@ -56,6 +57,7 @@ No matches in production source. Test source may use Android packages; productio
 
 ## Notes
 
-- The `transport/` package is intentionally Grizzly-specific and may depend on `core`; `core` remains independent of `transport`.
+- The `transport/` package is intentionally Grizzly-specific and may depend on `core`; `core` remains independent of
+  `transport`.
 - WebSocket, STDIO, Android services, and robot domain models are outside the portable scope and belong in consuming
   applications or separate adapters.

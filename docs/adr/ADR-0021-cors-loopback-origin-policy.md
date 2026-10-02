@@ -31,17 +31,17 @@ Introduce `CorsOriginPolicy` as the single source of truth for origin evaluation
 `CorsOriginPolicy` ships with a built-in **loopback rule**: any `Origin` whose host portion resolves to
 a loopback address is accepted, regardless of port. This covers:
 
-| Origin pattern | Matched by loopback rule |
-|---|---|
-| `http://localhost[:<port>]` | yes |
-| `http://127.0.0.1[:<port>]` | yes |
-| `https://localhost[:<port>]` | yes |
-| `https://127.0.0.1[:<port>]` | yes |
-| `http://[::1][:port]` | yes |
-| `https://[::1][:port]` | yes |
-| `http://localhost` (IPv4 mapped IPv6) | yes |
-| `http://192.168.1.1:8080` | no |
-| `https://example.com` | no |
+| Origin pattern                        | Matched by loopback rule |
+|---------------------------------------|--------------------------|
+| `http://localhost[:<port>]`           | yes                      |
+| `http://127.0.0.1[:<port>]`           | yes                      |
+| `https://localhost[:<port>]`          | yes                      |
+| `https://127.0.0.1[:<port>]`          | yes                      |
+| `http://[::1][:port]`                 | yes                      |
+| `https://[::1][:port]`                | yes                      |
+| `http://localhost` (IPv4 mapped IPv6) | yes                      |
+| `http://192.168.1.1:8080`             | no                       |
+| `https://example.com`                 | no                       |
 
 The rule does **not** treat `0.0.0.0` as loopback — it is not a valid `Host` target.
 
@@ -118,11 +118,11 @@ isInvalidOrigin → false, isUnauthorized → false → dispatch
 
 ### 8. Public API ownership
 
-| API surface | Configuration path | Notes |
-|---|---|---|
-| `McpServer.Builder.allowedOrigins(Set)` | → `HttpTransportProvider.allowedOrigins` | Primary public API |
-| `HttpTransportProvider.allowedOrigins(Set)` | Direct | Lower-level transport API |
-| `McpHttpHandler.Builder.allowedOrigins(Set)` | Direct | Handler-level API |
+| API surface                                  | Configuration path                       | Notes                     |
+|----------------------------------------------|------------------------------------------|---------------------------|
+| `McpServer.Builder.allowedOrigins(Set)`      | → `HttpTransportProvider.allowedOrigins` | Primary public API        |
+| `HttpTransportProvider.allowedOrigins(Set)`  | Direct                                   | Lower-level transport API |
+| `McpHttpHandler.Builder.allowedOrigins(Set)` | Direct                                   | Handler-level API         |
 
 All three normalise identically. `McpServer.Builder` is the recommended entry point for new consumers.
 
@@ -171,24 +171,24 @@ Binding to `0.0.0.0` or `127.0.0.1` does not change origin evaluation. This allo
 
 ## Required test matrix
 
-| # | Origin | Expected HTTP |
-|---|---|---|
-| 1 | *(absent)* | 200 / 401 / dispatch as normal |
-| 2 | `http://localhost` | 200 |
-| 3 | `http://localhost:3000` | 200 |
-| 4 | `http://127.0.0.1` | 200 |
-| 5 | `http://127.0.0.1:5173` | 200 |
-| 6 | `http://[::1]` | 200 |
-| 7 | `http://[::1]:8080` | 200 |
-| 8 | `https://localhost` | 200 |
-| 9 | `https://localhost:443` | 200 |
-| 10 | `https://127.0.0.1` | 200 |
-| 11 | `http://192.168.1.1:8080` | 403 |
-| 12 | `http://example.com` | 403 |
-| 13 | OPTIONS preflight, allowed origin | 200 + CORS headers |
-| 14 | OPTIONS preflight, rejected origin | 403 + CORS headers |
-| 15 | Allowed origin + invalid bearer | 401 (not 403) |
-| 16 | Rejected origin + valid bearer | 403 (auth not evaluated) |
+| #  | Origin                             | Expected HTTP                  |
+|----|------------------------------------|--------------------------------|
+| 1  | *(absent)*                         | 200 / 401 / dispatch as normal |
+| 2  | `http://localhost`                 | 200                            |
+| 3  | `http://localhost:3000`            | 200                            |
+| 4  | `http://127.0.0.1`                 | 200                            |
+| 5  | `http://127.0.0.1:5173`            | 200                            |
+| 6  | `http://[::1]`                     | 200                            |
+| 7  | `http://[::1]:8080`                | 200                            |
+| 8  | `https://localhost`                | 200                            |
+| 9  | `https://localhost:443`            | 200                            |
+| 10 | `https://127.0.0.1`                | 200                            |
+| 11 | `http://192.168.1.1:8080`          | 403                            |
+| 12 | `http://example.com`               | 403                            |
+| 13 | OPTIONS preflight, allowed origin  | 200 + CORS headers             |
+| 14 | OPTIONS preflight, rejected origin | 403 + CORS headers             |
+| 15 | Allowed origin + invalid bearer    | 401 (not 403)                  |
+| 16 | Rejected origin + valid bearer     | 403 (auth not evaluated)       |
 
 ## Types / methods expected to change
 

@@ -43,7 +43,49 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mcp-java-sdk-artifacts
-          path: |
-            build/libs/mcp-java-sdk-*.jar
-
+          path: build/libs/mcp-java-sdk-*.jar
           if-no-files-found: error
+
+  dependency-security:
+    name: SBOM and dependency vulnerability gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Generate CycloneDX SBOM
+        run: ./gradlew cyclonedxBom --console=plain
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cyclonedx-sbom
+          path: build/reports/bom.json
+          if-no-files-found: error
+      # Scan the Java dependency SBOM, not a container image. This non-blocking
+      # pass keeps MEDIUM findings visible in the job log.
+      - name: Report MEDIUM dependency vulnerabilities
+        uses: anchore/scan-action@v6
+        with:
+          path: build/reports/bom.json
+          fail-build: false
+          severity-cutoff: medium
+      # HIGH and CRITICAL findings block the workflow and create SARIF evidence.
+      - name: Gate HIGH and CRITICAL dependency vulnerabilities
+        uses: anchore/scan-action@v6
+        with:
+          path: build/reports/bom.json
+          fail-build: true
+          severity-cutoff: high
+          output-format: sarif
+          output-file: grype-results.sarif
+      - name: Upload dependency scan SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: grype-results.sarif

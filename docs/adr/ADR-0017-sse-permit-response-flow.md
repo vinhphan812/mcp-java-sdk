@@ -359,16 +359,17 @@ private void handleGet(Request request, Response response) throws IOException {
 
 ## Relationship to Modern Streamable HTTP
 
-This ADR specifies the SSE permit ordering for **Legacy HTTP+SSE mode** only. With the adoption of Modern Streamable HTTP (see ADR-0018), the GET handler behavior changes:
+This ADR specifies the SSE permit ordering for **Legacy HTTP+SSE mode** only. With the adoption of Modern Streamable
+HTTP (see ADR-0018), the GET handler behavior changes:
 
 ### Modern Transport Mode Differences
 
-| Aspect | Legacy HTTP+SSE | Modern Streamable HTTP |
-|--------|-----------------|----------------------|
-| GET endpoint | Long-lived SSE stream | Returns 405 (not used) |
-| Permit ordering | Critical (see this ADR) | N/A (no GET endpoint) |
-| Session model | Stateful | Stateless per-request |
-| Connection limits | 4 concurrent SSE | Server-driven per-request |
+| Aspect            | Legacy HTTP+SSE         | Modern Streamable HTTP    |
+|-------------------|-------------------------|---------------------------|
+| GET endpoint      | Long-lived SSE stream   | Returns 405 (not used)    |
+| Permit ordering   | Critical (see this ADR) | N/A (no GET endpoint)     |
+| Session model     | Stateful                | Stateless per-request     |
+| Connection limits | 4 concurrent SSE        | Server-driven per-request |
 
 ### Implementation Notes
 

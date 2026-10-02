@@ -9,6 +9,7 @@ import io.github.vinhphan812.mcp.api.spi.McpResourceUpdateListener;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Project-neutral MCP definition registry. Consumers register their own
@@ -16,10 +17,19 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * protocol handler is started.
  */
 public class McpRegistry implements McpRegistrar {
-    private final List<Map<String, Object>> registeredTools = new CopyOnWriteArrayList<>();
-    private final List<Map<String, Object>> registeredResources = new CopyOnWriteArrayList<>();
-    private final List<Map<String, Object>> registeredResourceTemplates = new CopyOnWriteArrayList<>();
-    private final List<Map<String, Object>> registeredPrompts = new CopyOnWriteArrayList<>();
+    /**
+     * Tool definitions keyed by name for O(1) lookup.
+     * The {@code toolKeyOrder} list maintains insertion order for deterministic iteration.
+     */
+    private final ConcurrentHashMap<String, Map<String, Object>> toolDefinitions = new ConcurrentHashMap<>();
+    /** Insertion-order key list for tools. */
+    private final CopyOnWriteArrayList<String> toolKeyOrder = new CopyOnWriteArrayList<>();
+    private final ConcurrentHashMap<String, Map<String, Object>> resourceDefinitions = new ConcurrentHashMap<>();
+    private final CopyOnWriteArrayList<String> resourceKeyOrder = new CopyOnWriteArrayList<>();
+    private final ConcurrentHashMap<String, Map<String, Object>> resourceTemplateDefinitions = new ConcurrentHashMap<>();
+    private final CopyOnWriteArrayList<String> resourceTemplateKeyOrder = new CopyOnWriteArrayList<>();
+    private final ConcurrentHashMap<String, Map<String, Object>> promptDefinitions = new ConcurrentHashMap<>();
+    private final CopyOnWriteArrayList<String> promptKeyOrder = new CopyOnWriteArrayList<>();
 
     private final ConcurrentHashMap<String, McpToolHandler> toolHandlers = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, McpResourceHandler> resourceHandlers = new ConcurrentHashMap<>();
@@ -33,6 +43,78 @@ public class McpRegistry implements McpRegistrar {
     private final ConcurrentHashMap<String, Set<String>> cancelledRequests = new ConcurrentHashMap<>();
     private volatile McpResourceUpdateListener notificationTarget;
     private final CopyOnWriteArrayList<McpRegistryChangeListener> changeListeners = new CopyOnWriteArrayList<>();
+
+    // ==================== List cache / versioning ====================
+    /** Monotonically increasing version counter, incremented on every successful registration or removal. */
+    private final AtomicLong catalogVersion = new AtomicLong(0);
+    /** Millisecond timestamp of the last registry mutation (registration or removal). */
+    private volatile long registrationTimestamp = 0L;
+    /** Default TTL for cached list snapshots in milliseconds (1 hour). */
+    public static final long DEFAULT_LIST_TTL_MS = 3_600_000L;
+
+    /**
+     * Returns cache metadata for a given protocol version.
+     * For 2026-07-28+ the caller should include this in paginated list responses.
+     *
+     * @param protocolVersion the MCP protocol version string
+     * @return unmodifiable metadata map with keys catalogVersion, totalCount, ttlMs, cacheScope, registrationTimestamp
+     */
+    public Map<String, Object> getCacheMetadata(String protocolVersion) {
+        Map<String, Object> meta = new LinkedHashMap<>();
+        meta.put("catalogVersion", catalogVersion.get());
+        meta.put("ttlMs", DEFAULT_LIST_TTL_MS);
+        meta.put("cacheScope", "public");
+        meta.put("registrationTimestamp", registrationTimestamp);
+        meta.put("totalTools", toolKeyOrder.size());
+        meta.put("totalResources", resourceKeyOrder.size());
+        meta.put("totalResourceTemplates", resourceTemplateKeyOrder.size());
+        meta.put("totalPrompts", promptKeyOrder.size());
+        return Collections.unmodifiableMap(meta);
+    }
+
+    /**
+     * Returns the current catalog version. Incremented on every registration or removal.
+     *
+     * @return monotonically increasing catalog version
+     */
+    public long getCatalogVersion() {
+        return catalogVersion.get();
+    }
+
+    /**
+     * Returns the UTC epoch-millisecond timestamp of the last registry mutation.
+     *
+     * @return registration timestamp, or 0 if the registry has never been mutated
+     */
+    public long getRegistrationTimestamp() {
+        return registrationTimestamp;
+    }
+
+    /**
+     * Bumps the catalog version and updates the registration timestamp.
+     * Called after every successful registration or removal.
+     */
+    private void bumpCatalog() {
+        registrationTimestamp = System.currentTimeMillis();
+        catalogVersion.incrementAndGet();
+    }
+
+    /**
+     * Registers a map-backed tool provider for lightweight integrations.
+     * The provider must contain an optional description, inputSchema, and execute Function.
+     */
+    @SuppressWarnings("unchecked")
+    public synchronized void registerToolProvider(String name, Map<String, Object> provider) {
+        if (provider == null) throw new IllegalArgumentException("provider cannot be null");
+        Object execute = provider.get("execute");
+        if (!(execute instanceof java.util.function.Function)) {
+            throw new IllegalArgumentException("provider.execute must be a Function");
+        }
+        Map<String, Object> schema = provider.get("inputSchema") instanceof Map
+                ? (Map<String, Object>) provider.get("inputSchema") : new LinkedHashMap<>();
+        registerTool(name, String.valueOf(provider.getOrDefault("description", "")), schema,
+                Collections.emptyList(), params -> (Map<String, Object>) ((java.util.function.Function<Object, ?>) execute).apply(params));
+    }
 
     /** Registers an MCP tool definition and handler.
      * @param name tool name
@@ -79,7 +161,7 @@ public class McpRegistry implements McpRegistrar {
                                         List<String> required, Map<String, Object> outputSchema,
                                         List<String> requiredScopes, boolean confirmationRequired,
                                         McpToolHandler handler) {
-        requireUnique(name, toolHandlers, "tool");
+        requireUnique(name, toolDefinitions, "tool");
         Map<String, Object> tool = new LinkedHashMap<>();
         tool.put("name", name);
         tool.put("description", description);
@@ -97,8 +179,10 @@ public class McpRegistry implements McpRegistrar {
         if (confirmationRequired) {
             tool.put("confirmationRequired", true);
         }
-        registeredTools.add(tool);
+        toolDefinitions.put(name, Collections.unmodifiableMap(tool));
+        toolKeyOrder.add(name);
         toolHandlers.put(name, handler);
+        bumpCatalog();
         notifyRegistryChanged("tools");
     }
 
@@ -111,19 +195,23 @@ public class McpRegistry implements McpRegistrar {
      */
     @Override
     public synchronized void registerResource(String uri, String name, String description, String mimeType, McpResourceHandler handler) {
-        requireUnique(uri, resourceHandlers, "resource");
+        requireUnique(uri, resourceDefinitions, "resource");
         Map<String, Object> resource = baseResourceMap(uri, name, description, mimeType);
-        registeredResources.add(resource);
+        resourceDefinitions.put(uri, Collections.unmodifiableMap(resource));
+        resourceKeyOrder.add(uri);
         resourceHandlers.put(uri, handler);
+        bumpCatalog();
         notifyRegistryChanged("resources");
     }
 
     @Override
     public synchronized void registerBlobResource(String uri, String name, String description, String mimeType, McpBlobResourceHandler handler) {
-        requireUnique(uri, resourceHandlers, "resource");
+        requireUnique(uri, resourceDefinitions, "resource");
         Map<String, Object> resource = baseResourceMap(uri, name, description, mimeType);
-        registeredResources.add(resource);
+        resourceDefinitions.put(uri, Collections.unmodifiableMap(resource));
+        resourceKeyOrder.add(uri);
         resourceHandlers.put(uri, handler);
+        bumpCatalog();
         notifyRegistryChanged("resources");
     }
 
@@ -136,13 +224,15 @@ public class McpRegistry implements McpRegistrar {
      */
     @Override
     public synchronized void registerResourceTemplate(String uriTemplate, String name, String description, String mimeType, McpResourceHandler handler) {
-        requireUnique(uriTemplate, resourceTemplateHandlers, "resource template");
+        requireUnique(uriTemplate, resourceTemplateDefinitions, "resource template");
         Map<String, Object> template = baseTemplateMap(uriTemplate, name, description, mimeType);
-        registeredResourceTemplates.add(template);
+        resourceTemplateDefinitions.put(uriTemplate, Collections.unmodifiableMap(template));
+        resourceTemplateKeyOrder.add(uriTemplate);
         resourceTemplateHandlers.put(uriTemplate, handler);
         if (handler instanceof McpBlobResourceHandler) {
             blobResourceTemplateHandlers.put(uriTemplate, (McpBlobResourceHandler) handler);
         }
+        bumpCatalog();
         notifyRegistryChanged("resources");
     }
 
@@ -155,11 +245,13 @@ public class McpRegistry implements McpRegistrar {
      */
     @Override
     public synchronized void registerBlobResourceTemplate(String uriTemplate, String name, String description, String mimeType, McpBlobResourceHandler handler) {
-        requireUnique(uriTemplate, resourceTemplateHandlers, "resource template");
+        requireUnique(uriTemplate, resourceTemplateDefinitions, "resource template");
         Map<String, Object> template = baseTemplateMap(uriTemplate, name, description, mimeType);
-        registeredResourceTemplates.add(template);
+        resourceTemplateDefinitions.put(uriTemplate, Collections.unmodifiableMap(template));
+        resourceTemplateKeyOrder.add(uriTemplate);
         resourceTemplateHandlers.put(uriTemplate, handler);
         blobResourceTemplateHandlers.put(uriTemplate, handler);
+        bumpCatalog();
         notifyRegistryChanged("resources");
     }
 
@@ -171,13 +263,15 @@ public class McpRegistry implements McpRegistrar {
      */
     @Override
     public synchronized void registerPrompt(String name, String description, List<Map<String, Object>> arguments, McpPromptHandler handler) {
-        requireUnique(name, promptHandlers, "prompt");
+        requireUnique(name, promptDefinitions, "prompt");
         Map<String, Object> prompt = new LinkedHashMap<>();
         prompt.put("name", name);
         prompt.put("description", description);
         if (arguments != null) prompt.put("arguments", copyArgumentList(arguments));
-        registeredPrompts.add(prompt);
+        promptDefinitions.put(name, Collections.unmodifiableMap(prompt));
+        promptKeyOrder.add(name);
         promptHandlers.put(name, handler);
+        bumpCatalog();
         notifyRegistryChanged("prompts");
     }
 
@@ -358,32 +452,52 @@ public class McpRegistry implements McpRegistrar {
         if (target != null) target.notifyResourceUpdated(uri);
     }
 
-    /** Returns defensive copies of registered tool definitions.
+    /** Returns insertion-order defensive copies of registered tool definitions.
      * @return registered tool definitions
      */
     public List<Map<String, Object>> getRegisteredTools() {
-        return copyDefinitions(registeredTools);
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (String key : toolKeyOrder) {
+            Map<String, Object> def = toolDefinitions.get(key);
+            if (def != null) result.add(copyMap(def));
+        }
+        return result;
     }
 
-    /** Returns defensive copies of registered resource definitions.
+    /** Returns insertion-order defensive copies of registered resource definitions.
      * @return registered resource definitions
      */
     public List<Map<String, Object>> getRegisteredResources() {
-        return copyDefinitions(registeredResources);
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (String key : resourceKeyOrder) {
+            Map<String, Object> def = resourceDefinitions.get(key);
+            if (def != null) result.add(copyMap(def));
+        }
+        return result;
     }
 
-    /** Returns defensive copies of registered resource template definitions.
+    /** Returns insertion-order defensive copies of registered resource template definitions.
      * @return registered resource template definitions
      */
     public List<Map<String, Object>> getRegisteredResourceTemplates() {
-        return copyDefinitions(registeredResourceTemplates);
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (String key : resourceTemplateKeyOrder) {
+            Map<String, Object> def = resourceTemplateDefinitions.get(key);
+            if (def != null) result.add(copyMap(def));
+        }
+        return result;
     }
 
-    /** Returns defensive copies of registered prompt definitions.
+    /** Returns insertion-order defensive copies of registered prompt definitions.
      * @return registered prompt definitions
      */
     public List<Map<String, Object>> getRegisteredPrompts() {
-        return copyDefinitions(registeredPrompts);
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (String key : promptKeyOrder) {
+            Map<String, Object> def = promptDefinitions.get(key);
+            if (def != null) result.add(copyMap(def));
+        }
+        return result;
     }
 
     /** Finds handler registered for tool name.
@@ -401,10 +515,8 @@ public class McpRegistry implements McpRegistrar {
      *         or {@code null} when absent
      */
     public synchronized Map<String, Object> getToolDefinition(String name) {
-        for (Map<String, Object> tool : registeredTools) {
-            if (name.equals(tool.get("name"))) return copyMap(tool);
-        }
-        return null;
+        Map<String, Object> def = toolDefinitions.get(name);
+        return def != null ? copyMap(def) : null;
     }
 
     /** Finds handler registered for resource URI.
@@ -450,7 +562,8 @@ public class McpRegistry implements McpRegistrar {
      * @return resource MIME type, or {@code null} when absent
      */
     public String getResourceMimeType(String uri) {
-        return findMimeType(registeredResources, "uri", uri);
+        Map<String, Object> def = resourceDefinitions.get(uri);
+        return def != null ? normalizeMimeType((String) def.get("mimeType")) : null;
     }
 
     /** Finds MIME type registered for resource URI template.
@@ -458,22 +571,8 @@ public class McpRegistry implements McpRegistrar {
      * @return resource template MIME type, or {@code null} when absent
      */
     public String getResourceTemplateMimeType(String uriTemplate) {
-        return findMimeType(registeredResourceTemplates, "uriTemplate", uriTemplate);
-    }
-
-    private static String findMimeType(List<Map<String, Object>> definitions, String key, String value) {
-        // Lock on a stable class-level monitor rather than the parameter reference.
-        // Writers synchronize on `this`, so reading without a monitor would be racy
-        // under concurrent registration; locking on the class object provides a
-        // happens-before relation across the synchronized writer paths.
-        synchronized (McpRegistry.class) {
-            for (Map<String, Object> definition : definitions) {
-                if (value != null && value.equals(definition.get(key))) {
-                    return (String) definition.get("mimeType");
-                }
-            }
-        }
-        return null;
+        Map<String, Object> def = resourceTemplateDefinitions.get(uriTemplate);
+        return def != null ? normalizeMimeType((String) def.get("mimeType")) : null;
     }
 
     private static String normalizeMimeType(String mimeType) {
@@ -489,15 +588,7 @@ public class McpRegistry implements McpRegistrar {
         }
     }
 
-    private static List<Map<String, Object>> copyDefinitions(List<Map<String, Object>> source) {
-        synchronized (source) {
-            List<Map<String, Object>> copy = new ArrayList<>();
-            for (Map<String, Object> definition : source) {
-                copy.add(copyMap(definition));
-            }
-            return copy;
-        }
-    }
+    // copyDefinitions removed — definitions are stored in maps and copied via copyMap()
 
     private static List<Map<String, Object>> copyArgumentList(List<Map<String, Object>> source) {
         List<Map<String, Object>> copy = new ArrayList<>();

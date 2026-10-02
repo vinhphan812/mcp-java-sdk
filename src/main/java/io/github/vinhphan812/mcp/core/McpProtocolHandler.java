@@ -28,6 +28,7 @@ import io.github.vinhphan812.mcp.api.logging.McpLogger;
 import io.github.vinhphan812.mcp.api.spi.McpAuthorization;
 import io.github.vinhphan812.mcp.api.spi.McpRegistrar;
 import io.github.vinhphan812.mcp.api.spi.McpRegistryChangeListener;
+import io.github.vinhphan812.mcp.api.spi.McpTaskExtension;
 import io.github.vinhphan812.mcp.api.utils.*;
 
 import java.nio.charset.StandardCharsets;
@@ -50,8 +51,11 @@ import static io.github.vinhphan812.mcp.api.spi.McpAuthorization.*;
  * Definitions are supplied by an application-owned {@link McpRegistry}; the
  * protocol layer does not construct project-specific tools or resources.
  * <p>
- * Security features (ADR-0011): owner-based sessions, per-category rate limiting,
- * destructive tool caps, abuse scoring, queue overflow handling, and authorization SPI.
+ * <p>Version strategy: the default {@code 2025-11-25} mode keeps session-scoped
+ * HTTP behavior. Configure {@code McpServerConfig.ProtocolMode.STATELESS} (or
+ * select {@code 2026-07-28} per request) to use self-describing requests without
+ * initialization or {@code Mcp-Session-Id}; unsupported versions are rejected.
+ * Stateless mode intentionally omits session-only subscriptions.
  */
 public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListener {
 
@@ -65,6 +69,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private final McpLogger applicationLogger;
     private final RateLimits rateLimits;
     private final CategoryRateLimitController categoryRateLimitController;
+    private final McpTaskExtension tasksExtension;
+    private final McpTaskExtension.TaskRegistry taskRegistry;
 
     public McpServerConfig getConfig() {
         return config;
@@ -166,6 +172,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         volatile long lastActivity;
         final String clientIp;   // Client IP for rate limiting
         final String ownerId;    // Stable owner identity
+        /** Protocol version negotiated for this session (never null after init). */
+        volatile String negotiatedVersion;
         final Set<String> subscriptions = ConcurrentHashMap.newKeySet();
         final ConcurrentLinkedQueue<SseEvent> pendingEvents = new ConcurrentLinkedQueue<>();
         final AtomicLong nextEventId = new AtomicLong(1L);
@@ -178,6 +186,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             this.lastActivity = this.createdAt;
             this.clientIp = clientIp;
             this.ownerId = ownerId;
+            this.negotiatedVersion = null;
         }
 
         void enqueueEvent(String body) {
@@ -281,6 +290,11 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         this.maxQueuedEvents = config.maxQueuedEvents;
         SessionState.setMaxQueuedEvents(config.maxQueuedEvents);
         this.authorization = authorization;
+        this.tasksExtension = config.tasksExtension;
+        this.taskRegistry = new TaskRegistryImpl(registry);
+        if (this.tasksExtension != null) {
+            this.tasksExtension.register(this.taskRegistry);
+        }
         registry.setNotificationTarget(this);
         registry.addRegistryChangeListener(this);
         startCleanupThread();
@@ -348,9 +362,22 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
      * @return true when version is supported
      */
     public boolean supportsProtocolVersion(String version) {
-        return version == null || config.protocolVersion.equals(version)
+        return version == null || McpJsonRpc.PROTOCOL_VERSION_STATELESS.equals(version)
+                || config.protocolVersion.equals(version)
                 || McpJsonRpc.PROTOCOL_VERSION_LEGACY.equals(version)
                 || McpJsonRpc.PROTOCOL_VERSION.equals(version);
+    }
+
+    /** Returns whether this handler is configured for stateless protocol operation. */
+    public boolean isStatelessMode() {
+        return config.protocolMode == McpServerConfig.ProtocolMode.STATELESS
+                || McpJsonRpc.PROTOCOL_VERSION_STATELESS.equals(config.protocolVersion);
+    }
+
+    /** Returns whether the request explicitly selects the stateless 2026 mode. */
+    private boolean isStatelessProtocol(String requestedVersion) {
+        return McpJsonRpc.PROTOCOL_VERSION_STATELESS.equals(requestedVersion)
+                || isStatelessMode();
     }
 
     /**
@@ -427,6 +454,50 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     }
 
     /**
+     * Minimal task-registry bridge used by {@link McpTaskExtension} implementations.
+     * Exposes only the lifecycle operations needed by extensions, hiding the full
+     * {@link McpRegistry} surface.
+     */
+    private static final class TaskRegistryImpl implements McpTaskExtension.TaskRegistry {
+        private final McpRegistry registry;
+
+        TaskRegistryImpl(McpRegistry registry) {
+            this.registry = registry;
+        }
+
+        @Override
+        public void registerTask(String taskId, String status) {
+            if (taskId == null || taskId.trim().isEmpty())
+                throw new IllegalArgumentException("taskId cannot be blank");
+            if (status == null || status.trim().isEmpty())
+                throw new IllegalArgumentException("status cannot be blank");
+            long now = System.currentTimeMillis();
+            if ("working".equalsIgnoreCase(status)) {
+                registry.registerTask(
+                        new McpTask(taskId, McpTask.Status.WORKING, now, now, null, null));
+            } else if ("completed".equalsIgnoreCase(status)) {
+                registry.registerTask(
+                        new McpTask(taskId, McpTask.Status.COMPLETED, now, now, "OK", null));
+            } else if ("failed".equalsIgnoreCase(status)) {
+                registry.registerTask(
+                        new McpTask(taskId, McpTask.Status.FAILED, now, now, null, "Extension failure"));
+            } else if ("cancelled".equalsIgnoreCase(status)) {
+                registry.registerTask(
+                        new McpTask(taskId, McpTask.Status.CANCELLED, now, now, null, "Extension cancelled"));
+            } else {
+                throw new IllegalArgumentException("Unknown status: " + status);
+            }
+        }
+
+        @Override
+        public String getTaskStatus(String taskId) {
+            if (taskId == null) return null;
+            McpTask t = registry.getTask(taskId);
+            return t == null ? null : t.getStatus().name().toLowerCase();
+        }
+    }
+
+    /**
      * Handle a JSON-RPC request and return only its response body.
      * The sessionId parameter is the Mcp-Session-Id from the request header (maybe null).
      *
@@ -486,6 +557,24 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             id = request.get("id");
             Object params = request.get("params");
             boolean notification = !request.containsKey("id");
+            String requestedProtocolVersion = null;
+            Object topLevelVersion = request.get("protocolVersion");
+            if (topLevelVersion != null && !(topLevelVersion instanceof String)) {
+                return new McpResponse(errorResponse(id, McpError.invalidParamsPrefix("protocolVersion must be a string")), sessionId);
+            }
+            if (topLevelVersion instanceof String) {
+                requestedProtocolVersion = (String) topLevelVersion;
+            } else if (params instanceof Map && ((Map<?, ?>) params).get("protocolVersion") != null) {
+                Object paramVersion = ((Map<?, ?>) params).get("protocolVersion");
+                if (!(paramVersion instanceof String)) {
+                    return new McpResponse(errorResponse(id, McpError.invalidParamsPrefix("protocolVersion must be a string")), sessionId);
+                }
+                requestedProtocolVersion = (String) paramVersion;
+            }
+            if (requestedProtocolVersion != null && !supportsProtocolVersion(requestedProtocolVersion)) {
+                return new McpResponse(errorResponse(id, McpError.invalidParams("Unsupported protocol version: " + requestedProtocolVersion)), sessionId);
+            }
+            boolean stateless = isStatelessProtocol(requestedProtocolVersion);
 
             if (method == null) {
                 return new McpResponse(errorResponse(id, McpError.invalidRequestPrefix("missing method")), sessionId);
@@ -498,7 +587,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 return new McpResponse(errorResponse(id, McpError.rateLimitExceeded("max concurrent sessions reached")), sessionId);
             }
 
-            if (!isSessionOptional(method) && !hasSession(sessionId)) {
+            if (!stateless && !isSessionOptional(method) && !hasSession(sessionId)) {
                 return new McpResponse(errorResponse(id, McpError.of(McpErrorCodes.RESULT_NOT_COMPLETE,
                         "Missing or invalid MCP session")), sessionId);
             }
@@ -511,7 +600,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
             // Check category rate limits for all methods
             toolScopes = null;
-            if (!isSessionOptional(method) && hasSession(sessionId)) {
+            if (!stateless && !isSessionOptional(method) && hasSession(sessionId)) {
                 // Extract tool scopes for tools/call
                 if (McpMethodNames.TOOLS_CALL.equals(method) && params instanceof Map) {
                     Map<String, Object> toolParams = (Map<String, Object>) params;
@@ -536,7 +625,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             }
 
             // Track concurrent requests for all methods
-            if (!isSessionOptional(method) && hasSession(sessionId)) {
+            if (!stateless && !isSessionOptional(method) && hasSession(sessionId)) {
                 String cat = categoryRateLimitController.categoryForMethod(method, toolScopes);
                 if (McpMethodNames.TOOLS_CALL.equals(method) && toolScopes != null) {
                     cat = categoryRateLimitController.toolCategory(toolScopes);
@@ -550,10 +639,14 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
             String responseSessionId = sessionId;
             Map<String, Object> result;
+            final Object requestId = id;  // effectively-final copy for lambda capture
 
             // Intentional: each MCP list handler calls a different registry method.
             //noinspection DuplicateBranchesInSwitch
             switch (method) {
+                case McpMethodNames.SERVER_DISCOVER:
+                    result = handleServerDiscover();
+                    break;
                 case McpMethodNames.INITIALIZE:
                     Map<String, Object> initializeParams = params instanceof Map
                             ? (Map<String, Object>) params : null;
@@ -565,8 +658,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                     if (requestedVersion != null && !supportsProtocolVersion((String) requestedVersion)) {
                         return new McpResponse(errorResponse(id, McpError.invalidParams("Unsupported protocol version: " + requestedVersion)), sessionId);
                     }
-                    String initSessionId = UUID.randomUUID().toString();
-                    result = handleInitialize(initializeParams, initSessionId, clientIp);
+                    String initSessionId = stateless ? null : UUID.randomUUID().toString();
+                    result = handleInitialize(initializeParams, initSessionId, clientIp, stateless);
                     responseSessionId = initSessionId;
                     break;
                 case McpMethodNames.NOTIF_INITIALIZED:
@@ -584,7 +677,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                     }
                     result = handleToolsCall(
                             params instanceof Map ? (Map<String, Object>) params : null,
-                            sessionId, id);
+                            sessionId, id, stateless);
                     break;
                 case McpMethodNames.RESOURCES_LIST:
                     if (!config.resources) {
@@ -634,22 +727,30 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                     result = handlePromptsGet(params instanceof Map
                             ? (Map<String, Object>) params : null);
                     break;
-                case McpMethodNames.TASKS_GET:
-                    if (!config.tasks) return new McpResponse(capabilityError(id, "tasks"), sessionId);
-                    result = handleTasksGet(params instanceof Map ? (Map<String, Object>) params : null);
+                case McpMethodNames.TASKS_GET: {
+                    Map<String, Object> p = params instanceof Map ? (Map<String, Object>) params : null;
+                    result = dispatchTaskRequest(method, id, sessionId, null,
+                            pp -> handleTasksGet(pp), p);
                     break;
-                case McpMethodNames.TASKS_RESULT:
-                    if (!config.tasks) return new McpResponse(capabilityError(id, "tasks"), sessionId);
-                    result = handleTasksResult(params instanceof Map ? (Map<String, Object>) params : null);
+                }
+                case McpMethodNames.TASKS_RESULT: {
+                    Map<String, Object> p = params instanceof Map ? (Map<String, Object>) params : null;
+                    result = dispatchTaskRequest(method, id, sessionId, null,
+                            pp -> handleTasksResult(pp), p);
                     break;
-                case McpMethodNames.TASKS_CANCEL:
-                    if (!config.tasks) return new McpResponse(capabilityError(id, "tasks"), sessionId);
-                    result = handleTasksCancel(params instanceof Map ? (Map<String, Object>) params : null, sessionId, id);
+                }
+                case McpMethodNames.TASKS_CANCEL: {
+                    Map<String, Object> p = params instanceof Map ? (Map<String, Object>) params : null;
+                    result = dispatchTaskRequest(method, id, sessionId, requestId,
+                            pp -> handleTasksCancel(pp, sessionId, requestId), p);
                     break;
-                case McpMethodNames.TASKS_CREATE:
-                    if (!config.tasks) return new McpResponse(capabilityError(id, "tasks"), sessionId);
-                    result = handleTasksCreate(params instanceof Map ? (Map<String, Object>) params : null, sessionId, id);
+                }
+                case McpMethodNames.TASKS_CREATE: {
+                    Map<String, Object> p = params instanceof Map ? (Map<String, Object>) params : null;
+                    result = dispatchTaskRequest(method, id, sessionId, requestId,
+                            pp -> handleTasksCreate(pp, sessionId, requestId), p);
                     break;
+                }
                 case McpMethodNames.COMPLETION_COMPLETE:
                     if (!config.completions) return new McpResponse(capabilityError(id, "completions"), sessionId);
                     result = handleCompletion(params instanceof Map ? (Map<String, Object>) params : null);
@@ -695,7 +796,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     }
 
     private boolean isSessionOptional(String method) {
-        return McpMethodNames.INITIALIZE.equals(method)
+        return McpMethodNames.SERVER_DISCOVER.equals(method)
+                || McpMethodNames.INITIALIZE.equals(method)
                 || McpMethodNames.NOTIF_INITIALIZED.equals(method)
                 || McpMethodNames.PING.equals(method);
     }
@@ -806,7 +908,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         }
     }
 
-    private SessionState handleSessionCreate(String sessionId, String clientIp, String ownerId) {
+    private SessionState handleSessionCreate(String sessionId, String clientIp, String ownerId, String negotiatedVersion) {
         String normalizedOwnerId = normalizeOwnerId(ownerId);
         if (normalizedOwnerId != null) {
             String existingSession = sessionOwners.putIfAbsent(normalizedOwnerId, sessionId);
@@ -820,6 +922,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             }
         }
         SessionState state = new SessionState(sessionId, clientIp, normalizedOwnerId);
+        state.negotiatedVersion = negotiatedVersion;
         sessions.put(sessionId, state);
         categoryRateLimitController.registerSession(sessionId);
         return state;
@@ -861,14 +964,10 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     // ==================== Initialize ====================
 
     private Map<String, Object> handleInitialize(Map<String, Object> params,
-                                                 String newSessionId, String clientIp) {
+                                                 String newSessionId, String clientIp,
+                                                 boolean stateless) {
         String ownerId = (params != null && params.get("ownerId") instanceof String)
                 ? (String) params.get("ownerId") : null;
-        SessionState state = handleSessionCreate(newSessionId, clientIp, ownerId);
-
-        LOGGER.info("Initialized session: " + newSessionId
-                + (state.ownerId != null ? " owner=" + state.ownerId : ""));
-
         String negotiatedVersion = config.protocolVersion;
         if (params != null) {
             String requestedVersion = (String) params.get("protocolVersion");
@@ -876,6 +975,10 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 negotiatedVersion = requestedVersion;
             }
         }
+        SessionState state = newSessionId == null ? null : handleSessionCreate(newSessionId, clientIp, ownerId, negotiatedVersion);
+
+        if (state != null) LOGGER.info("Initialized session: " + newSessionId
+                + (state.ownerId != null ? " owner=" + state.ownerId : ""));
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("protocolVersion", negotiatedVersion);
@@ -891,7 +994,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (config.resources) {
             Map<String, Object> resourcesCap = new LinkedHashMap<>();
             resourcesCap.put("listChanged", true);
-            if (config.resourceSubscriptions) resourcesCap.put("subscribe", true);
+            if (config.resourceSubscriptions && !stateless) resourcesCap.put("subscribe", true);
             capabilities.put("resources", resourcesCap);
         }
 
@@ -903,7 +1006,13 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
         if (config.completions) capabilities.put("completions", new LinkedHashMap<String, Object>());
         if (config.logging) capabilities.put("logging", new LinkedHashMap<String, Object>());
-        if (config.tasks) capabilities.put("tasks", new LinkedHashMap<String, Object>());
+        if (config.tasks) {
+            if (tasksExtension != null && tasksExtension.supports(negotiatedVersion)) {
+                capabilities.put("tasks", tasksExtension.advertiseCapabilities(negotiatedVersion));
+            } else if (tasksExtension == null) {
+                capabilities.put("tasks", new LinkedHashMap<String, Object>());
+            }
+        }
         if (!config.experimental.isEmpty()) capabilities.put("experimental", config.experimental);
 
         result.put("capabilities", capabilities);
@@ -914,6 +1023,145 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         result.put("serverInfo", serverInfo);
 
         return result;
+    }
+
+    // ==================== Server Discover ====================
+
+    /**
+     * Handles the sessionless server/discover request.
+     * Returns server capability metadata without requiring a session.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> handleServerDiscover() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("resultType", "complete");
+
+        List<String> supportedVersions = new ArrayList<>();
+        supportedVersions.add(McpJsonRpc.PROTOCOL_VERSION_STATELESS);
+        if (!supportedVersions.contains(config.protocolVersion)) {
+            supportedVersions.add(config.protocolVersion);
+        }
+        if (!supportedVersions.contains(McpJsonRpc.PROTOCOL_VERSION)) {
+            supportedVersions.add(McpJsonRpc.PROTOCOL_VERSION);
+        }
+        result.put("supportedVersions", supportedVersions);
+
+        Map<String, Object> capabilities = new LinkedHashMap<>();
+        if (config.tools) {
+            Map<String, Object> toolsCap = new LinkedHashMap<>();
+            toolsCap.put("listChanged", true);
+            capabilities.put("tools", toolsCap);
+        }
+        if (config.resources) {
+            Map<String, Object> resourcesCap = new LinkedHashMap<>();
+            resourcesCap.put("listChanged", true);
+            capabilities.put("resources", resourcesCap);
+        }
+        if (config.prompts) {
+            Map<String, Object> promptsCap = new LinkedHashMap<>();
+            promptsCap.put("listChanged", true);
+            capabilities.put("prompts", promptsCap);
+        }
+        if (config.completions) capabilities.put("completions", new LinkedHashMap<String, Object>());
+        if (config.logging) capabilities.put("logging", new LinkedHashMap<String, Object>());
+        if (config.tasks) {
+            // For server/discover we don't have a negotiated session version yet;
+            // advertise only when the extension supports the configured default version.
+            if (tasksExtension != null && tasksExtension.supports(config.protocolVersion)) {
+                capabilities.put("tasks", tasksExtension.advertiseCapabilities(config.protocolVersion));
+            } else if (tasksExtension == null) {
+                capabilities.put("tasks", new LinkedHashMap<String, Object>());
+            }
+        }
+        result.put("capabilities", capabilities);
+
+        Map<String, Object> meta = new LinkedHashMap<>();
+        Map<String, Object> serverInfo = new LinkedHashMap<>();
+        serverInfo.put("name", config.serverName);
+        serverInfo.put("version", config.serverVersion);
+        meta.put("io.modelcontextprotocol/serverInfo", serverInfo);
+        result.put("_meta", meta);
+
+        result.put("instructions", "");
+        result.put("ttlMs", 3600000L);
+        result.put("cacheScope", "public");
+
+        return result;
+    }
+
+    /**
+     * Dispatches a task-related method with version gating and extension callback.
+     *
+     * <ol>
+     *   <li>If {@code tasks} capability is disabled → {@code -32601 capability disabled}</li>
+     *   <li>If an extension is registered and does not {@code support(version)} →
+     *       {@code -32601 method not found}</li>
+     *   <li>If an extension is registered → call {@code extension.onRequest}; non-null result is used</li>
+     *   <li>Otherwise → delegate to the built-in handler</li>
+     * </ol>
+     *
+     * <p>When the built-in handler throws {@link McpException}, the extension's
+     * {@code onError} hook is called; if it returns a replacement the server
+     * uses that, otherwise the original error is returned.
+     *
+     * @param method       the MCP method name
+     * @param id           JSON-RPC request id
+     * @param sessionId    MCP session id (may be null in stateless mode)
+     * @param requestId    the request id for cancellation tracking (may be null)
+     * @param builtIn      the built-in handler
+     * @return the request result (never null)
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> dispatchTaskRequest(
+            String method, Object id, String sessionId, Object requestId,
+            java.util.function.Function<Map<String, Object>, Map<String, Object>> builtIn,
+            Map<String, Object> rawParams) {
+
+        if (!config.tasks) {
+            throw McpException.methodNotFound("MCP capability is disabled: tasks");
+        }
+
+        String version = sessionId != null
+                ? sessions.get(sessionId).negotiatedVersion
+                : (isStatelessMode() ? McpJsonRpc.PROTOCOL_VERSION_STATELESS : config.protocolVersion);
+
+        // Extension version gating: if extension exists but doesn't support this version,
+        // treat as unknown method (safe unknown extension behaviour).
+        if (tasksExtension != null && !tasksExtension.supports(version)) {
+            throw McpException.methodNotFound("Method not found: " + method);
+        }
+
+        // Delegate to extension first if present
+        if (tasksExtension != null) {
+            McpTaskExtension.RequestResult extResult =
+                    tasksExtension.onRequest(method, rawParams, sessionId);
+            if (extResult != null) {
+                if (extResult.isSuccess()) {
+                    return extResult.result;
+                } else {
+                    throw new McpException(extResult.error.code, extResult.error.message);
+                }
+            }
+        }
+
+        // Built-in handling
+        try {
+            return builtIn.apply(rawParams);
+        } catch (McpException e) {
+            // Extension error hook: let extension transform or suppress the error
+            if (tasksExtension != null) {
+                McpTaskExtension.RequestResult extResult =
+                        tasksExtension.onError(method, rawParams, sessionId, e.getCode(), e.getMessage());
+                if (extResult != null) {
+                    if (extResult.isSuccess()) {
+                        return extResult.result;
+                    } else {
+                        throw new McpException(extResult.error.code, extResult.error.message);
+                    }
+                }
+            }
+            throw e;
+        }
     }
 
     private Map<String, Object> handleTasksGet(Map<String, Object> params) {
@@ -1030,18 +1278,40 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     // ==================== Tools ====================
 
     private Map<String, Object> handleToolsList(Map<String, Object> params) {
-        return paginate("tools", registry.getRegisteredTools(), params);
+        return paginate("tools", registry.getRegisteredTools(), params, "tools");
     }
 
+    /**
+     * Builds a paginated list response with optional 2026-07-28 cache metadata.
+     * The definitions snapshot is captured at the start of the call so that concurrent
+     * registrations cannot alter the page mid-flight (stable snapshot guarantee).
+     *
+     * @param key          JSON key for the items array (e.g. "tools", "resources")
+     * @param definitions  live definitions list (read-once snapshot)
+     * @param params       request params containing optional cursor
+     * @param listType     the list type string passed to getCacheMetadata, or null to skip metadata
+     * @return paginated result map
+     */
     private Map<String, Object> paginate(String key, List<Map<String, Object>> definitions,
-                                         Map<String, Object> params) {
-        int offset = decodeCursor(params == null ? null : params.get("cursor"), definitions.size());
-        if (offset > definitions.size()) offset = definitions.size();
-        long rawEnd = (long) offset + (long) config.pageSize;
-        int end = (int) Math.min(rawEnd, (long) definitions.size());
+                                         Map<String, Object> params, String listType) {
+        int total = definitions.size();
+        int offset = decodeCursor(params == null ? null : params.get("cursor"), total);
+        if (offset > total) offset = total;
+        int pageEnd = Math.min(offset + config.pageSize, total);
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put(key, new ArrayList<>(definitions.subList(offset, end)));
-        if (end < definitions.size()) result.put("nextCursor", encodeCursor(end));
+        result.put(key, new ArrayList<>(definitions.subList(offset, pageEnd)));
+        if (pageEnd < total) result.put("nextCursor", encodeCursor(pageEnd));
+        // Attach version-gated cache metadata for 2026-07-28+ sessions
+        if (isStatelessMode() && listType != null) {
+            Map<String, Object> cacheMeta = registry.getCacheMetadata(McpJsonRpc.PROTOCOL_VERSION_STATELESS);
+            result.put("catalogVersion", cacheMeta.get("catalogVersion"));
+            result.put("ttlMs", cacheMeta.get("ttlMs"));
+            result.put("cacheScope", cacheMeta.get("cacheScope"));
+            result.put("totalCount", total);
+            result.put("pageStart", offset);
+            result.put("pageEnd", pageEnd);
+            result.put("registrationTimestamp", cacheMeta.get("registrationTimestamp"));
+        }
         return result;
     }
 
@@ -1067,7 +1337,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> handleToolsCall(Map<String, Object> params, String sessionId, Object requestId) {
+    private Map<String, Object> handleToolsCall(Map<String, Object> params, String sessionId, Object requestId,
+                                                boolean stateless) {
         if (params == null) throw McpException.invalidParams("missing params");
 
         String name = requireName(params, "tool");
@@ -1104,7 +1375,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         }
 
         // Rate limit check
-        String rateLimitError = categoryRateLimitController.checkTool(sessionId, name, requiredScopes);
+        String rateLimitError = stateless ? null : categoryRateLimitController.checkTool(sessionId, name, requiredScopes);
         if (rateLimitError != null) {
             return errorToolResult(rateLimitError);
         }
@@ -1122,6 +1393,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             }
         }
 
+        if (stateless) sessionId = null;
         try {
             if (progressToken != null) {
                 notifyToolProgress(sessionId, progressToken, 0d, 1d, "Tool " + name + " started");
@@ -1243,7 +1515,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     // ==================== Resources ====================
 
     private Map<String, Object> handleResourcesList(Map<String, Object> params) {
-        return paginate("resources", registry.getRegisteredResources(), params);
+        return paginate("resources", registry.getRegisteredResources(), params, "resources");
     }
 
     private Map<String, Object> handleResourcesRead(Map<String, Object> params) {
@@ -1273,7 +1545,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     // ==================== Resource Templates ====================
 
     private Map<String, Object> handleResourceTemplatesList(Map<String, Object> params) {
-        return paginate("resourceTemplates", registry.getRegisteredResourceTemplates(), params);
+        return paginate("resourceTemplates", registry.getRegisteredResourceTemplates(), params, "resourceTemplates");
     }
 
     private Map<String, Object> handleResourceTemplatesGet(Map<String, Object> params) {
@@ -1381,7 +1653,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     // ==================== Prompts ====================
 
     private Map<String, Object> handlePromptsList(Map<String, Object> params) {
-        return paginate("prompts", registry.getRegisteredPrompts(), params);
+        return paginate("prompts", registry.getRegisteredPrompts(), params, "prompts");
     }
 
     private Map<String, Object> handlePromptsGet(Map<String, Object> params) {

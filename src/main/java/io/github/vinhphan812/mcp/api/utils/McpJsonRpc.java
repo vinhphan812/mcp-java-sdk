@@ -21,14 +21,13 @@ public final class McpJsonRpc {
 
     // ── MCP protocol versions ─────────────────────────────────────────────────
 
-    /**
-     * The primary MCP protocol version this server targets.
-     */
-    public static final String PROTOCOL_VERSION = "2025-03-26";
+    /** The MCP 2026 stateless protocol version. */
+    public static final String PROTOCOL_VERSION_STATELESS = "2026-07-28";
 
-    /**
-     * Legacy MCP protocol version accepted for backward compatibility.
-     */
+    /** The MCP 2025 protocol version used by the default session-oriented mode. */
+    public static final String PROTOCOL_VERSION = "2025-11-25";
+
+    /** Legacy MCP protocol version accepted for backward compatibility. */
     public static final String PROTOCOL_VERSION_LEGACY = "2025-06-18";
 
     // ── Server info ──────────────────────────────────────────────────────────

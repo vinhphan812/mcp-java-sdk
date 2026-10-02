@@ -29,7 +29,8 @@ This creates several issues:
 
 ## Finding Resolution (t_8002a6c5, 2026-09-28)
 
-Source inspection of `McpRegistry.java` (the canonical workspace for this ADR) confirmed that ADR-0015's three core requirements were implemented:
+Source inspection of `McpRegistry.java` (the canonical workspace for this ADR) confirmed that ADR-0015's three core
+requirements were implemented:
 
 - `CopyOnWriteArrayList` for all four metadata lists (tools, resources, resource templates, prompts) — **IMPLEMENTED**
 - Defensive deep-copy in `getToolDefinition()` via `copyMap()` — **IMPLEMENTED**
@@ -37,11 +38,20 @@ Source inspection of `McpRegistry.java` (the canonical workspace for this ADR) c
 
 Two proposed optimisations were NOT implemented and do not need to be:
 
-1. **`toolDefinitionsByName` index** — Not present in source. The O(n) scan in `getToolDefinition()` is acceptable: tools are bootstrapped once at startup, and at MCP scale (tens to low hundreds of definitions) the cost is negligible.
+1. **`toolDefinitionsByName` index** — Not present in source. The O(n) scan in `getToolDefinition()` is acceptable:
+   tools are bootstrapped once at startup, and at MCP scale (tens to low hundreds of definitions) the cost is
+   negligible.
 
-2. **Removal of `synchronized` from registration methods** — Correctly RETAINED. Removing `synchronized` from `registerTool`, `registerResource`, `registerResourceTemplate`, `registerBlobResource`, `registerBlobResourceTemplate`, and `registerPrompt` would break the uniqueness contract enforced by `requireUnique()`. `ConcurrentHashMap.containsKey()` is not atomic with the subsequent `put()`. The `ConcurrentHashMap.putIfAbsent()` alternative would require duplicating every definition-building method, which is worse than retaining `synchronized`. The existing `synchronized` on registration methods is the minimal correct solution.
+2. **Removal of `synchronized` from registration methods** — Correctly RETAINED. Removing `synchronized` from
+   `registerTool`, `registerResource`, `registerResourceTemplate`, `registerBlobResource`,
+   `registerBlobResourceTemplate`, and `registerPrompt` would break the uniqueness contract enforced by
+   `requireUnique()`. `ConcurrentHashMap.containsKey()` is not atomic with the subsequent `put()`. The
+   `ConcurrentHashMap.putIfAbsent()` alternative would require duplicating every definition-building method, which is
+   worse than retaining `synchronized`. The existing `synchronized` on registration methods is the minimal correct
+   solution.
 
-**Decision: Option B** — Accept current design as a valid partial implementation. Record `toolDefinitionsByName` as an optional future optimisation (see below).
+**Decision: Option B** — Accept current design as a valid partial implementation. Record `toolDefinitionsByName` as an
+optional future optimisation (see below).
 
 ## Decision
 
@@ -234,15 +244,19 @@ for this read-heavy workload.
 
 - CopyOnWriteArrayList has slightly higher memory overhead for large registries
 - Registration operations create full array copy (acceptable for startup-only pattern)
-- O(n) scan in `getToolDefinition()` — acceptable at MCP scale; `toolDefinitionsByName` index recorded as future optimisation
+- O(n) scan in `getToolDefinition()` — acceptable at MCP scale; `toolDefinitionsByName` index recorded as future
+  optimisation
 
 ### Future Optimisation
 
-The `ConcurrentHashMap<String, Map<String, Object>> toolDefinitionsByName` index proposed in the original ADR is **not required** by the concurrency contract but would improve `getToolDefinition()` from O(n) to O(1).
+The `ConcurrentHashMap<String, Map<String, Object>> toolDefinitionsByName` index proposed in the original ADR is **not
+required** by the concurrency contract but would improve `getToolDefinition()` from O(n) to O(1).
 
-**Estimated benefit:** Negligible at typical MCP registry sizes (tens to low hundreds of definitions). Register once, read many — but reads already use `copyMap()` (O(n) in schema size), dwarfing the O(n) name scan.
+**Estimated benefit:** Negligible at typical MCP registry sizes (tens to low hundreds of definitions). Register once,
+read many — but reads already use `copyMap()` (O(n) in schema size), dwarfing the O(n) name scan.
 
-**Estimated cost to implement:** Low. Requires adding one `ConcurrentHashMap` field and one `put()` in each registration method.
+**Estimated cost to implement:** Low. Requires adding one `ConcurrentHashMap` field and one `put()` in each registration
+method.
 
 **Recommended trigger:** Profile and confirm the O(n) name scan is a measurable bottleneck (unlikely at MCP scale).
 

@@ -4,9 +4,6 @@ import io.github.vinhphan812.mcp.core.McpProtocolHandler;
 import org.glassfish.grizzly.http.server.HttpServer;
 import org.glassfish.grizzly.http.server.NetworkListener;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.function.Supplier;
 
 /**

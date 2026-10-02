@@ -527,7 +527,7 @@ Provides `McpHttpHandler` lifecycle management.
 | `isRunning()`     | `true` if the server is accepting connections       |
 | `getActualPort()` | Returns the actual port (useful with ephemeral `0`) |
 | `getUrl()`        | Returns the server URL when running                 |
-| `getHandler()`    | Returns the `McpHttpHandler` instance            |
+| `getHandler()`    | Returns the `McpHttpHandler` instance               |
 
 ### `McpHttpHandler`
 
@@ -625,11 +625,11 @@ Supported MCP JSON-RPC methods:
 
 ## Related documentation
 
-| Document                                                       | Description                                          |
-|----------------------------------------------------------------|------------------------------------------------------|
-| [Project Guide](PROJECT-GUIDE.md)                              | Architecture, usage guide, and protocol overview     |
-| [HTTP Transport Example](HTTP-TRANSPORT-EXAMPLE.md)          | Standalone HTTP/SSE transport example with request samples |
-| [Implementation Status](IMPLEMENTATION-STATUS.md)              | Completed, incomplete, and unverified areas          |
-| [MCP Compatibility](../architecture/MCP-COMPATIBILITY-2026.md) | MCP baseline and P0/P1/P2 compatibility status       |
-| [docs/adr/](../adr/)                                          | Architecture Decision Records                        |
+| Document                                                       | Description                                                |
+|----------------------------------------------------------------|------------------------------------------------------------|
+| [Project Guide](PROJECT-GUIDE.md)                              | Architecture, usage guide, and protocol overview           |
+| [HTTP Transport Example](HTTP-TRANSPORT-EXAMPLE.md)            | Standalone HTTP/SSE transport example with request samples |
+| [Implementation Status](IMPLEMENTATION-STATUS.md)              | Completed, incomplete, and unverified areas                |
+| [MCP Compatibility](../architecture/MCP-COMPATIBILITY-2026.md) | MCP baseline and P0/P1/P2 compatibility status             |
+| [docs/adr/](../adr/)                                           | Architecture Decision Records                              |
 
