@@ -72,8 +72,8 @@ jobs:
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /tmp/grype-bin v0.97.1
           echo "/tmp/grype-bin" >> $GITHUB_PATH
-      # grype v0.97.1 only has --fail-on (no --severity flag).
-      # --fail-on=high means MEDIUM/NEGLIGIBLE findings do NOT fail the step.
+      # grype v0.97.1 has NO --severity flag. Use --fail-on=high to filter:
+      # --fail-on=high means HIGH/CRITICAL matches cause exit=1; MEDIUM/NEGLIGIBLE do NOT fail.
       # JSON output saved to file; python extracts and logs MEDIUM findings.
       - name: Report MEDIUM dependency vulnerabilities
         run: |

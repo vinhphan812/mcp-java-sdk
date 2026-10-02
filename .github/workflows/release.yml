@@ -26,17 +26,18 @@ jobs:
       - name: Compile examples (release gate)
         run: ./gradlew -p examples compileJava -PsdkJar=../build/libs/mcp-java-sdk-${GITHUB_REF_NAME#v}.jar --console=plain
 
-      # Grype consumes the Java dependency SBOM; no image or container scan is used.
+      # anchore/scan-action@v6 accepts sbom=<file> for CycloneDX/JSON SBOM files.
+      # path=<dir> fails because it treats the JSON file as a directory target.
       - name: Report MEDIUM dependency vulnerabilities
         uses: anchore/scan-action@v6
         with:
-          path: build/reports/bom.json
+          sbom: build/reports/bom.json
           fail-build: false
           severity-cutoff: medium
       - name: Gate HIGH and CRITICAL dependency vulnerabilities
         uses: anchore/scan-action@v6
         with:
-          path: build/reports/bom.json
+          sbom: build/reports/bom.json
           fail-build: true
           severity-cutoff: high
           output-format: sarif
