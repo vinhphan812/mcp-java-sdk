@@ -67,23 +67,27 @@ jobs:
           name: cyclonedx-sbom
           path: build/reports/bom.json
           if-no-files-found: error
-      # Scan the Java dependency SBOM, not a container image. This non-blocking
-      # pass keeps MEDIUM findings visible in the job log.
+      # Scan the Java dependency SBOM with grype directly using --input so it
+      # reads the CycloneDX JSON SBOM rather than treating the path as a container/dir.
       - name: Report MEDIUM dependency vulnerabilities
-        uses: anchore/scan-action@v6
-        with:
-          path: build/reports/bom.json
-          fail-build: false
-          severity-cutoff: medium
+        run: |
+          grype "build/reports/bom.json" \
+            --input \
+            --fail-build=false \
+            --severity=medium
+        env:
+          GRYPE_DB_AUTO_UPDATE: true
       # HIGH and CRITICAL findings block the workflow and create SARIF evidence.
       - name: Gate HIGH and CRITICAL dependency vulnerabilities
-        uses: anchore/scan-action@v6
-        with:
-          path: build/reports/bom.json
-          fail-build: true
-          severity-cutoff: high
-          output-format: sarif
-          output-file: grype-results.sarif
+        run: |
+          grype "build/reports/bom.json" \
+            --input \
+            --fail-build=true \
+            --severity=high \
+            -o sarif \
+            --file grype-results.sarif
+        env:
+          GRYPE_DB_AUTO_UPDATE: true
       - name: Upload dependency scan SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@v3
