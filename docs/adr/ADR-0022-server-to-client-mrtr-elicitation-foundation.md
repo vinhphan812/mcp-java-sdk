@@ -1,6 +1,6 @@
 # ADR-0022 — MRTR Server-to-Client Foundation and Elicitation
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-02
 **Authors:** MCP Java SDK team
 **GitHub:** [#7](https://github.com/vinhphan812/mcp-java-sdk/issues/7)

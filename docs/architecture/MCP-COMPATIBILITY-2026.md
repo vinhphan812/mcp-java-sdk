@@ -57,8 +57,9 @@ initialize error rather than silently advertising a different version.
 - [x] Progress/cancellation notifications (progress tokens in `_meta`, `notifications/progress`)
 - [x] Client-initiated `notifications/cancelled` (cancels by request id)
 - [x] `tasks/create` (task-producing requests with `tasks/task` notifications)
-- [ ] Sampling.
-- [ ] Elicitation.
+- [~] Sampling — deferred stub: returns `{-32601, "Sampling not implemented"}` by default;
+  opt-in via `McpServerConfig.Builder.samplingEnabled(true)`.  See ADR-0022 §9a.
+- [~] Elicitation — designed in ADR-0022 §1–§8; implementation is follow-up work.
 - [ ] Async API.
 - [ ] STDIO transport.
 - [ ] Typed schema model.
