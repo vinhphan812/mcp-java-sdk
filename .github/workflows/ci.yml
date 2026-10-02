@@ -72,28 +72,52 @@ jobs:
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /tmp/grype-bin v0.97.1
           echo "/tmp/grype-bin" >> $GITHUB_PATH
-      # grype v0.97.1 only has --fail-on (no --severity flag).
-      # Run 1 (table): --fail-on=high shows HIGH/CRITICAL findings; MEDIUM exits 0 (set +e ignores).
-      # Run 2 (gate):   --fail-on=high exits 1 on HIGH or CRITICAL; step fails if either is found.
-      #                 Policy: HIGH+CRITICAL blocks merge (docs/SECURITY.md § Severity Policy).
-      #                 SARIF is uploaded regardless (if: always() on the upload step).
-      - name: Scan SBOM - report MEDIUM findings and gate HIGH/CRITICAL vulnerabilities
+      # NOTE: grype v0.97.1 only has --fail-on for severity gating (no --severity flag);
+      # valid values: negligible | low | medium | high | critical.
+      #
+      # Step layout (all separate so one failure cannot suppress SARIF):
+      # 1. Report findings (table + MEDIUM count) — non-blocking (--fail-on=high leaves MEDIUM at exit 0).
+      # 2. Gate - block HIGH/CRITICAL per docs/SECURITY.md § Severity Policy.
+      # 3. Generate SARIF - always succeeds (no --fail-on) so grype-results.sarif is produced
+      #    even when findings are below threshold; --add-cvect-if-empty enriches results.
+      # 4. Verify SARIF file exists and set an output so the upload runs only when present.
+      # 5. Upload SARIF to GitHub code scanning — runs only if grype-results.sarif exists.
+      - name: Scan SBOM - report MEDIUM findings
         run: |
           set +e
-          # MEDIUM findings don't fail --fail-on=high; table shows HIGH+ findings.
+          # MEDIUM findings do not fail --fail-on=high; table shows HIGH+ findings.
           grype "build/reports/bom.json" --fail-on=high -o table
-          # Count MEDIUM findings from grype output for logging.
+          # Count MEDIUM findings from grype JSON output for logging.
           grype "build/reports/bom.json" -o json | grep -c '"severity":"Medium"' || true
-          # Gate: fail on HIGH or CRITICAL per SECURITY.md § Severity Policy.
-          # Exit 0 = clean; exit 1 = HIGH/CRITICAL found.
-          grype "build/reports/bom.json" --fail-on=high -o sarif --file grype-results.sarif
+      - name: Gate - block HIGH or CRITICAL vulnerabilities
+        run: |
+          set +e
+          # Exit 0 = clean; exit 1 = HIGH/CRITICAL found (per SECURITY.md § Severity Policy).
+          grype "build/reports/bom.json" --fail-on=high
           rc=$?
           if [ $rc -eq 1 ]; then
             echo "HIGH or CRITICAL vulnerabilities detected - blocking build."
             exit 1
           fi
-      - name: Upload dependency scan SARIF
+      - name: Generate SARIF for dependency scan
         if: always()
+        run: |
+          # No --fail-on: always exits 0 and writes grype-results.sarif, even when
+          # findings are below threshold. --add-cvect-if-empty adds CVE ids where available.
+          grype "build/reports/bom.json" -o sarif --file grype-results.sarif --add-cvect-if-empty
+      - name: Check SARIF file exists
+        if: always()
+        id: sarif-check
+        run: |
+          if [ -f "grype-results.sarif" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "SARIF file exists, proceeding with upload"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "WARNING: grype-results.sarif not found"
+          fi
+      - name: Upload dependency scan SARIF
+        if: always() && steps.sarif-check.outputs.exists == 'true'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: grype-results.sarif
