@@ -79,7 +79,7 @@ jobs:
       # 1. Report findings (table + MEDIUM count) — non-blocking (--fail-on=high leaves MEDIUM at exit 0).
       # 2. Gate - block HIGH/CRITICAL per docs/SECURITY.md § Severity Policy.
       # 3. Generate SARIF - always succeeds (no --fail-on) so grype-results.sarif is produced
-      #    even when findings are below threshold; --add-cvect-if-empty enriches results.
+      #    even when findings are below threshold.
       # 4. Verify SARIF file exists and set an output so the upload runs only when present.
       # 5. Upload SARIF to GitHub code scanning — runs only if grype-results.sarif exists.
       - name: Scan SBOM - report MEDIUM findings
@@ -103,8 +103,8 @@ jobs:
         if: always()
         run: |
           # No --fail-on: always exits 0 and writes grype-results.sarif, even when
-          # findings are below threshold. --add-cvect-if-empty adds CVE ids where available.
-          grype "build/reports/bom.json" -o sarif --file grype-results.sarif --add-cvect-if-empty
+          # findings are below threshold.
+          grype "build/reports/bom.json" -o sarif --file grype-results.sarif
       - name: Check SARIF file exists
         if: always()
         id: sarif-check
