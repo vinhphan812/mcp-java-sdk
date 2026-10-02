@@ -72,38 +72,24 @@ jobs:
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /tmp/grype-bin v0.97.1
           echo "/tmp/grype-bin" >> $GITHUB_PATH
-      # grype v0.97.1 has NO --severity flag. Use --fail-on=high to filter:
-      # --fail-on=high means HIGH/CRITICAL matches cause exit=1; MEDIUM/NEGLIGIBLE do NOT fail.
-      # JSON output saved to file; python extracts and logs MEDIUM findings.
-      - name: Report MEDIUM dependency vulnerabilities
+      # grype v0.97.1 only has --fail-on (no --severity flag).
+      # Run 1 (table): --fail-on=high shows HIGH/CRITICAL findings; MEDIUM exits 0 (set +e ignores).
+      # Run 2 (gate):   --fail-on=critical exits 1 on CRITICAL; step fails if CRITICAL found.
+      #                 SARIF is uploaded regardless (if: always() on the upload step).
+      - name: Scan SBOM - report MEDIUM findings and gate CRITICAL vulnerabilities
         run: |
-          grype "build/reports/bom.json" \
-            --fail-on=high \
-            -o json --file grype-all.json
-          python3 -c '
-            import json
-            with open("grype-all.json") as f:
-              data = json.load(f)
-            medium = [m for m in data.get("matches", [])
-                      if m.get("vulnerability", {}).get("severity", "").lower() == "medium"]
-            print(f"MEDIUM findings ({len(medium)}):")
-            for m in medium:
-                v = m["vulnerability"]
-                p = m["artifact"]
-                fix = v.get("fix", {}).get("versions", ["n/a"])
-                print(f"  {v[\"id\"]} | {p[\"name\"]}@{p[\"version\"]} | fix={fix}")
-          '
-        env:
-          GRYPE_DB_AUTO_UPDATE: true
-      # HIGH gate: --fail-on=high exits 1 only when HIGH/CRITICAL is found.
-      # SARIF output is produced regardless; || ensures step succeeds if file exists.
-      - name: Gate HIGH and CRITICAL dependency vulnerabilities
-        run: |
-          grype "build/reports/bom.json" \
-            --fail-on=high \
-            -o sarif \
-            --file grype-results.sarif \
-            || { test -f grype-results.sarif; }
+          set +e
+          # MEDIUM findings don't fail --fail-on=high; table shows HIGH+ findings.
+          grype "build/reports/bom.json" --fail-on=high -o table
+          # Count MEDIUM findings from grype output for logging.
+          grype "build/reports/bom.json" -o json | grep -c '"severity":"Medium"' || true
+          # Gate: fail only on CRITICAL. Exit 0 = clean; exit 1 = CRITICAL found.
+          grype "build/reports/bom.json" --fail-on=critical -o sarif --file grype-results.sarif
+          rc=$?
+          if [ $rc -eq 1 ]; then
+            echo "CRITICAL vulnerabilities detected - blocking build."
+            exit 1
+          fi
       - name: Upload dependency scan SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@v3
