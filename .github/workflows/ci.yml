@@ -67,6 +67,12 @@ jobs:
           name: cyclonedx-sbom
           path: build/reports/bom.json
           if-no-files-found: error
+      # Install grype for SBOM vulnerability scanning. The --input flag tells grype
+      # to read a CycloneDX/JSON SBOM file rather than cataloguing the path as a container.
+      - name: Install grype SBOM scanner
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /tmp/grype-bin v0.97.1
+          echo "/tmp/grype-bin" >> $GITHUB_PATH
       # Scan the Java dependency SBOM with grype directly using --input so it
       # reads the CycloneDX JSON SBOM rather than treating the path as a container/dir.
       - name: Report MEDIUM dependency vulnerabilities
