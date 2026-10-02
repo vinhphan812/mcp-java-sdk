@@ -67,25 +67,39 @@ jobs:
           name: cyclonedx-sbom
           path: build/reports/bom.json
           if-no-files-found: error
-      # Install grype for SBOM vulnerability scanning. The --input flag tells grype
-      # to read a CycloneDX/JSON SBOM file rather than cataloguing the path as a container.
+      # Install grype v0.97.1. The runner does not have it pre-installed.
       - name: Install grype SBOM scanner
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /tmp/grype-bin v0.97.1
           echo "/tmp/grype-bin" >> $GITHUB_PATH
-      # grype v0.97.1 flags: --fail-on sets exit-code threshold, --severity filters output.
-      # MEDIUM pass: show all >= medium, never fail (no --fail-on = always exit 0).
+      # grype v0.97.1 only has --fail-on (no --severity flag).
+      # --fail-on=high means MEDIUM/NEGLIGIBLE findings do NOT fail the step.
+      # JSON output saved to file; python extracts and logs MEDIUM findings.
       - name: Report MEDIUM dependency vulnerabilities
         run: |
           grype "build/reports/bom.json" \
-            --severity=medium
+            --fail-on=high \
+            -o json --file grype-all.json
+          python3 -c '
+            import json
+            with open("grype-all.json") as f:
+              data = json.load(f)
+            medium = [m for m in data.get("matches", [])
+                      if m.get("vulnerability", {}).get("severity", "").lower() == "medium"]
+            print(f"MEDIUM findings ({len(medium)}):")
+            for m in medium:
+                v = m["vulnerability"]
+                p = m["artifact"]
+                fix = v.get("fix", {}).get("versions", ["n/a"])
+                print(f"  {v[\"id\"]} | {p[\"name\"]}@{p[\"version\"]} | fix={fix}")
+          '
         env:
           GRYPE_DB_AUTO_UPDATE: true
-      # HIGH gate: fail only if HIGH or CRITICAL is found; always produce SARIF.
+      # HIGH gate: --fail-on=high exits 1 only when HIGH/CRITICAL is found.
+      # SARIF output is produced regardless; || ensures step succeeds if file exists.
       - name: Gate HIGH and CRITICAL dependency vulnerabilities
         run: |
           grype "build/reports/bom.json" \
-            --severity=high \
             --fail-on=high \
             -o sarif \
             --file grype-results.sarif \
