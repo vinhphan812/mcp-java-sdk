@@ -73,12 +73,11 @@ jobs:
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /tmp/grype-bin v0.97.1
           echo "/tmp/grype-bin" >> $GITHUB_PATH
-      # Scan the Java dependency SBOM with grype directly using --input so it
-      # reads the CycloneDX JSON SBOM rather than treating the path as a container/dir.
+      # grype v0.97.1 auto-detects CycloneDX JSON by the .json file extension
+      # (no --input flag needed; positional SBOM path works directly).
       - name: Report MEDIUM dependency vulnerabilities
         run: |
           grype "build/reports/bom.json" \
-            --input \
             --fail-build=false \
             --severity=medium
         env:
@@ -87,7 +86,6 @@ jobs:
       - name: Gate HIGH and CRITICAL dependency vulnerabilities
         run: |
           grype "build/reports/bom.json" \
-            --input \
             --fail-build=true \
             --severity=high \
             -o sarif \
