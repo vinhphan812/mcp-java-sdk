@@ -1,4 +1,5 @@
 # Merge Plan — t_22589448 into master
+
 **Date:** 2026-09-23
 **Prepared by:** dev-ops
 **Status:** MERGE ALREADY APPLIED — see Section 6 for post-merge state
@@ -12,6 +13,7 @@ $ ./gradlew.bat --no-daemon compileJava --console=plain
 > Task :compileJava UP-TO-DATE
 BUILD SUCCESSFUL in 11s
 ```
+
 **Result: PASS** — all production source compiles cleanly.
 
 ---
@@ -23,12 +25,12 @@ $ ./gradlew.bat --no-daemon test --console=plain
 129 tests completed, 1 FAILED, 27 skipped
 ```
 
-| Metric | Value |
-|--------|-------|
-| Total | 129 |
-| Failed | 1 (`mixed_read_write_admin_capsIndependent`) |
-| Skipped | 27 |
-| Passed | 101 |
+| Metric  | Value                                        |
+|---------|----------------------------------------------|
+| Total   | 129                                          |
+| Failed  | 1 (`mixed_read_write_admin_capsIndependent`) |
+| Skipped | 27                                           |
+| Passed  | 101                                          |
 
 ### Failing Test Analysis
 
@@ -36,18 +38,24 @@ $ ./gradlew.bat --no-daemon test --console=plain
 **Location:** `src/test/java/.../McpCategoryReservationTest.java:365`
 **Error:** `AssertionFailedError` (assertion on concurrent-admission counts)
 
-The assertion documents a **pre-existing double-increment bug in production code** and expects admission counts to be inflated. This is intentional test design — the test is a regression catch, not a functional contract. The failure does NOT block the merge; it is a **known pre-existing issue** unrelated to the t_22589448 work.
+The assertion documents a **pre-existing double-increment bug in production code** and expects admission counts to be
+inflated. This is intentional test design — the test is a regression catch, not a functional contract. The failure does
+NOT block the merge; it is a **known pre-existing issue** unrelated to the t_22589448 work.
 
-The test also fails with the same assertion when the master branch version is checked out, confirming it is pre-existing and not introduced by t_22589448 changes.
+The test also fails with the same assertion when the master branch version is checked out, confirming it is pre-existing
+and not introduced by t_22589448 changes.
 
 ---
 
 ## 3. Working Tree Classification
 
 ### 3a. Historical Context (Task-Creation Snapshot)
-At task creation time (branch `t_22589448`), the working tree had **103 modified tracked files**. This was the pre-merge state.
+
+At task creation time (branch `t_22589448`), the working tree had **103 modified tracked files**. This was the pre-merge
+state.
 
 ### 3b. Current State (post-merge)
+
 ```
 $ git status
 On branch master
@@ -55,13 +63,14 @@ Your branch is ahead of 'origin/master' by 15 commits.
 Untracked: docs/audits/WORKING-TREE-CLASSIFICATION-2026-09-23.md
 ```
 
-| Item | Status | Classification |
-|------|--------|---------------|
-| `src/main/java/.../McpProtocolHandler.java` | Modified from 5f8f2ef | Deliverable fix (concurrent-read safety + hasPendingNotifications seam) |
-| `src/main/java/.../McpRegistry.java` | Modified from 5f8f2ef | Deliverable fix (CopyOnWriteArrayList + listener isolation) |
-| `docs/audits/WORKING-TREE-CLASSIFICATION-2026-09-23.md` | Untracked | Stale intermediate artifact — safe to delete |
+| Item                                                    | Status                | Classification                                                          |
+|---------------------------------------------------------|-----------------------|-------------------------------------------------------------------------|
+| `src/main/java/.../McpProtocolHandler.java`             | Modified from 5f8f2ef | Deliverable fix (concurrent-read safety + hasPendingNotifications seam) |
+| `src/main/java/.../McpRegistry.java`                    | Modified from 5f8f2ef | Deliverable fix (CopyOnWriteArrayList + listener isolation)             |
+| `docs/audits/WORKING-TREE-CLASSIFICATION-2026-09-23.md` | Untracked             | Stale intermediate artifact — safe to delete                            |
 
 ### 3c. Merge Commit Covers All Deliverables
+
 The squash merge commit consumed all t_22589448 working-tree changes:
 
 ```
@@ -75,18 +84,21 @@ The 103-file working-tree delta was committed as part of this merge. The branch 
 
 ## 4. Modified Source Files — What They Are
 
-The 2 currently-modified production source files are the result of a **follow-up safety fix** committed after the merge (commit `5f8f2ef`):
+The 2 currently-modified production source files are the result of a **follow-up safety fix** committed after the
+merge (commit `5f8f2ef`):
 
 ```
 5f8f2ef fix: McpRegistry concurrent read safety and notification listener isolation
 ```
 
 **`McpProtocolHandler.java`** (+14/-6):
+
 - Removed duplicate Javadoc block on `isSessionBlocked`
 - Added `hasPendingNotifications()` seam (enables test verification)
 - Fixes Javadoc on `isSessionBlocked`
 
 **`McpRegistry.java`** (+20/-10):
+
 - `ArrayList` → `CopyOnWriteArrayList` for registered tools/resources/prompts
 - Listener notifications wrapped in `try-catch` (listener failures no longer roll back registration)
 - `getToolDefinition()` made synchronized and returns detached copy
@@ -150,13 +162,13 @@ git push origin master
 
 ### Pre-push Checklist
 
-| # | Action | Status |
-|---|--------|--------|
-| 1 | Compilation passes | DONE |
-| 2 | Test baseline recorded (129 tests, 1 known pre-existing failure) | DONE |
-| 3 | `5f8f2ef` safety fix staged and committed | DONE (already on master) |
-| 4 | Remove stale artifact | PENDING — delete `docs/audits/WORKING-TREE-CLASSIFICATION-2026-09-23.md` before push |
-| 5 | `git push origin master` | PENDING |
+| # | Action                                                           | Status                                                                               |
+|---|------------------------------------------------------------------|--------------------------------------------------------------------------------------|
+| 1 | Compilation passes                                               | DONE                                                                                 |
+| 2 | Test baseline recorded (129 tests, 1 known pre-existing failure) | DONE                                                                                 |
+| 3 | `5f8f2ef` safety fix staged and committed                        | DONE (already on master)                                                             |
+| 4 | Remove stale artifact                                            | PENDING — delete `docs/audits/WORKING-TREE-CLASSIFICATION-2026-09-23.md` before push |
+| 5 | `git push origin master`                                         | PENDING                                                                              |
 
 ### Before Pushing — One Cleanup Step
 
@@ -175,8 +187,10 @@ After that, `git push origin master` is safe to run.
 
 1. **No re-merge needed** — t_22589448 is already squash-merged into master.
 2. **Compilation:** Clean. No build errors.
-3. **Test baseline:** 129 tests, 1 pre-existing failure (`mixed_read_write_admin_capsIndependent` — a known flaky concurrency regression test, not a functional blocker).
-4. **Modified source files on HEAD:** Both are deliverable fixes from `5f8f2ef` (CopyOnWriteArrayList migration, listener isolation, concurrent-read safety). Must be included in the push.
+3. **Test baseline:** 129 tests, 1 pre-existing failure (`mixed_read_write_admin_capsIndependent` — a known flaky
+   concurrency regression test, not a functional blocker).
+4. **Modified source files on HEAD:** Both are deliverable fixes from `5f8f2ef` (CopyOnWriteArrayList migration,
+   listener isolation, concurrent-read safety). Must be included in the push.
 5. **Stale artifact:** `WORKING-TREE-CLASSIFICATION-2026-09-23.md` should be removed before pushing.
 6. **Push target:** 15 commits on `master` ahead of `origin/master`. `git push origin master` is the final step.
 
@@ -184,10 +198,10 @@ After that, `git push origin master` is safe to run.
 
 ## 9. Decisions
 
-| Decision | Rationale |
-|----------|-----------|
-| No squash-rebase needed | Merge already applied via squash commit `9ac180c` |
-| No manual merge needed | Topology confirms `t_22589448` is fully merged |
-| Test failure does not block | Pre-existing failure confirmed identical on both branches |
-| Amend HEAD to remove artifact | Keeps push history clean |
-| Push directly to origin/master | No review gate specified in task; commit chain is clean |
+| Decision                       | Rationale                                                 |
+|--------------------------------|-----------------------------------------------------------|
+| No squash-rebase needed        | Merge already applied via squash commit `9ac180c`         |
+| No manual merge needed         | Topology confirms `t_22589448` is fully merged            |
+| Test failure does not block    | Pre-existing failure confirmed identical on both branches |
+| Amend HEAD to remove artifact  | Keeps push history clean                                  |
+| Push directly to origin/master | No review gate specified in task; commit chain is clean   |

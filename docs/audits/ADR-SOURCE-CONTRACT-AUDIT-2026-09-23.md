@@ -26,7 +26,8 @@ Audited: 2026-09-23. Re-verified and detail section completed: 2026-09-27.
 | ADR-0017 | SSE permit response flow          | Superseded | ARCHITECTURE DECISION REQUIRED |
 | ADR-0018 | Transport contract                | Accepted   | OPEN                           |
 
-Counts: VERIFIED 12 / OPEN 0 / ARCHITECTURE DECISION REQUIRED 0 / STALE 0 / BLOCKED 0  ← all 7 worklist items resolved (2026-09-28)
+Counts: VERIFIED 12 / OPEN 0 / ARCHITECTURE DECISION REQUIRED 0 / STALE 0 / BLOCKED 0 ← all 7 worklist items resolved (
+2026-09-28)
 
 ---
 
@@ -78,7 +79,8 @@ transport classes or Grizzly. The public `McpRegistrar` SPI is the registration 
 the one-way dependency decision.
 
 **Result: VERIFIED**
-The ADR now explicitly states the intentional one-way dependency and `McpRegistrar` SPI boundary. No code change required.
+The ADR now explicitly states the intentional one-way dependency and `McpRegistrar` SPI boundary. No code change
+required.
 
 ---
 
@@ -455,7 +457,8 @@ The current source implements the correct 7-step ordering: permit acquired befor
 JSON before any body (AC-4), permit released in finally (AC-5), connected event sent after
 replay (AC-6).
 
-**Finding:** AC-7 (all existing tests still pass) — verified by focused and clean full Gradle test runs. AC-8 (new unit tests for ordering) — now covered by
+**Finding:** AC-7 (all existing tests still pass) — verified by focused and clean full Gradle test runs. AC-8 (new unit
+tests for ordering) — now covered by
 `src/test/java/io/github/vinhphan812/mcp/transport/SseConnectionLimitTest.java:42-123`.
 The test exercises the real `HttpTransportProvider`/Grizzly HTTP boundary, fills all four SSE permits,
 asserts the fifth request receives HTTP 429 with no `text/event-stream` content type and the JSON
@@ -555,15 +558,15 @@ follow-on ADR, or explicit acceptance as out-of-scope.
 
 ## Unresolved Findings Worklist
 
-| # | ADR      | Severity | Gap                                                                                                                 | Task                     | Required outcome                                                                                      | Resume condition                                             |
-|---|----------|----------|---------------------------------------------------------------------------------------------------------------------|--------------------------|-------------------------------------------------------------------------------------------------------|--------------------------------------------------------------|
-| 1 | ADR-0002 | LOW      | ADR did not document the one-way transport→core dependency                                                         | COMPLETED                | Add note to ADR-0002 or record as accepted asymmetric dependency                                       | Resolved: working-tree ADR-0002 and indexes state the decision |
-| 2 | ADR-0014 | LOW      | `TlsConfig.java` not removed; deprecation lifecycle not applied                                                      | COMPLETED | Deprecate class + amend ADR-0014 with two-phase lifecycle (deprecate now / remove at named major)    | TlsConfig deprecated (ADR-0014); Gradle compile/javadoc passed; grep TlsConfig 0 results               |
-| 3 | ADR-0015 | LOW      | `toolDefinitionsByName` index not added; `synchronized` retained                                                     | COMPLETED | Implement index + remove synchronized, or amend ADR to accept current CopyOnWriteArrayList design     | ADR-0015 amended: CopyOnWriteArrayList accepted; synchronized required for uniqueness contract          |
-| 4 | ADR-0016 | LOW      | Dedicated permit-ordering unit test not independently confirmed                                                      | COMPLETED     | QA review and accept `SseConnectionLimitTest.java` as AC-8 regression coverage                         | SseConnectionLimitTest CONDITIONALLY ACCEPTED (3/3 runs); ADR-0016 AC-8 verified          |
-| 5 | ADR-0017 | MEDIUM   | Active test specs cite ADR-0017 as normative parent; ADR-0018 references it as relevant; canonical status ambiguous | COMPLETED | Decide: update test spec headers to ADR-0016 or add disambiguation note to ADR-0017                   | Option A applied: ADR-0017 historical; ADR-0016 normative; test specs updated |
-| 6 | ADR-0018 | MEDIUM   | Three open architectural questions unresolved (session cleanup, subscription model, stateless rate limiting)           | COMPLETED | Each question answered with ADR amendment or explicit accepted out-of-scope                            | Q1 session cleanup: explicit DELETE + idle timeout; Q2 subscription: orthogonal to permits; Q3 rate-limit: inherits session limits              |
-| 7 | WORKTREE | LOW      | 9 tracked docs modified + 2 untracked items not staged for delivery commit                                           | COMPLETED     | Classify dirty files; recommend staged commit groups; stage or restore each item                       | 21 items classified into 3 commit groups (ADR audit, TlsConfig lifecycle, GitNexus refresh)      |
+| # | ADR      | Severity | Gap                                                                                                                 | Task      | Required outcome                                                                                  | Resume condition                                                                                                                   |
+|---|----------|----------|---------------------------------------------------------------------------------------------------------------------|-----------|---------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | ADR-0002 | LOW      | ADR did not document the one-way transport→core dependency                                                          | COMPLETED | Add note to ADR-0002 or record as accepted asymmetric dependency                                  | Resolved: working-tree ADR-0002 and indexes state the decision                                                                     |
+| 2 | ADR-0014 | LOW      | `TlsConfig.java` not removed; deprecation lifecycle not applied                                                     | COMPLETED | Deprecate class + amend ADR-0014 with two-phase lifecycle (deprecate now / remove at named major) | TlsConfig deprecated (ADR-0014); Gradle compile/javadoc passed; grep TlsConfig 0 results                                           |
+| 3 | ADR-0015 | LOW      | `toolDefinitionsByName` index not added; `synchronized` retained                                                    | COMPLETED | Implement index + remove synchronized, or amend ADR to accept current CopyOnWriteArrayList design | ADR-0015 amended: CopyOnWriteArrayList accepted; synchronized required for uniqueness contract                                     |
+| 4 | ADR-0016 | LOW      | Dedicated permit-ordering unit test not independently confirmed                                                     | COMPLETED | QA review and accept `SseConnectionLimitTest.java` as AC-8 regression coverage                    | SseConnectionLimitTest CONDITIONALLY ACCEPTED (3/3 runs); ADR-0016 AC-8 verified                                                   |
+| 5 | ADR-0017 | MEDIUM   | Active test specs cite ADR-0017 as normative parent; ADR-0018 references it as relevant; canonical status ambiguous | COMPLETED | Decide: update test spec headers to ADR-0016 or add disambiguation note to ADR-0017               | Option A applied: ADR-0017 historical; ADR-0016 normative; test specs updated                                                      |
+| 6 | ADR-0018 | MEDIUM   | Three open architectural questions unresolved (session cleanup, subscription model, stateless rate limiting)        | COMPLETED | Each question answered with ADR amendment or explicit accepted out-of-scope                       | Q1 session cleanup: explicit DELETE + idle timeout; Q2 subscription: orthogonal to permits; Q3 rate-limit: inherits session limits |
+| 7 | WORKTREE | LOW      | 9 tracked docs modified + 2 untracked items not staged for delivery commit                                          | COMPLETED | Classify dirty files; recommend staged commit groups; stage or restore each item                  | 21 items classified into 3 commit groups (ADR audit, TlsConfig lifecycle, GitNexus refresh)                                        |
 
 ---
 
@@ -575,7 +578,8 @@ follow-on ADR, or explicit acceptance as out-of-scope.
 git -C D:/android/mcp-java-sdk diff --check
 ```
 
-Result: `git diff --check` passed for the documentation changes. Existing unrelated working-tree changes remain outside this task.
+Result: `git diff --check` passed for the documentation changes. Existing unrelated working-tree changes remain outside
+this task.
 
 ### Changed files
 

@@ -8,13 +8,19 @@
 ## Context
 
 The SDK provides an MCP server that communicates over HTTP using the Model Context Protocol. Grizzly was chosen
-for its HTTP/SSE transport capabilities. However, Grizzly is a server-oriented dependency; it may not be suitable for all
+for its HTTP/SSE transport capabilities. However, Grizzly is a server-oriented dependency; it may not be suitable for
+all
 runtime environments, particularly Android.
-> **Note (ADR-0019):** Grizzly 4.0.2 and the current published SDK artifact are compiled for Java 11 bytecode. The core/API design remains transport-isolated, but is not published as a Java 8 artifact. See [ADR-0019](./ADR-0019-java-runtime-floor.md) for full evidence and alternatives considered.
+> **Note (ADR-0019):** Grizzly 4.0.2 and the current published SDK artifact are compiled for Java 11 bytecode. The
+> core/API design remains transport-isolated, but is not published as a Java 8 artifact.
+> See [ADR-0019](./ADR-0019-java-runtime-floor.md) for full evidence and alternatives considered.
 
 ## Decision
 
-The `transport/` package is isolated from `core/` in the dependency direction, not as complete physical isolation. `transport/` may depend on `core/` for protocol handling, while `core/` must not depend on `transport/` or Grizzly. The public `McpRegistrar` SPI in `api/spi/` is the registration boundary for application code and protocol implementations. The architecture consists of:
+The `transport/` package is isolated from `core/` in the dependency direction, not as complete physical isolation.
+`transport/` may depend on `core/` for protocol handling, while `core/` must not depend on `transport/` or Grizzly. The
+public `McpRegistrar` SPI in `api/spi/` is the registration boundary for application code and protocol implementations.
+The architecture consists of:
 
 - **`HttpTransportProvider`** — public entry point, `AutoCloseable`. Exposes a builder API for configuration
   (host, port, endpoint, API key, CORS, transport mode). Creates and manages the Grizzly HTTP server lifecycle.
@@ -56,17 +62,19 @@ graph TD
     class Server,Provider application
 ```
 
-The public `McpRegistrar` SPI is the registration boundary between application code and the protocol layer. Any transport
-implementation can consume the same registry and protocol handler without importing Grizzly. This is a one-way dependency:
+The public `McpRegistrar` SPI is the registration boundary between application code and the protocol layer. Any
+transport
+implementation can consume the same registry and protocol handler without importing Grizzly. This is a one-way
+dependency:
 transport adapters import core protocol contracts, but core does not import transport classes or Grizzly.
 
 ## Class Reference
 
-| Class | Package | Role |
-|-------|---------|------|
-| `HttpTransportProvider` | `transport/` | Public entry point, builder API, server lifecycle |
-| `McpHttpHandler` | `transport/` | Main HTTP adapter (POST/GET/DELETE); SSE streaming in `handleGet()` |
-| `TransportMode` | `transport/` | Enum: `AUTO`, `HTTP_SSE`, `STREAMABLE_HTTP` |
+| Class                   | Package      | Role                                                                |
+|-------------------------|--------------|---------------------------------------------------------------------|
+| `HttpTransportProvider` | `transport/` | Public entry point, builder API, server lifecycle                   |
+| `McpHttpHandler`        | `transport/` | Main HTTP adapter (POST/GET/DELETE); SSE streaming in `handleGet()` |
+| `TransportMode`         | `transport/` | Enum: `AUTO`, `HTTP_SSE`, `STREAMABLE_HTTP`                         |
 
 ## Request/response flow (McpHttpHandler)
 
@@ -109,16 +117,16 @@ sequenceDiagram
 
 ### Flow explanation
 
-| Step | Layer | What happens |
-|------|-------|--------------|
-| 1 | `transport/` | `GrizzlyServer` receives HTTP request |
-| 2 | `transport/` | `McpHttpHandler` parses HTTP: headers, body, session ID |
-| 3 | `core/` | `McpProtocolHandler` parses JSON-RPC envelope, routes by method |
-| 4 | `core/` | `McpRegistry` looks up the registered tool, resource, or prompt handler |
-| 5 | `core/` | Handler executes; result is a `Map<String, Object>` |
-| 6 | `core/` | `McpProtocolHandler` wraps result in a JSON-RPC 2.0 response |
-| 7 | `transport/` | `McpHttpHandler` wraps `McpResponse` in an HTTP response |
-| 8 | `transport/` | `GrizzlyServer` sends HTTP response to client |
+| Step | Layer        | What happens                                                            |
+|------|--------------|-------------------------------------------------------------------------|
+| 1    | `transport/` | `GrizzlyServer` receives HTTP request                                   |
+| 2    | `transport/` | `McpHttpHandler` parses HTTP: headers, body, session ID                 |
+| 3    | `core/`      | `McpProtocolHandler` parses JSON-RPC envelope, routes by method         |
+| 4    | `core/`      | `McpRegistry` looks up the registered tool, resource, or prompt handler |
+| 5    | `core/`      | Handler executes; result is a `Map<String, Object>`                     |
+| 6    | `core/`      | `McpProtocolHandler` wraps result in a JSON-RPC 2.0 response            |
+| 7    | `transport/` | `McpHttpHandler` wraps `McpResponse` in an HTTP response                |
+| 8    | `transport/` | `GrizzlyServer` sends HTTP response to client                           |
 
 For SSE, `McpHttpHandler.handleGet()` streams `data: <json>\n\n` frames through the Grizzly server to the client.
 
@@ -129,7 +137,8 @@ For SSE, `McpHttpHandler.handleGet()` streams `data: <json>\n\n` frames through 
 - A consumer can replace Grizzly with STDIO, Netty, a custom HTTP server, or an Android-specific transport by providing
   an alternative adapter that consumes `McpRegistrar`.
 - The `core/` package is transport-neutral and can be tested in isolation.
-- The HTTP transport is pluggable: `HttpTransportProvider` is constructed and injected by `McpServer`, not hard-coded into the protocol handler.
+- The HTTP transport is pluggable: `HttpTransportProvider` is constructed and injected by `McpServer`, not hard-coded
+  into the protocol handler.
 - The `TransportMode` enum allows gradual migration from legacy HTTP+SSE to modern Streamable HTTP.
 
 **Negative:**

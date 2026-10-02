@@ -13,6 +13,9 @@ public final class McpMethodNames {
 
     // ── Client → Server requests ─────────────────────────────────────────────
 
+    /** {@code server/discover} — sessionless server capability discovery. */
+    public static final String SERVER_DISCOVER = "server/discover";
+
     /** {@code initialize} — opens a session and negotiates protocol version. */
     public static final String INITIALIZE = "initialize";
 

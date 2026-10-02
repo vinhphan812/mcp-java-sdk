@@ -190,18 +190,58 @@ public final class McpTask {
             throw new IllegalArgumentException("Completed task cannot have an error");
         if ((nextStatus == Status.FAILED || nextStatus == Status.CANCELLED) && nextError == null)
             throw new IllegalArgumentException("Failed or cancelled task requires an error");
-        // Pass through task-producing fields if present, otherwise use legacy ctor
+        // Pass through task-producing fields if present, otherwise use legacy ctor.
+        // Use the combined terminal constructor directly to avoid the task-producing
+        // constructor's WORKING-only status guard (this task is already terminal here).
         if (name != null) {
-            return new McpTask(taskId, nextStatus, name, sessionId, requestId,
-                    input, inputSchema, createdAt, System.currentTimeMillis())
-                    .withTerminalResult(nextStatus, nextResult, nextError);
+            return new McpTask(taskId, nextStatus, nextResult, nextError,
+                    name, sessionId, requestId, input, inputSchema,
+                    createdAt, System.currentTimeMillis());
         }
         return new McpTask(taskId, nextStatus, createdAt, System.currentTimeMillis(), nextResult, nextError);
     }
 
-    /** Sets terminal result on a task-producing task (used after transition). */
-    private McpTask withTerminalResult(Status nextStatus, Object nextResult, String nextError) {
-        return new McpTask(taskId, nextStatus, createdAt, System.currentTimeMillis(), nextResult, nextError);
+    /**
+     * Creates a task snapshot with both terminal fields and full task-producing metadata.
+     * Used after {@link #transition(Status, Object, String)} to preserve the metadata
+     * captured at creation time through the terminal state transition.
+     *
+     * @param taskId        task identifier
+     * @param nextStatus    terminal lifecycle status
+     * @param nextResult    successful result, if applicable
+     * @param nextError     failure or cancellation description, if applicable
+     */
+    McpTask(String taskId, Status nextStatus,
+            Object nextResult, String nextError,
+            String name, String sessionId, String requestId,
+            Map<String, Object> input, Map<String, Object> inputSchema,
+            long createdAt, long lastUpdatedAt) {
+        if (taskId == null || taskId.trim().isEmpty())
+            throw new IllegalArgumentException("taskId cannot be blank");
+        if (nextStatus == null || nextStatus == Status.WORKING)
+            throw new IllegalArgumentException("Terminal constructor requires a terminal status");
+        if (createdAt < 0 || lastUpdatedAt < createdAt)
+            throw new IllegalArgumentException("Task timestamps are invalid");
+        if (nextStatus == Status.COMPLETED) {
+            if (nextError != null)
+                throw new IllegalArgumentException("Completed task cannot have an error");
+        } else {
+            if (nextResult != null)
+                throw new IllegalArgumentException("Failed or cancelled task cannot have a result");
+            if (nextError == null || nextError.trim().isEmpty())
+                throw new IllegalArgumentException("Failed or cancelled task requires a nonblank error");
+        }
+        this.taskId = taskId;
+        this.status = nextStatus;
+        this.createdAt = createdAt;
+        this.lastUpdatedAt = lastUpdatedAt;
+        this.result = nextResult;
+        this.error = nextError;
+        this.name = name;
+        this.sessionId = sessionId;
+        this.requestId = requestId;
+        this.input = input;
+        this.inputSchema = inputSchema;
     }
 
     /** Converts this snapshot to the MCP task metadata object.

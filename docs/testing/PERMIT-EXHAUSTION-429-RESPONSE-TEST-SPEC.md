@@ -3,7 +3,8 @@
 **Reference:** `McpHttpHandler.handleGet()` (lines 301-372)
 **Date:** 2026-09-20
 **Status:** Draft
-**Parent ADR:** ADR-0016 (normative implementation contract) — historical problem statement: [ADR-0017](ADR-0017-sse-permit-response-flow.md)
+**Parent ADR:** ADR-0016 (normative implementation contract) — historical problem
+statement: [ADR-0017](ADR-0017-sse-permit-response-flow.md)
 
 ## Overview
 

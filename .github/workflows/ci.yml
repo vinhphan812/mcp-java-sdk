@@ -43,7 +43,57 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mcp-java-sdk-artifacts
-          path: |
-            build/libs/mcp-java-sdk-*.jar
-
+          path: build/libs/mcp-java-sdk-*.jar
           if-no-files-found: error
+
+  dependency-security:
+    name: SBOM and dependency vulnerability gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Generate CycloneDX SBOM
+        run: ./gradlew cyclonedxBom --console=plain
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cyclonedx-sbom
+          path: build/reports/bom.json
+          if-no-files-found: error
+      # Install grype v0.97.1. The runner does not have it pre-installed.
+      - name: Install grype SBOM scanner
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /tmp/grype-bin v0.97.1
+          echo "/tmp/grype-bin" >> $GITHUB_PATH
+      # grype v0.97.1 only has --fail-on (no --severity flag).
+      # Run 1 (table): --fail-on=high shows HIGH/CRITICAL findings; MEDIUM exits 0 (set +e ignores).
+      # Run 2 (gate):   --fail-on=high exits 1 on HIGH or CRITICAL; step fails if either is found.
+      #                 Policy: HIGH+CRITICAL blocks merge (docs/SECURITY.md § Severity Policy).
+      #                 SARIF is uploaded regardless (if: always() on the upload step).
+      - name: Scan SBOM - report MEDIUM findings and gate HIGH/CRITICAL vulnerabilities
+        run: |
+          set +e
+          # MEDIUM findings don't fail --fail-on=high; table shows HIGH+ findings.
+          grype "build/reports/bom.json" --fail-on=high -o table
+          # Count MEDIUM findings from grype output for logging.
+          grype "build/reports/bom.json" -o json | grep -c '"severity":"Medium"' || true
+          # Gate: fail on HIGH or CRITICAL per SECURITY.md § Severity Policy.
+          # Exit 0 = clean; exit 1 = HIGH/CRITICAL found.
+          grype "build/reports/bom.json" --fail-on=high -o sarif --file grype-results.sarif
+          rc=$?
+          if [ $rc -eq 1 ]; then
+            echo "HIGH or CRITICAL vulnerabilities detected - blocking build."
+            exit 1
+          fi
+      - name: Upload dependency scan SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: grype-results.sarif

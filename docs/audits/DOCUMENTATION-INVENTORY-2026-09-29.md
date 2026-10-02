@@ -9,59 +9,59 @@
 
 ## 1. Inventory — All Maintained Markdown Files
 
-| # | File (relative to repo root) | Last modified | Size (bytes) | Canonical? | Status |
-|---|------------------------------|--------------|-------------|-----------|--------|
-| 1 | `README.md` | 2026-09-24 | 17,262 | YES | current — root entry point |
-| 2 | `CHANGELOG.md` | 2026-09-28 | 890 | YES | current |
-| 3 | `CONTRIBUTING.md` | 2026-09-22 | 1,830 | YES | current |
-| 4 | `CLAUDE.md` | 2026-09-24 | 3,595 | YES | current |
-| 5 | `AGENTS.md` | 2026-09-24 | 4,082 | YES | current |
-| 6 | `docs/README.md` | 2026-09-23 | 1,546 | YES | canonical docs entry point (links to subdirectories) |
-| 7 | `docs/API-REFERENCE.md` | 2026-09-24 | 51,600 | **REMOVED** | duplicate removed 2026-09-29; canonical `docs/guides/API-REFERENCE.md` |
-| 8 | `docs/PROJECT-GUIDE.md` | 2026-09-28 | 18,089 | **REMOVED** | duplicate removed 2026-09-29; canonical `docs/guides/PROJECT-GUIDE.md` |
-| 9 | `docs/USER_GUIDE.md` | 2026-09-23 | 4,637 | **DUPLICATE** | compatibility copy retained; canonical `docs/guides/USER_GUIDE.md` |
-| 10 | `docs/IMPLEMENTATION-STATUS.md` | 2026-09-28 | 14,126 | **REMOVED** | duplicate removed 2026-09-29; canonical `docs/guides/IMPLEMENTATION-STATUS.md` |
-| 11 | `docs/MCP-COMPATIBILITY-2026.md` | 2026-09-23 | 4,512 | **REMOVED** | duplicate removed 2026-09-29; canonical `docs/architecture/MCP-COMPATIBILITY-2026.md` |
-| 12 | `docs/MCP-PORTING-PLAN.md` | 2026-09-23 | 3,585 | **REMOVED** | duplicate removed 2026-09-29; canonical `docs/architecture/MCP-PORTING-PLAN.md` |
-| 13 | `docs/guides/API-REFERENCE.md` | 2026-09-24 | 25,264 | **CANONICAL** | current |
-| 14 | `docs/guides/PROJECT-GUIDE.md` | 2026-09-28 | 18,659 | **CANONICAL** | current |
-| 15 | `docs/guides/USER_GUIDE.md` | 2026-09-23 | 4,637 | **CANONICAL** | current (identical to root duplicate) |
-| 16 | `docs/guides/IMPLEMENTATION-STATUS.md` | 2026-09-24 | 39,431 | **CANONICAL** | current (much more complete than root duplicate) |
-| 17 | `docs/guides/CI-PORTABILITY-JAVA8-RELEASE-GATE-SPEC.md` | 2026-09-23 | 18,569 | **UNIQUE** | standalone spec; no duplicate |
-| 18 | `docs/guides/HTTP-TRANSPORT-EXAMPLE.md` | 2026-09-24 | 14,189 | **CANONICAL** | replaces GRIZZLY-EXAMPLE.md (renamed 2026-09-23) |
-| 19 | `docs/guides/TRANSPORT-SSE.md` | 2026-09-23 | 21,168 | **CANONICAL** | current |
-| 20 | `docs/architecture/MCP-COMPATIBILITY-2026.md` | 2026-09-23 | 4,512 | **CANONICAL** | current (links updated to guides/) |
-| 21 | `docs/architecture/MCP-PORTING-PLAN.md` | 2026-09-23 | 3,585 | **CANONICAL** | current (identical to root duplicate) |
-| 22 | `docs/architecture/mcp-registry-design-specification.md` | — | — | **CANONICAL** | current |
-| 23 | `docs/architecture/blob-resource-spi-triage-spec.md` | — | — | **CANONICAL** | current |
-| 24 | `docs/architecture/listener-semantics-spec.md` | — | — | **CANONICAL** | current |
-| 25 | `docs/architecture/guava-dependency-policy.md` | — | — | **CANONICAL** | current |
-| 26 | `docs/architecture/MCP-SECURITY-SYNTHESIS-TIER2.md` | — | — | **ACTIVE** | detailed security design spec; not superseded |
-| 27 | `docs/architecture/TLSCONFIG-LIFECYCLE-DECISION.md` | — | — | **ACTIVE** | ADR-0014 companion; decision tree |
-| 28 | `docs/authz/SCOPES-AUTHORIZATION-SPEC.md` | 2026-09-23 | — | **CANONICAL** | current |
-| 29 | `docs/authz/RATE-LIMIT-TRIAGE-SPEC.md` | 2026-09-23 | — | **CANONICAL** | current |
-| 30 | `docs/authz/RATE-LIMIT-429-BEHAVIOR-SPEC.md` | 2026-09-23 | — | **CANONICAL** | current |
-| 31 | `docs/transport/SSE-LAST-EVENT-ID-REPLAY.md` | — | — | **CANONICAL** | current |
-| 32 | `docs/transport/TRANSPORT-STREAMABLE-HTTP.md` | — | — | **CANONICAL** | current |
-| 33 | `docs/testing/TEST-0001-sse-connection-release-streaming.md` | — | — | **CANONICAL** | current |
-| 34 | `docs/testing/TEST-0002-sse-validation-plan.md` | — | — | **CANONICAL** | current |
-| 35 | `docs/testing/AUTH-SCOPES-CONFIRMATION-TEST-SPEC.md` | — | — | **CANONICAL** | current |
-| 36 | `docs/testing/LAST-EVENT-ID-REPLAY-TEST-SPEC.md` | — | — | **CANONICAL** | current |
-| 37 | `docs/testing/PERMIT-EXHAUSTION-429-RESPONSE-TEST-SPEC.md` | — | — | **CANONICAL** | current |
-| 38 | `docs/adr/README.md` | 2026-09-28 | — | **CANONICAL** | ADR index; current |
-| 39–56 | `docs/adr/ADR-0001.md` through `ADR-0018.md` | various | — | **CANONICAL** | all 18 ADRs; ADR-0017 historical; see ADR README |
-| 57 | `docs/audits/README.md` | 2026-09-28 | 2,277 | **CANONICAL** | canonical current-worklist entry point for audits |
-| 58 | `docs/audits/AUDIT_STATUS.md` | 2026-09-23 | 13,284 | **DUPLICATE** | superseded; superseded by ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md |
-| 59 | `docs/audits/audit_report.md` | 2026-09-23 | 2,882 | **STALE** | completion/notification system audit; date 2026-09-17; no living references found |
-| 60 | `docs/audits/config-audit-2026-09-17.md` | 2026-09-23 | 10,314 | **HISTORICAL** | config field audit; superseded by ADR-SOURCE-CONTRACT-AUDIT |
-| 61 | `docs/audits/FINAL-VERIFICATION-REPORT.md` | 2026-09-23 | 5,678 | **HISTORICAL** | superseded by ADR-SOURCE-CONTRACT-AUDIT |
-| 62 | `docs/audits/LOC-AUDIT.md` | 2026-09-24 | 16,460 | **DUPLICATE** | LOC-AUDIT-summary.md in historical/ is current summary |
-| 63 | `docs/audits/2026-09-21-DOCS-HYGIENE-AUDIT.md` | 2026-09-23 | 11,244 | **HISTORICAL** | superseded by consolidation work (t_660cd9b6) |
-| 64 | `docs/audits/ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md` | 2026-09-28 | 34,064 | **CANONICAL** | current authoritative audit; all 18 ADRs verified |
-| 65 | `docs/audits/historical/` | — | — | **ARCHIVED** | 45 files; preserved for traceability; see `docs/audits/README.md` §Historical archive |
-| 66 | `docs/audits/evidence/inspect/` | — | — | **EVIDENCE** | IntelliJ named XML exports moved from docs/inspect/ per DOCS-REORGANISATION-PLAN |
-| 67 | `docs/inspect/FINDINGS-CLASSIFICATION.md` | 2026-09-29 | 14,460 | **CANONICAL** | current source-revalidated classification; has discoverable location in docs/inspect/ |
-| 68 | `docs/inspect/*.xml` (machine-generated) | — | — | **GENERATED** | IntelliJ export; should be in `.gitignore` |
+| #     | File (relative to repo root)                                 | Last modified | Size (bytes) | Canonical?     | Status                                                                                |
+|-------|--------------------------------------------------------------|---------------|--------------|----------------|---------------------------------------------------------------------------------------|
+| 1     | `README.md`                                                  | 2026-09-24    | 17,262       | YES            | current — root entry point                                                            |
+| 2     | `CHANGELOG.md`                                               | 2026-09-28    | 890          | YES            | current                                                                               |
+| 3     | `CONTRIBUTING.md`                                            | 2026-09-22    | 1,830        | YES            | current                                                                               |
+| 4     | `CLAUDE.md`                                                  | 2026-09-24    | 3,595        | YES            | current                                                                               |
+| 5     | `AGENTS.md`                                                  | 2026-09-24    | 4,082        | YES            | current                                                                               |
+| 6     | `docs/README.md`                                             | 2026-09-23    | 1,546        | YES            | canonical docs entry point (links to subdirectories)                                  |
+| 7     | `docs/API-REFERENCE.md`                                      | 2026-09-24    | 51,600       | **REMOVED**    | duplicate removed 2026-09-29; canonical `docs/guides/API-REFERENCE.md`                |
+| 8     | `docs/PROJECT-GUIDE.md`                                      | 2026-09-28    | 18,089       | **REMOVED**    | duplicate removed 2026-09-29; canonical `docs/guides/PROJECT-GUIDE.md`                |
+| 9     | `docs/USER_GUIDE.md`                                         | 2026-09-23    | 4,637        | **DUPLICATE**  | compatibility copy retained; canonical `docs/guides/USER_GUIDE.md`                    |
+| 10    | `docs/IMPLEMENTATION-STATUS.md`                              | 2026-09-28    | 14,126       | **REMOVED**    | duplicate removed 2026-09-29; canonical `docs/guides/IMPLEMENTATION-STATUS.md`        |
+| 11    | `docs/MCP-COMPATIBILITY-2026.md`                             | 2026-09-23    | 4,512        | **REMOVED**    | duplicate removed 2026-09-29; canonical `docs/architecture/MCP-COMPATIBILITY-2026.md` |
+| 12    | `docs/MCP-PORTING-PLAN.md`                                   | 2026-09-23    | 3,585        | **REMOVED**    | duplicate removed 2026-09-29; canonical `docs/architecture/MCP-PORTING-PLAN.md`       |
+| 13    | `docs/guides/API-REFERENCE.md`                               | 2026-09-24    | 25,264       | **CANONICAL**  | current                                                                               |
+| 14    | `docs/guides/PROJECT-GUIDE.md`                               | 2026-09-28    | 18,659       | **CANONICAL**  | current                                                                               |
+| 15    | `docs/guides/USER_GUIDE.md`                                  | 2026-09-23    | 4,637        | **CANONICAL**  | current (identical to root duplicate)                                                 |
+| 16    | `docs/guides/IMPLEMENTATION-STATUS.md`                       | 2026-09-24    | 39,431       | **CANONICAL**  | current (much more complete than root duplicate)                                      |
+| 17    | `docs/guides/CI-PORTABILITY-JAVA8-RELEASE-GATE-SPEC.md`      | 2026-09-23    | 18,569       | **UNIQUE**     | standalone spec; no duplicate                                                         |
+| 18    | `docs/guides/HTTP-TRANSPORT-EXAMPLE.md`                      | 2026-09-24    | 14,189       | **CANONICAL**  | replaces GRIZZLY-EXAMPLE.md (renamed 2026-09-23)                                      |
+| 19    | `docs/guides/TRANSPORT-SSE.md`                               | 2026-09-23    | 21,168       | **CANONICAL**  | current                                                                               |
+| 20    | `docs/architecture/MCP-COMPATIBILITY-2026.md`                | 2026-09-23    | 4,512        | **CANONICAL**  | current (links updated to guides/)                                                    |
+| 21    | `docs/architecture/MCP-PORTING-PLAN.md`                      | 2026-09-23    | 3,585        | **CANONICAL**  | current (identical to root duplicate)                                                 |
+| 22    | `docs/architecture/mcp-registry-design-specification.md`     | —             | —            | **CANONICAL**  | current                                                                               |
+| 23    | `docs/architecture/blob-resource-spi-triage-spec.md`         | —             | —            | **CANONICAL**  | current                                                                               |
+| 24    | `docs/architecture/listener-semantics-spec.md`               | —             | —            | **CANONICAL**  | current                                                                               |
+| 25    | `docs/architecture/guava-dependency-policy.md`               | —             | —            | **CANONICAL**  | current                                                                               |
+| 26    | `docs/architecture/MCP-SECURITY-SYNTHESIS-TIER2.md`          | —             | —            | **ACTIVE**     | detailed security design spec; not superseded                                         |
+| 27    | `docs/architecture/TLSCONFIG-LIFECYCLE-DECISION.md`          | —             | —            | **ACTIVE**     | ADR-0014 companion; decision tree                                                     |
+| 28    | `docs/authz/SCOPES-AUTHORIZATION-SPEC.md`                    | 2026-09-23    | —            | **CANONICAL**  | current                                                                               |
+| 29    | `docs/authz/RATE-LIMIT-TRIAGE-SPEC.md`                       | 2026-09-23    | —            | **CANONICAL**  | current                                                                               |
+| 30    | `docs/authz/RATE-LIMIT-429-BEHAVIOR-SPEC.md`                 | 2026-09-23    | —            | **CANONICAL**  | current                                                                               |
+| 31    | `docs/transport/SSE-LAST-EVENT-ID-REPLAY.md`                 | —             | —            | **CANONICAL**  | current                                                                               |
+| 32    | `docs/transport/TRANSPORT-STREAMABLE-HTTP.md`                | —             | —            | **CANONICAL**  | current                                                                               |
+| 33    | `docs/testing/TEST-0001-sse-connection-release-streaming.md` | —             | —            | **CANONICAL**  | current                                                                               |
+| 34    | `docs/testing/TEST-0002-sse-validation-plan.md`              | —             | —            | **CANONICAL**  | current                                                                               |
+| 35    | `docs/testing/AUTH-SCOPES-CONFIRMATION-TEST-SPEC.md`         | —             | —            | **CANONICAL**  | current                                                                               |
+| 36    | `docs/testing/LAST-EVENT-ID-REPLAY-TEST-SPEC.md`             | —             | —            | **CANONICAL**  | current                                                                               |
+| 37    | `docs/testing/PERMIT-EXHAUSTION-429-RESPONSE-TEST-SPEC.md`   | —             | —            | **CANONICAL**  | current                                                                               |
+| 38    | `docs/adr/README.md`                                         | 2026-09-28    | —            | **CANONICAL**  | ADR index; current                                                                    |
+| 39–56 | `docs/adr/ADR-0001.md` through `ADR-0018.md`                 | various       | —            | **CANONICAL**  | all 18 ADRs; ADR-0017 historical; see ADR README                                      |
+| 57    | `docs/audits/README.md`                                      | 2026-09-28    | 2,277        | **CANONICAL**  | canonical current-worklist entry point for audits                                     |
+| 58    | `docs/audits/AUDIT_STATUS.md`                                | 2026-09-23    | 13,284       | **DUPLICATE**  | superseded; superseded by ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md                     |
+| 59    | `docs/audits/audit_report.md`                                | 2026-09-23    | 2,882        | **STALE**      | completion/notification system audit; date 2026-09-17; no living references found     |
+| 60    | `docs/audits/config-audit-2026-09-17.md`                     | 2026-09-23    | 10,314       | **HISTORICAL** | config field audit; superseded by ADR-SOURCE-CONTRACT-AUDIT                           |
+| 61    | `docs/audits/FINAL-VERIFICATION-REPORT.md`                   | 2026-09-23    | 5,678        | **HISTORICAL** | superseded by ADR-SOURCE-CONTRACT-AUDIT                                               |
+| 62    | `docs/audits/LOC-AUDIT.md`                                   | 2026-09-24    | 16,460       | **DUPLICATE**  | LOC-AUDIT-summary.md in historical/ is current summary                                |
+| 63    | `docs/audits/2026-09-21-DOCS-HYGIENE-AUDIT.md`               | 2026-09-23    | 11,244       | **HISTORICAL** | superseded by consolidation work (t_660cd9b6)                                         |
+| 64    | `docs/audits/ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md`        | 2026-09-28    | 34,064       | **CANONICAL**  | current authoritative audit; all 18 ADRs verified                                     |
+| 65    | `docs/audits/historical/`                                    | —             | —            | **ARCHIVED**   | 45 files; preserved for traceability; see `docs/audits/README.md` §Historical archive |
+| 66    | `docs/audits/evidence/inspect/`                              | —             | —            | **EVIDENCE**   | IntelliJ named XML exports moved from docs/inspect/ per DOCS-REORGANISATION-PLAN      |
+| 67    | `docs/inspect/FINDINGS-CLASSIFICATION.md`                    | 2026-09-29    | 14,460       | **CANONICAL**  | current source-revalidated classification; has discoverable location in docs/inspect/ |
+| 68    | `docs/inspect/*.xml` (machine-generated)                     | —             | —            | **GENERATED**  | IntelliJ export; should be in `.gitignore`                                            |
 
 ---
 
@@ -76,7 +76,8 @@ java {
 }
 ```
 
-`sourceCompatibility = JavaVersion.VERSION_1_8` means the compiler is told to emit Java 8 bytecode. This does **not** guarantee the runtime environment is Java 8.
+`sourceCompatibility = JavaVersion.VERSION_1_8` means the compiler is told to emit Java 8 bytecode. This does **not**
+guarantee the runtime environment is Java 8.
 
 ### CI evidence (`.github/workflows/ci.yml`)
 
@@ -93,9 +94,11 @@ java-version: '17'   # Release is built and published with Java 17
 
 ### Published artifact evidence
 
-- `grizzly-http-server:4.0.2` dependency produces Java 11 bytecode (per `build.gradle` comment line 33: "Grizzly 4.0.2 is retained for Java 8/JVM compatibility")
+- `grizzly-http-server:4.0.2` dependency produces Java 11 bytecode (per `build.gradle` comment line 33: "Grizzly 4.0.2
+  is retained for Java 8/JVM compatibility")
 - The `components.java` publication via Gradle Maven plugin emits whatever bytecode the toolchain produced
-- ADR-0001 documents "Portable Java 8 core" — but the core uses no Java 9+ APIs; the Grizzly transport may impose a higher minimum
+- ADR-0001 documents "Portable Java 8 core" — but the core uses no Java 9+ APIs; the Grizzly transport may impose a
+  higher minimum
 
 ### Root README claims
 
@@ -108,10 +111,15 @@ Line 123: "A minimal example that starts an MCP server on Android or any Java 8+
 ### Proposed factual wording
 
 > **Root README line 3:** "Portable Java 8-compatible library for hosting an MCP server inside any Java application"
-> **Badge line 9:** Keep "Java 8+" but add a footnote: "Compiled for Java 8 bytecode; CI tests on Java 11 and 17; release built with Java 17."
-> **Example caption line 123:** "A minimal example that starts an MCP server on Android (API 22+) or any Java 8+ runtime"
+> **Badge line 9:** Keep "Java 8+" but add a footnote: "Compiled for Java 8 bytecode; CI tests on Java 11 and 17;
+> release built with Java 17."
+> **Example caption line 123:** "A minimal example that starts an MCP server on Android (API 22+) or any Java 8+
+> runtime"
 
-Rationale: `sourceCompatibility = JavaVersion.VERSION_1_8` is a compile-time contract stating the output is Java 8 bytecode. The runtime contract is "any JVM that can execute Java 8 bytecode." CI testing Java 11/17 validates that the Java 8 bytecode runs correctly on newer JVMs. The Grizzly transport may raise the practical floor above Java 8 in practice, but this is an implementation detail, not a stated contract.
+Rationale: `sourceCompatibility = JavaVersion.VERSION_1_8` is a compile-time contract stating the output is Java 8
+bytecode. The runtime contract is "any JVM that can execute Java 8 bytecode." CI testing Java 11/17 validates that the
+Java 8 bytecode runs correctly on newer JVMs. The Grizzly transport may raise the practical floor above Java 8 in
+practice, but this is an implementation detail, not a stated contract.
 
 ---
 
@@ -119,22 +127,25 @@ Rationale: `sourceCompatibility = JavaVersion.VERSION_1_8` is a compile-time con
 
 ### 3.1 `docs/` root vs `docs/guides/`
 
-| Root file | guides/ canonical | Diff summary |
-|-----------|-------------------|--------------|
-| `docs/API-REFERENCE.md` | `docs/guides/API-REFERENCE.md` | Minor: guides/ has `HTTP-TRANSPORT-EXAMPLE.md` → `HTTP-TRANSPORT-EXAMPLE.md` (broken link); guides/ has corrected `.tools(true).resources(true).prompts(true)` removed from builder example |
-| `docs/PROJECT-GUIDE.md` | `docs/guides/PROJECT-GUIDE.md` | Minimal: guides/ has updated docs tree in §2 (reflects current subdirectories) |
-| `docs/USER_GUIDE.md` | `docs/guides/USER_GUIDE.md` | **Identical** (diff returns empty) |
-| `docs/IMPLEMENTATION-STATUS.md` | `docs/guides/IMPLEMENTATION-STATUS.md` | **Significant**: guides/ is 39,431 bytes vs root 14,126 bytes; guides/ has complete mermaid diagrams, session lifecycle, authorization sections; root is a stub |
-| `docs/MCP-COMPATIBILITY-2026.md` | `docs/architecture/MCP-COMPATIBILITY-2026.md` | Minor: architecture/ has updated internal cross-links pointing to `../guides/`; root has stale `../` links |
-| `docs/MCP-PORTING-PLAN.md` | `docs/architecture/MCP-PORTING-PLAN.md` | **Identical** (diff returns empty) |
+| Root file                        | guides/ canonical                             | Diff summary                                                                                                                                                                                |
+|----------------------------------|-----------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `docs/API-REFERENCE.md`          | `docs/guides/API-REFERENCE.md`                | Minor: guides/ has `HTTP-TRANSPORT-EXAMPLE.md` → `HTTP-TRANSPORT-EXAMPLE.md` (broken link); guides/ has corrected `.tools(true).resources(true).prompts(true)` removed from builder example |
+| `docs/PROJECT-GUIDE.md`          | `docs/guides/PROJECT-GUIDE.md`                | Minimal: guides/ has updated docs tree in §2 (reflects current subdirectories)                                                                                                              |
+| `docs/USER_GUIDE.md`             | `docs/guides/USER_GUIDE.md`                   | **Identical** (diff returns empty)                                                                                                                                                          |
+| `docs/IMPLEMENTATION-STATUS.md`  | `docs/guides/IMPLEMENTATION-STATUS.md`        | **Significant**: guides/ is 39,431 bytes vs root 14,126 bytes; guides/ has complete mermaid diagrams, session lifecycle, authorization sections; root is a stub                             |
+| `docs/MCP-COMPATIBILITY-2026.md` | `docs/architecture/MCP-COMPATIBILITY-2026.md` | Minor: architecture/ has updated internal cross-links pointing to `../guides/`; root has stale `../` links                                                                                  |
+| `docs/MCP-PORTING-PLAN.md`       | `docs/architecture/MCP-PORTING-PLAN.md`       | **Identical** (diff returns empty)                                                                                                                                                          |
 
 ### 3.2 `docs/guides/CI-PORTABILITY-JAVA8-RELEASE-GATE-SPEC.md`
 
-This file (18,569 bytes) is unique to `docs/guides/`. It is NOT a duplicate of `MCP-COMPATIBILITY-2026.md` — they are distinct documents covering different scopes. No action needed.
+This file (18,569 bytes) is unique to `docs/guides/`. It is NOT a duplicate of `MCP-COMPATIBILITY-2026.md` — they are
+distinct documents covering different scopes. No action needed.
 
 ### 3.3 `GRIZZLY-EXAMPLE.md` → `HTTP-TRANSPORT-EXAMPLE.md`
 
-The file was renamed from `GRIZZLY-EXAMPLE.md` to `HTTP-TRANSPORT-EXAMPLE.md` in commit `79666df docs(guides): rename GRIZZLY-EXAMPLE to HTTP-TRANSPORT-EXAMPLE` (per `docs/audits/historical/MERGE-PLAN-2026-09-23.md`). However, the rename was incomplete:
+The file was renamed from `GRIZZLY-EXAMPLE.md` to `HTTP-TRANSPORT-EXAMPLE.md` in commit
+`79666df docs(guides): rename GRIZZLY-EXAMPLE to HTTP-TRANSPORT-EXAMPLE` (per
+`docs/audits/historical/MERGE-PLAN-2026-09-23.md`). However, the rename was incomplete:
 
 - `docs/guides/HTTP-TRANSPORT-EXAMPLE.md` exists and is current
 - `docs/guides/GRIZZLY-EXAMPLE.md` does NOT exist
@@ -148,47 +159,56 @@ The canonical file is now `docs/guides/HTTP-TRANSPORT-EXAMPLE.md`.
 
 ### Current state
 
-`docs/inspect/FINDINGS-CLASSIFICATION.md` (14,460 bytes, updated 2026-09-29) is a **current, maintained document** — it was revalidated against HEAD and contains actionable findings for `dev-architect`. It belongs in `docs/` (discoverable), not buried in `docs/inspect/`.
+`docs/inspect/FINDINGS-CLASSIFICATION.md` (14,460 bytes, updated 2026-09-29) is a **current, maintained document** — it
+was revalidated against HEAD and contains actionable findings for `dev-architect`. It belongs in `docs/` (discoverable),
+not buried in `docs/inspect/`.
 
-The machine-generated `.xml` and `.descriptions.xml` files are IntelliJ export artifacts and should not be tracked in git (see `.gitignore` gap below).
+The machine-generated `.xml` and `.descriptions.xml` files are IntelliJ export artifacts and should not be tracked in
+git (see `.gitignore` gap below).
 
 ### `.gitignore` gap
 
-`docs/inspect/.xml` and `docs/inspect/.descriptions.xml` are not excluded by the current `.gitignore`. The DOCS-REORGANISATION-PLAN-2026-09-21.md (now archived in historical/) recommended excluding these. See §7, item REORG-3.
+`docs/inspect/.xml` and `docs/inspect/.descriptions.xml` are not excluded by the current `.gitignore`. The
+DOCS-REORGANISATION-PLAN-2026-09-21.md (now archived in historical/) recommended excluding these. See §7, item REORG-3.
 
 ### Recommended location for FINDINGS-CLASSIFICATION.md
 
-The DOCS-REORGANISATION-PLAN specified moving it to `docs/audits/evidence/FINDINGS-CLASSIFICATION.md`. However, the 2026-09-29 revalidation updated it in place at `docs/inspect/FINDINGS-CLASSIFICATION.md`. Since the task is QA-run and the document is maintainer-owned, the location should be settled by the team. Two options:
+The DOCS-REORGANISATION-PLAN specified moving it to `docs/audits/evidence/FINDINGS-CLASSIFICATION.md`. However, the
+2026-09-29 revalidation updated it in place at `docs/inspect/FINDINGS-CLASSIFICATION.md`. Since the task is QA-run and
+the document is maintainer-owned, the location should be settled by the team. Two options:
 
-- **Option A** (per DOCS-REORGANISATION-PLAN): move to `docs/audits/FINDINGS-CLASSIFICATION.md` (next to the canonical AUDIT_STATUS replacement)
+- **Option A** (per DOCS-REORGANISATION-PLAN): move to `docs/audits/FINDINGS-CLASSIFICATION.md` (next to the canonical
+  AUDIT_STATUS replacement)
 - **Option B**: keep in `docs/inspect/` but add a link from `docs/audits/README.md` for discoverability
 
 ---
 
 ## 5. Competing `docs/audits/` Current-Status Artifacts
 
-| File | Date | Contents | Status |
-|------|------|----------|--------|
-| `docs/audits/README.md` | 2026-09-28 | Points to AUDIT_STATUS.md; lists 4 key documents; historical archive index | **CANONICAL** (updated by t_660cd9b6) |
-| `docs/audits/AUDIT_STATUS.md` | 2026-09-23 | 30 findings (15 SEC, 13 DOC, 2 VER); all VERIFIED | **Superseded** by ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md |
-| `docs/audits/audit_report.md` | 2026-09-23 | Completion/notification system audit; no living cross-references | **Stale** — no doc links to it |
-| `docs/audits/config-audit-2026-09-17.md` | 2026-09-23 | McpServerConfig field audit | **Historical** — superseded by ADR-SOURCE-CONTRACT-AUDIT |
-| `docs/audits/FINAL-VERIFICATION-REPORT.md` | 2026-09-23 | Synthesis of parallel work streams | **Historical** — superseded by ADR-SOURCE-CONTRACT-AUDIT |
-| `docs/audits/LOC-AUDIT.md` | 2026-09-24 | Full LOC data (14,196 bytes); `LOC-AUDIT-summary.md` in historical/ is the curated summary | **Duplicate of summary** — keep full data; confirm historical/ summary is sufficient |
-| `docs/audits/ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md` | 2026-09-28 | 18 ADR contracts verified against source; current authoritative audit | **CANONICAL** |
+| File                                                  | Date       | Contents                                                                                   | Status                                                                               |
+|-------------------------------------------------------|------------|--------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
+| `docs/audits/README.md`                               | 2026-09-28 | Points to AUDIT_STATUS.md; lists 4 key documents; historical archive index                 | **CANONICAL** (updated by t_660cd9b6)                                                |
+| `docs/audits/AUDIT_STATUS.md`                         | 2026-09-23 | 30 findings (15 SEC, 13 DOC, 2 VER); all VERIFIED                                          | **Superseded** by ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md                            |
+| `docs/audits/audit_report.md`                         | 2026-09-23 | Completion/notification system audit; no living cross-references                           | **Stale** — no doc links to it                                                       |
+| `docs/audits/config-audit-2026-09-17.md`              | 2026-09-23 | McpServerConfig field audit                                                                | **Historical** — superseded by ADR-SOURCE-CONTRACT-AUDIT                             |
+| `docs/audits/FINAL-VERIFICATION-REPORT.md`            | 2026-09-23 | Synthesis of parallel work streams                                                         | **Historical** — superseded by ADR-SOURCE-CONTRACT-AUDIT                             |
+| `docs/audits/LOC-AUDIT.md`                            | 2026-09-24 | Full LOC data (14,196 bytes); `LOC-AUDIT-summary.md` in historical/ is the curated summary | **Duplicate of summary** — keep full data; confirm historical/ summary is sufficient |
+| `docs/audits/ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md` | 2026-09-28 | 18 ADR contracts verified against source; current authoritative audit                      | **CANONICAL**                                                                        |
 
 ### Proposed canonical audit entry point
 
-`docs/audits/README.md` is already the designated entry point. It should be updated to reference `ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md` as the current authoritative source, and note that `AUDIT_STATUS.md` is historical (superseded).
+`docs/audits/README.md` is already the designated entry point. It should be updated to reference
+`ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md` as the current authoritative source, and note that `AUDIT_STATUS.md` is
+historical (superseded).
 
 ---
 
 ## 6. Broken Internal Links
 
-| File | Line | Broken link | Target status |
-|------|------|-------------|---------------|
-| `docs/adr/ADR-0009-code-audit-findings.md` | 98 | `../audits/2026-09-12-full-source-audit.md` | **ARCHIVED** — moved to `historical/2026-09-12-full-source-audit.md` |
-| `docs/adr/ADR-0009-code-audit-findings.md` | 99 | `../audits/2026-09-12-audit-supplement.md` | **ARCHIVED** — moved to `historical/` |
+| File                                       | Line | Broken link                                 | Target status                                                        |
+|--------------------------------------------|------|---------------------------------------------|----------------------------------------------------------------------|
+| `docs/adr/ADR-0009-code-audit-findings.md` | 98   | `../audits/2026-09-12-full-source-audit.md` | **ARCHIVED** — moved to `historical/2026-09-12-full-source-audit.md` |
+| `docs/adr/ADR-0009-code-audit-findings.md` | 99   | `../audits/2026-09-12-audit-supplement.md`  | **ARCHIVED** — moved to `historical/`                                |
 
 ### Link check via `git diff --check`
 
@@ -196,7 +216,8 @@ The DOCS-REORGANISATION-PLAN specified moving it to `docs/audits/evidence/FINDIN
 git diff --check  (no staged changes; this is a read-only audit)
 ```
 
-No whitespace errors in the working tree. All broken links above are content-level (target file missing or moved), not whitespace issues.
+No whitespace errors in the working tree. All broken links above are content-level (target file missing or moved), not
+whitespace issues.
 
 ---
 
@@ -204,10 +225,10 @@ No whitespace errors in the working tree. All broken links above are content-lev
 
 ### Findings
 
-| File | Line | Issue | Severity |
-|------|------|-------|----------|
-| `docs/transport/TRANSPORT-STREAMABLE-HTTP.md` | 329 | `() -> "secret-api-key"` — literal secret in example | MEDIUM |
-| `docs/guides/TRANSPORT-SSE.md` | 329 | `() -> "secret-api-key"` — literal secret in example | MEDIUM |
+| File                                          | Line | Issue                                                | Severity |
+|-----------------------------------------------|------|------------------------------------------------------|----------|
+| `docs/transport/TRANSPORT-STREAMABLE-HTTP.md` | 329  | `() -> "secret-api-key"` — literal secret in example | MEDIUM   |
+| `docs/guides/TRANSPORT-SSE.md`                | 329  | `() -> "secret-api-key"` — literal secret in example | MEDIUM   |
 
 ### Correct examples (already compliant)
 
@@ -221,13 +242,19 @@ The following use `System.getenv()` suppliers — correct:
 
 ### Action required
 
-The two literal `"secret-api-key"` strings in `TRANSPORT-STREAMABLE-HTTP.md` and `TRANSPORT-SSE.md` are placeholder examples in API documentation. They are in explanatory context (not in actual code), but should be replaced with `"${MCP_API_KEY}"` or `System.getenv("MCP_API_KEY")` for consistency and to avoid giving the impression that hardcoding secrets is acceptable. This is a LOW severity issue (documentation example, not production code), but should be remediated.
+The two literal `"secret-api-key"` strings in `TRANSPORT-STREAMABLE-HTTP.md` and `TRANSPORT-SSE.md` are placeholder
+examples in API documentation. They are in explanatory context (not in actual code), but should be replaced with
+`"${MCP_API_KEY}"` or `System.getenv("MCP_API_KEY")` for consistency and to avoid giving the impression that hardcoding
+secrets is acceptable. This is a LOW severity issue (documentation example, not production code), but should be
+remediated.
 
 ---
 
 ## 8. MkDocs / CI Documentation Configuration
 
-No `mkdocs.yml` or `mkdocs.yaml` found anywhere in the repository. There is no MkDocs CI deployment. The documentation is served directly from the `docs/` directory on GitHub (via the repo's file tree) and via `docs/README.md` as the human navigation index.
+No `mkdocs.yml` or `mkdocs.yaml` found anywhere in the repository. There is no MkDocs CI deployment. The documentation
+is served directly from the `docs/` directory on GitHub (via the repo's file tree) and via `docs/README.md` as the human
+navigation index.
 
 ---
 
@@ -235,27 +262,27 @@ No `mkdocs.yml` or `mkdocs.yaml` found anywhere in the repository. There is no M
 
 ### HIGH — Must fix before next release
 
-| # | Action | Owner |
-|---|--------|-------|
-| H-1 | Fix all maintained `GRIZZLY-EXAMPLE.md` → `HTTP-TRANSPORT-EXAMPLE.md` links | dev-backend | DONE 2026-09-29 |
-| H-2 | Update `docs/audits/README.md` to reference `ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md` as canonical; note `AUDIT_STATUS.md` is superseded | dev-pm | DONE 2026-09-29 |
+| #   | Action                                                                                                                                   | Owner       |
+|-----|------------------------------------------------------------------------------------------------------------------------------------------|-------------|
+| H-1 | Fix all maintained `GRIZZLY-EXAMPLE.md` → `HTTP-TRANSPORT-EXAMPLE.md` links                                                              | dev-backend | DONE 2026-09-29 |
+| H-2 | Update `docs/audits/README.md` to reference `ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md` as canonical; note `AUDIT_STATUS.md` is superseded | dev-pm      | DONE 2026-09-29 |
 
 ### MEDIUM — Fix before next milestone
 
-| # | Action | Owner |
-|---|--------|-------|
+| #   | Action                                                                                                                                                                               | Owner       |
+|-----|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|
 | M-1 | Update root `docs/API-REFERENCE.md`, `docs/PROJECT-GUIDE.md`, `docs/IMPLEMENTATION-STATUS.md` cross-links to point to canonical `docs/guides/` copies; or delete the root duplicates | dev-backend |
-| M-2 | Replace `"secret-api-key"` literal in `docs/transport/TRANSPORT-STREAMABLE-HTTP.md` and `docs/guides/TRANSPORT-SSE.md` with `System.getenv("MCP_API_KEY")` | dev-backend |
-| M-3 | Settle `FINDINGS-CLASSIFICATION.md` location: either move to `docs/audits/` (per DOCS-REORGANISATION-PLAN) or add a discoverable link from `docs/audits/README.md` | dev-pm |
+| M-2 | Replace `"secret-api-key"` literal in `docs/transport/TRANSPORT-STREAMABLE-HTTP.md` and `docs/guides/TRANSPORT-SSE.md` with `System.getenv("MCP_API_KEY")`                           | dev-backend |
+| M-3 | Settle `FINDINGS-CLASSIFICATION.md` location: either move to `docs/audits/` (per DOCS-REORGANISATION-PLAN) or add a discoverable link from `docs/audits/README.md`                   | dev-pm      |
 
 ### LOW — Roadmap
 
-| # | Action | Owner |
-|---|--------|-------|
-| L-1 | Add `docs/inspect/*.xml` and `docs/inspect/*.descriptions.xml` to `.gitignore` (machine-generated IntelliJ exports) | dev-ops |
-| L-2 | Update root README Java badge to include factual footnote about CI/runtimes (see §2) | dev-backend |
-| L-3 | Archive `docs/audits/audit_report.md` to `docs/audits/historical/` (no living references; stale date 2026-09-17) | dev-pm |
-| L-4 | Review whether `docs/audits/LOC-AUDIT.md` (full data) should supersede `docs/audits/historical/LOC-AUDIT-summary.md` (summary only) — current: both exist | dev-pm |
+| #   | Action                                                                                                                                                    | Owner       |
+|-----|-----------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|
+| L-1 | Add `docs/inspect/*.xml` and `docs/inspect/*.descriptions.xml` to `.gitignore` (machine-generated IntelliJ exports)                                       | dev-ops     |
+| L-2 | Update root README Java badge to include factual footnote about CI/runtimes (see §2)                                                                      | dev-backend |
+| L-3 | Archive `docs/audits/audit_report.md` to `docs/audits/historical/` (no living references; stale date 2026-09-17)                                          | dev-pm      |
+| L-4 | Review whether `docs/audits/LOC-AUDIT.md` (full data) should supersede `docs/audits/historical/LOC-AUDIT-summary.md` (summary only) — current: both exist | dev-pm      |
 
 ---
 
@@ -345,25 +372,32 @@ root/
 
 ## 11. Permanent ADR Preservation
 
-All 18 ADRs in `docs/adr/` are permanent records and must never be deleted. ADR-0017 (`ADR-0017-sse-permit-response-flow.md`) is correctly marked "Historical" in the ADR index — it is preserved but noted as superseded by ADR-0016. The ADR index (`docs/adr/README.md`) is up to date as of 2026-09-28.
+All 18 ADRs in `docs/adr/` are permanent records and must never be deleted. ADR-0017 (
+`ADR-0017-sse-permit-response-flow.md`) is correctly marked "Historical" in the ADR index — it is preserved but noted as
+superseded by ADR-0016. The ADR index (`docs/adr/README.md`) is up to date as of 2026-09-28.
 
 ---
 
 ## 13. Consolidation completion — 2026-09-29
 
-The duplicate-path cleanup is complete. Canonical files were retained and the five root duplicates listed in §3.1 were removed after maintained inbound links were updated:
+The duplicate-path cleanup is complete. Canonical files were retained and the five root duplicates listed in §3.1 were
+removed after maintained inbound links were updated:
 
-| Removed duplicate | Canonical replacement | Disposition |
-|---|---|---|
-| `docs/API-REFERENCE.md` | `docs/guides/API-REFERENCE.md` | Removed; use canonical path |
-| `docs/PROJECT-GUIDE.md` | `docs/guides/PROJECT-GUIDE.md` | Removed; use canonical path |
-| `docs/IMPLEMENTATION-STATUS.md` | `docs/guides/IMPLEMENTATION-STATUS.md` | Removed; use canonical path |
+| Removed duplicate                | Canonical replacement                         | Disposition                 |
+|----------------------------------|-----------------------------------------------|-----------------------------|
+| `docs/API-REFERENCE.md`          | `docs/guides/API-REFERENCE.md`                | Removed; use canonical path |
+| `docs/PROJECT-GUIDE.md`          | `docs/guides/PROJECT-GUIDE.md`                | Removed; use canonical path |
+| `docs/IMPLEMENTATION-STATUS.md`  | `docs/guides/IMPLEMENTATION-STATUS.md`        | Removed; use canonical path |
 | `docs/MCP-COMPATIBILITY-2026.md` | `docs/architecture/MCP-COMPATIBILITY-2026.md` | Removed; use canonical path |
-| `docs/MCP-PORTING-PLAN.md` | `docs/architecture/MCP-PORTING-PLAN.md` | Removed; use canonical path |
+| `docs/MCP-PORTING-PLAN.md`       | `docs/architecture/MCP-PORTING-PLAN.md`       | Removed; use canonical path |
 
-`docs/USER_GUIDE.md` remains as a compatibility copy because it is identical to the canonical guide and still has no maintained path migration requirement in this task. All maintained `HTTP-TRANSPORT-EXAMPLE.md` references were verified absent; links use `docs/guides/HTTP-TRANSPORT-EXAMPLE.md`. Historical and audit evidence retains old names where they describe past repository states.
+`docs/USER_GUIDE.md` remains as a compatibility copy because it is identical to the canonical guide and still has no
+maintained path migration requirement in this task. All maintained `HTTP-TRANSPORT-EXAMPLE.md` references were verified
+absent; links use `docs/guides/HTTP-TRANSPORT-EXAMPLE.md`. Historical and audit evidence retains old names where they
+describe past repository states.
 
-Validation completed with `git diff --check`, canonical-file existence checks, and a maintained Markdown link scan excluding `docs/audits/historical/` and generated evidence.
+Validation completed with `git diff --check`, canonical-file existence checks, and a maintained Markdown link scan
+excluding `docs/audits/historical/` and generated evidence.
 
 ```bash
 cd D:/android/mcp-java-sdk

@@ -64,11 +64,11 @@ at a reverse proxy.
 
 ### API Changes
 
-| Component               | Change                                                           | Breaking?            |
-|-------------------------|------------------------------------------------------------------|----------------------|
-| `TlsConfig` class       | Deprecated now; removed in next named major release               | Yes (but unused)     |
-| `scheme(String)` method | Retained, documents external TLS | No                   |
-| `getUrl()`              | Returns scheme from `scheme()` call | No               |
+| Component               | Change                                              | Breaking?        |
+|-------------------------|-----------------------------------------------------|------------------|
+| `TlsConfig` class       | Deprecated now; removed in next named major release | Yes (but unused) |
+| `scheme(String)` method | Retained, documents external TLS                    | No               |
+| `getUrl()`              | Returns scheme from `scheme()` call                 | No               |
 
 ### Migration Path
 

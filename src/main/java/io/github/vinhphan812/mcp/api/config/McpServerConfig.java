@@ -3,6 +3,7 @@ package io.github.vinhphan812.mcp.api.config;
 import io.github.vinhphan812.mcp.api.logging.JulMcpLogger;
 import io.github.vinhphan812.mcp.api.logging.McpLogger;
 import io.github.vinhphan812.mcp.api.spi.McpAuthorization;
+import io.github.vinhphan812.mcp.api.spi.McpTaskExtension;
 import io.github.vinhphan812.mcp.core.McpProtocolHandler;
 
 import java.util.Collections;
@@ -13,6 +14,11 @@ import java.util.Map;
  * Immutable protocol metadata and capability configuration for an MCP server.
  */
 public final class McpServerConfig {
+    /** Session-oriented or stateless MCP protocol operation mode. */
+    public enum ProtocolMode { SESSIONED, STATELESS }
+
+    /** Configured protocol operation mode. */
+    public final ProtocolMode protocolMode;
     /** Negotiated MCP protocol version. */
     public final String protocolVersion;
     /** Advertised server name. */
@@ -37,6 +43,13 @@ public final class McpServerConfig {
     public final boolean completions;
     /** Whether task capability is enabled. */
     public final boolean tasks;
+    /**
+     * Pluggable extension for the Tasks capability, or {@code null} to use the
+     * built-in task store.  When present the extension's
+     * {@link io.github.vinhphan812.mcp.api.spi.McpTaskExtension#supports(String)}
+     * determines version-gated behaviour.
+     */
+    public final McpTaskExtension tasksExtension;
     /**
      * Experimental capability metadata advertised by server initialize responses.
      */
@@ -104,6 +117,7 @@ public final class McpServerConfig {
 
     private McpServerConfig(Builder builder) {
         protocolVersion = builder.protocolVersion;
+        protocolMode = builder.protocolMode;
         serverName = builder.serverName;
         serverVersion = builder.serverVersion;
         tools = builder.tools;
@@ -114,6 +128,7 @@ public final class McpServerConfig {
         logger = builder.logger;
         completions = builder.completions;
         tasks = builder.tasks;
+        tasksExtension = builder.tasksExtension;
         experimental = Collections.unmodifiableMap(new LinkedHashMap<>(builder.experimental));
         pageSize = builder.pageSize;
         overflowListener = builder.overflowListener;
@@ -138,10 +153,12 @@ public final class McpServerConfig {
      */
     public static final class Builder {
         private String protocolVersion = "2025-11-25";
+        private ProtocolMode protocolMode = ProtocolMode.SESSIONED;
         private String serverName = "mcp-server";
         private String serverVersion = "1.0.0";
         private boolean tools = true, resources = true, resourceSubscriptions = true, prompts = true;
         private boolean logging, completions, tasks;
+        private McpTaskExtension tasksExtension;
         private McpLogger logger = new JulMcpLogger("mcp-server");
         private Map<String, Object> experimental = new LinkedHashMap<>();
 
@@ -188,6 +205,13 @@ public final class McpServerConfig {
          * @param value nonblank protocol version
          * @return this builder
          */
+        /** Selects sessioned or stateless protocol handling. */
+        public Builder protocolMode(ProtocolMode value) {
+            protocolMode = value == null ? ProtocolMode.SESSIONED : value;
+            if (protocolMode == ProtocolMode.STATELESS) protocolVersion = "2026-07-28";
+            return this;
+        }
+
         public Builder protocolVersion(String value) {
             protocolVersion = requireText(value, "protocolVersion");
             return this;
@@ -272,6 +296,21 @@ public final class McpServerConfig {
          */
         public Builder tasks(boolean value) {
             tasks = value;
+            return this;
+        }
+
+        /**
+         * Sets the pluggable Tasks extension.
+         *
+         * <p>When set, the extension's {@link McpTaskExtension#supports(String)} controls
+         * whether the built-in task methods are enabled for each protocol version.
+         * The extension also receives all task-method dispatch callbacks.
+         *
+         * @param extension the extension, or {@code null} to use the built-in task store
+         * @return this builder
+         */
+        public Builder tasksExtension(McpTaskExtension extension) {
+            this.tasksExtension = extension;
             return this;
         }
 

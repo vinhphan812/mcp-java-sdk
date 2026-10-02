@@ -78,4 +78,12 @@ public final class McpException extends RuntimeException {
     public static McpException internalError(String message) {
         throw new McpException(McpErrorCodes.INTERNAL_ERROR, message);
     }
+
+    /**
+     * Convenience factory: builds and throws a new {@code McpException} with
+     * {@link McpErrorCodes#METHOD_NOT_FOUND}.
+     */
+    public static McpException methodNotFound(String message) {
+        throw new McpException(McpErrorCodes.METHOD_NOT_FOUND, message);
+    }
 }

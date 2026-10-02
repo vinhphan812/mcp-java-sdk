@@ -219,7 +219,8 @@ Not applicable; logic verified via existing streamable transport tests.
 
 ### 4.2 Integration Test Coverage
 
-Note: Specific test classes mentioned in this document are obsolete. Testing is covered by the current integration test suite.
+Note: Specific test classes mentioned in this document are obsolete. Testing is covered by the current integration test
+suite.
 
 ### 4.3 Validation Commands
 
@@ -237,6 +238,7 @@ Note: Specific test classes mentioned in this document are obsolete. Testing is 
 ### 4.4 Obsolete Test References
 
 The following test class names are obsolete and no longer exist:
+
 - `McpGrizzlySsePermitFlowTest.java` — never existed; SSE permit flow verified via `McpProtocolHandlerReplayTest`
 - `McpGrizzlyResumabilityTest.java` — deleted during HTTP transport rename; covered by `McpProtocolHandlerReplayTest`
 - `McpGrizzlyLiveTest.java` — renamed to `HttpTransportLiveTest` (not committed); covered by `McpIntegrationTest`
@@ -248,18 +250,18 @@ The following test class names are obsolete and no longer exist:
 
 ### Files That May Need Changes
 
-| File | Reason | Risk |
-|------|--------|------|
-| `McpHttpHandler.java` | SSE permit ordering fix location | Medium |
-| (no new test files needed) | Covered by existing `McpProtocolHandlerReplayTest` | — |
+| File                       | Reason                                             | Risk   |
+|----------------------------|----------------------------------------------------|--------|
+| `McpHttpHandler.java`      | SSE permit ordering fix location                   | Medium |
+| (no new test files needed) | Covered by existing `McpProtocolHandlerReplayTest` | —      |
 
 ### No Changes Required (verified safe)
 
-| File | Status |
-|------|--------|
-| `McpProtocolHandler.java` | No changes needed |
-| `McpRegistry.java` | No changes needed |
-| `HttpTransportProvider.java` | No changes needed |
+| File                             | Status                        |
+|----------------------------------|-------------------------------|
+| `McpProtocolHandler.java`        | No changes needed             |
+| `McpRegistry.java`               | No changes needed             |
+| `HttpTransportProvider.java`     | No changes needed             |
 | `McpHttpHandler.java` (post-fix) | SSE permit ordering corrected |
 
 ### No Changes Required (verified safe)

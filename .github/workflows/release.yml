@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   packages: write
+  security-events: write
 
 jobs:
   release:
@@ -19,11 +20,33 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Build release JAR and test
-        run: ./gradlew -PsdkVersion=${GITHUB_REF_NAME#v} compileJava test build --console=plain
+      - name: Build release JAR, test, and generate CycloneDX SBOM
+        run: ./gradlew -PsdkVersion=${GITHUB_REF_NAME#v} compileJava test build cyclonedxBom --console=plain
 
       - name: Compile examples (release gate)
         run: ./gradlew -p examples compileJava -PsdkJar=../build/libs/mcp-java-sdk-${GITHUB_REF_NAME#v}.jar --console=plain
+
+      # anchore/scan-action@v6 accepts sbom=<file> for CycloneDX/JSON SBOM files.
+      # path=<dir> fails because it treats the JSON file as a directory target.
+      - name: Report MEDIUM dependency vulnerabilities
+        uses: anchore/scan-action@v6
+        with:
+          sbom: build/reports/bom.json
+          fail-build: false
+          severity-cutoff: medium
+      - name: Gate HIGH and CRITICAL dependency vulnerabilities
+        uses: anchore/scan-action@v6
+        with:
+          sbom: build/reports/bom.json
+          fail-build: true
+          severity-cutoff: high
+          output-format: sarif
+          output-file: grype-results.sarif
+      - name: Upload dependency scan SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: grype-results.sarif
 
       - name: Publish to GitHub Packages
         run: ./gradlew publish --console=plain
@@ -36,3 +59,4 @@ jobs:
           generate_release_notes: true
           files: |
             build/libs/mcp-java-sdk-*.jar
+            build/reports/bom.json

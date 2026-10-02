@@ -21,15 +21,15 @@ source is modified.
 
 **Baseline evidence (pre-implementation, worktree wt/t_ca84cb11):**
 
-| Behaviour | Source | Status |
-|---|---|---|
-| Absent `Origin` → allowed | `McpHttpHandler:221-226` `isInvalidOrigin` returns `false` | Confirmed |
-| Exact-match loopback origin accepted | `McpHttpHandler:224` `a.equalsIgnoreCase(origin.trim())` | Confirmed |
-| Port-bearing loopback origin rejected | `McpHttpHandler:224` exact-match only; no wildcard | Confirmed |
-| OPTIONS returns 405 (no CORS arm) | `McpHttpHandler:200-202` `default` arm → 405 | Confirmed |
-| No CORS response headers emitted | No `Access-Control-*` / `Vary` code anywhere in handler | Confirmed |
-| Bearer auth checked after origin | `McpHttpHandler:209-219` `isInvalidOrigin` before `isUnauthorized` | Confirmed |
-| Duplicate origin defaults in two places | `HttpTransportProvider:23` and `McpHttpHandler.Builder:59` | Confirmed (ADR-0021) |
+| Behaviour                               | Source                                                             | Status               |
+|-----------------------------------------|--------------------------------------------------------------------|----------------------|
+| Absent `Origin` → allowed               | `McpHttpHandler:221-226` `isInvalidOrigin` returns `false`         | Confirmed            |
+| Exact-match loopback origin accepted    | `McpHttpHandler:224` `a.equalsIgnoreCase(origin.trim())`           | Confirmed            |
+| Port-bearing loopback origin rejected   | `McpHttpHandler:224` exact-match only; no wildcard                 | Confirmed            |
+| OPTIONS returns 405 (no CORS arm)       | `McpHttpHandler:200-202` `default` arm → 405                       | Confirmed            |
+| No CORS response headers emitted        | No `Access-Control-*` / `Vary` code anywhere in handler            | Confirmed            |
+| Bearer auth checked after origin        | `McpHttpHandler:209-219` `isInvalidOrigin` before `isUnauthorized` | Confirmed            |
+| Duplicate origin defaults in two places | `HttpTransportProvider:23` and `McpHttpHandler.Builder:59`         | Confirmed (ADR-0021) |
 
 These are the gaps the implementation (`t_af3f88ab`) must close.
 
@@ -111,11 +111,11 @@ private static final String PING_JSON =
 
 The two test classes cover three server configurations:
 
-| Configuration | Auth | `allowedOrigins` | When used |
-|---|---|---|---|
-| A | none | default (loopback wildcard) | Baseline + preflight cases |
-| B | Bearer `"secret"` | default (loopback wildcard) | Auth × CORS interaction |
-| C | none | `Set.of("https://app.example.com")` | Explicit allowlist |
+| Configuration | Auth              | `allowedOrigins`                    | When used                  |
+|---------------|-------------------|-------------------------------------|----------------------------|
+| A             | none              | default (loopback wildcard)         | Baseline + preflight cases |
+| B             | Bearer `"secret"` | default (loopback wildcard)         | Auth × CORS interaction    |
+| C             | none              | `Set.of("https://app.example.com")` | Explicit allowlist         |
 
 Configuration C maps to the `HttpTransportProvider` API; the
 `McpServer.Builder.allowedOrigins(Set)` forwarding is tested separately in
@@ -145,37 +145,37 @@ private String initializeSession(HttpTransportProvider transport, String token) 
 
 ### 3.1 HTTP methods
 
-| Method | Purpose |
-|---|---|
-| `POST /mcp` | JSON-RPC request/response — primary CORS surface |
-| `GET /mcp` | SSE streaming — needs `Mcp-Session-Id`; CORS headers applied |
-| `DELETE /mcp` | Session teardown — CORS headers applied |
+| Method         | Purpose                                                       |
+|----------------|---------------------------------------------------------------|
+| `POST /mcp`    | JSON-RPC request/response — primary CORS surface              |
+| `GET /mcp`     | SSE streaming — needs `Mcp-Session-Id`; CORS headers applied  |
+| `DELETE /mcp`  | Session teardown — CORS headers applied                       |
 | `OPTIONS /mcp` | Preflight — no body, requires `Access-Control-Request-Method` |
 
 ### 3.2 Origin header variants
 
 Tests use these Origin values as inputs:
 
-| Label | Value | Policy classification |
-|---|---|---|
-| `ORIGIN_LOCALHOST_PORT` | `http://localhost:3000` | Loopback wildcard — default policy |
-| `ORIGIN_127_PORT` | `http://127.0.0.1:8080` | Loopback wildcard — default policy |
-| `ORIGIN_IPV6_PORT` | `http://[::1]:5173` | Loopback wildcard — default policy |
-| `ORIGIN_HTTPS_LOCALHOST` | `https://localhost:443` | Loopback wildcard — default policy |
-| `ORIGIN_LOCALHOST_NOPORT` | `http://localhost` | Loopback exact — default policy |
-| `ORIGIN_127_NOPORT` | `http://127.0.0.1` | Loopback exact — default policy |
-| `ORIGIN_EVIL` | `http://evil.com` | Non-loopback — rejected by default |
-| `ORIGIN_ALLOWLISTED` | `https://app.example.com` | Explicit allowlist — accepted by config C |
+| Label                     | Value                     | Policy classification                     |
+|---------------------------|---------------------------|-------------------------------------------|
+| `ORIGIN_LOCALHOST_PORT`   | `http://localhost:3000`   | Loopback wildcard — default policy        |
+| `ORIGIN_127_PORT`         | `http://127.0.0.1:8080`   | Loopback wildcard — default policy        |
+| `ORIGIN_IPV6_PORT`        | `http://[::1]:5173`       | Loopback wildcard — default policy        |
+| `ORIGIN_HTTPS_LOCALHOST`  | `https://localhost:443`   | Loopback wildcard — default policy        |
+| `ORIGIN_LOCALHOST_NOPORT` | `http://localhost`        | Loopback exact — default policy           |
+| `ORIGIN_127_NOPORT`       | `http://127.0.0.1`        | Loopback exact — default policy           |
+| `ORIGIN_EVIL`             | `http://evil.com`         | Non-loopback — rejected by default        |
+| `ORIGIN_ALLOWLISTED`      | `https://app.example.com` | Explicit allowlist — accepted by config C |
 
 ### 3.3 Preflight request headers
 
 For OPTIONS requests the following `Access-Control-Request-*` permutations are used:
 
-| Header | Value |
-|---|---|
-| `Access-Control-Request-Method` | `POST` |
+| Header                           | Value                                         |
+|----------------------------------|-----------------------------------------------|
+| `Access-Control-Request-Method`  | `POST`                                        |
 | `Access-Control-Request-Headers` | `Content-Type, Authorization, Mcp-Session-Id` |
-| `Access-Control-Request-Headers` | `X-Forwarded-For` |
+| `Access-Control-Request-Headers` | `X-Forwarded-For`                             |
 
 ---
 
@@ -294,53 +294,53 @@ so it does not affect test execution time.
 
 ### 6.1 `McpCorsOriginTest` — Simple CORS (no preflight)
 
-| # | Description | Config | Method | Origin | Auth | Expected status | ACAO | ACAC | Vary |
-|---|---|---|---|---|---|---|---|---|---|
-| 1 | Loopback port wildcard — `http://localhost:3000` | A | POST | `http://localhost:3000` | none | 200 | `http://localhost:3000` | absent | `Origin` |
-| 2 | Loopback port wildcard — `http://127.0.0.1:8080` | A | POST | `http://127.0.0.1:8080` | none | 200 | `http://127.0.0.1:8080` | absent | `Origin` |
-| 3 | Loopback port wildcard — IPv6 `http://[::1]:5173` | A | POST | `http://[::1]:5173` | none | 200 | `http://[::1]:5173` | absent | `Origin` |
-| 4 | Loopback port wildcard — `https://localhost:443` | A | POST | `https://localhost:443` | none | 200 | `https://localhost:443` | absent | `Origin` |
-| 5 | Loopback exact — `http://localhost` (no port) | A | POST | `http://localhost` | none | 200 | `http://localhost` | absent | `Origin` |
-| 6 | No Origin header (non-browser client) | A | POST | absent | none | 200 | absent | absent | absent |
-| 7 | Non-loopback — `http://evil.com` | A | POST | `http://evil.com` | none | 403 | absent | absent | absent |
-| 8 | Explicit allowlist — `https://app.example.com` | C | POST | `https://app.example.com` | none | 200 | `https://app.example.com` | absent | `Origin` |
-| 9 | Allowlist not configured — `https://app.example.com` | A | POST | `https://app.example.com` | none | 403 | absent | absent | absent |
-| 10 | Empty allowlist `Set.of()` — `http://localhost:3000` | D | POST | `http://localhost:3000` | none | 403 | absent | absent | absent |
+| #  | Description                                          | Config | Method | Origin                    | Auth | Expected status | ACAO                      | ACAC   | Vary     |
+|----|------------------------------------------------------|--------|--------|---------------------------|------|-----------------|---------------------------|--------|----------|
+| 1  | Loopback port wildcard — `http://localhost:3000`     | A      | POST   | `http://localhost:3000`   | none | 200             | `http://localhost:3000`   | absent | `Origin` |
+| 2  | Loopback port wildcard — `http://127.0.0.1:8080`     | A      | POST   | `http://127.0.0.1:8080`   | none | 200             | `http://127.0.0.1:8080`   | absent | `Origin` |
+| 3  | Loopback port wildcard — IPv6 `http://[::1]:5173`    | A      | POST   | `http://[::1]:5173`       | none | 200             | `http://[::1]:5173`       | absent | `Origin` |
+| 4  | Loopback port wildcard — `https://localhost:443`     | A      | POST   | `https://localhost:443`   | none | 200             | `https://localhost:443`   | absent | `Origin` |
+| 5  | Loopback exact — `http://localhost` (no port)        | A      | POST   | `http://localhost`        | none | 200             | `http://localhost`        | absent | `Origin` |
+| 6  | No Origin header (non-browser client)                | A      | POST   | absent                    | none | 200             | absent                    | absent | absent   |
+| 7  | Non-loopback — `http://evil.com`                     | A      | POST   | `http://evil.com`         | none | 403             | absent                    | absent | absent   |
+| 8  | Explicit allowlist — `https://app.example.com`       | C      | POST   | `https://app.example.com` | none | 200             | `https://app.example.com` | absent | `Origin` |
+| 9  | Allowlist not configured — `https://app.example.com` | A      | POST   | `https://app.example.com` | none | 403             | absent                    | absent | absent   |
+| 10 | Empty allowlist `Set.of()` — `http://localhost:3000` | D      | POST   | `http://localhost:3000`   | none | 403             | absent                    | absent | absent   |
 
 Config D (empty allowlist — no origins accepted) is set via:
 `new HttpTransportProvider(handler).allowedOrigins(Set.of())`.
 
 **Auth × CORS interaction** (config B — Bearer `"secret"`):
 
-| # | Description | Origin | Bearer | Expected status | ACAO | ACAC |
-|---|---|---|---|---|---|---|
-| 11 | Allowed origin + valid token | `http://localhost:3000` | `secret` | 200 | `http://localhost:3000` | `true` |
-| 12 | Allowed origin + invalid token | `http://localhost:3000` | `wrong` | 401 | `http://localhost:3000` | `true` |
-| 13 | Disallowed origin + valid token | `http://evil.com` | `secret` | 403 | absent | absent |
-| 14 | No Origin + valid token | absent | `secret` | 200 | absent | absent |
+| #  | Description                     | Origin                  | Bearer   | Expected status | ACAO                    | ACAC   |
+|----|---------------------------------|-------------------------|----------|-----------------|-------------------------|--------|
+| 11 | Allowed origin + valid token    | `http://localhost:3000` | `secret` | 200             | `http://localhost:3000` | `true` |
+| 12 | Allowed origin + invalid token  | `http://localhost:3000` | `wrong`  | 401             | `http://localhost:3000` | `true` |
+| 13 | Disallowed origin + valid token | `http://evil.com`       | `secret` | 403             | absent                  | absent |
+| 14 | No Origin + valid token         | absent                  | `secret` | 200             | absent                  | absent |
 
 **Additional method coverage** (config A):
 
-| # | Description | Method | Origin | Expected status | ACAO | Notes |
-|---|---|---|---|---|---|---|
-| 15 | GET with allowed origin | GET | `http://localhost:3000` | 200 (needs session) | `http://localhost:3000` | Initialize first |
-| 16 | DELETE with allowed origin | DELETE | `http://localhost:3000` | 204 (needs session) | `http://localhost:3000` | Initialize first |
-| 17 | GET with disallowed origin | GET | `http://evil.com` | 403 | absent | No session check |
-| 18 | DELETE with disallowed origin | DELETE | `http://evil.com` | 403 | absent | No session check |
+| #  | Description                   | Method | Origin                  | Expected status     | ACAO                    | Notes            |
+|----|-------------------------------|--------|-------------------------|---------------------|-------------------------|------------------|
+| 15 | GET with allowed origin       | GET    | `http://localhost:3000` | 200 (needs session) | `http://localhost:3000` | Initialize first |
+| 16 | DELETE with allowed origin    | DELETE | `http://localhost:3000` | 204 (needs session) | `http://localhost:3000` | Initialize first |
+| 17 | GET with disallowed origin    | GET    | `http://evil.com`       | 403                 | absent                  | No session check |
+| 18 | DELETE with disallowed origin | DELETE | `http://evil.com`       | 403                 | absent                  | No session check |
 
 ### 6.2 `McpCorsPreflightTest` — OPTIONS preflight
 
 All tests use `OPTIONS /mcp` with `Access-Control-Request-Method: POST`.
 
-| # | Description | Config | Origin | Expected status | ACAO | ACAC | ACAM | ACAH | ACMA |
-|---|---|---|---|---|---|---|---|---|---|
-| 19 | Preflight — allowed origin, no auth | A | `http://localhost:3000` | 200 | `http://localhost:3000` | absent | `POST, GET, DELETE, OPTIONS` | present | 86400 |
-| 20 | Preflight — allowed origin, with auth | B | `http://localhost:3000` | 200 | `http://localhost:3000` | `true` | `POST, GET, DELETE, OPTIONS` | present | 86400 |
-| 21 | Preflight — disallowed origin | A | `http://evil.com` | 403 | absent | absent | absent | absent | absent |
-| 22 | Preflight — no Origin header | A | absent | 403 | absent | absent | absent | absent | absent |
-| 23 | Preflight — allowlisted origin (config C) | C | `https://app.example.com` | 200 | `https://app.example.com` | absent | `POST, GET, DELETE, OPTIONS` | present | 86400 |
-| 24 | Preflight — empty allowlist (config D) | D | `http://localhost:3000` | 403 | absent | absent | absent | absent | absent |
-| 25 | Preflight — IPv6 loopback | A | `http://[::1]:5173` | 200 | `http://[::1]:5173` | absent | `POST, GET, DELETE, OPTIONS` | present | 86400 |
+| #  | Description                               | Config | Origin                    | Expected status | ACAO                      | ACAC   | ACAM                         | ACAH    | ACMA   |
+|----|-------------------------------------------|--------|---------------------------|-----------------|---------------------------|--------|------------------------------|---------|--------|
+| 19 | Preflight — allowed origin, no auth       | A      | `http://localhost:3000`   | 200             | `http://localhost:3000`   | absent | `POST, GET, DELETE, OPTIONS` | present | 86400  |
+| 20 | Preflight — allowed origin, with auth     | B      | `http://localhost:3000`   | 200             | `http://localhost:3000`   | `true` | `POST, GET, DELETE, OPTIONS` | present | 86400  |
+| 21 | Preflight — disallowed origin             | A      | `http://evil.com`         | 403             | absent                    | absent | absent                       | absent  | absent |
+| 22 | Preflight — no Origin header              | A      | absent                    | 403             | absent                    | absent | absent                       | absent  | absent |
+| 23 | Preflight — allowlisted origin (config C) | C      | `https://app.example.com` | 200             | `https://app.example.com` | absent | `POST, GET, DELETE, OPTIONS` | present | 86400  |
+| 24 | Preflight — empty allowlist (config D)    | D      | `http://localhost:3000`   | 403             | absent                    | absent | absent                       | absent  | absent |
+| 25 | Preflight — IPv6 loopback                 | A      | `http://[::1]:5173`       | 200             | `http://[::1]:5173`       | absent | `POST, GET, DELETE, OPTIONS` | present | 86400  |
 
 ---
 
@@ -411,21 +411,21 @@ package io.github.vinhphan812.mcp.transport;
 
 ### 8.1 What the tests assume about production
 
-| Assumption | ADR-0021 section | Notes |
-|---|---|---|
-| `http://localhost:PORT` accepted | Decision 1-2 | Loopback wildcard semantics |
-| `http://127.0.0.1:PORT` accepted | Decision 1-2 | Same |
-| `http://[::1]:PORT` accepted | Decision 1-2 | IPv6 loopback |
-| `http://evil.com` rejected 403 | Decision 6 | Non-loopback, no allowlist |
-| `Access-Control-Allow-Origin: <validated>` | Decision 4 | Never `*` |
-| `Vary: Origin` on all responses | Decision 4 | With Origin header present |
-| `Access-Control-Allow-Credentials: true` when auth set | Decision 4 | Only on allowed origins |
-| OPTIONS handled (not 405) | Decision 5 | New arm in `service()` |
-| OPTIONS → 403 without Origin | Decision 5 | No CORS contract |
-| OPTIONS → 403 with disallowed Origin | Decision 5 | Origin gate before preflight |
-| `ACMAXAge: 86400` on preflight | Decision 5 | 24-hour cache |
-| Bearer auth evaluated after origin check | Decision 4, 6 | Independent gates |
-| `McpServer.Builder.allowedOrigins(Set)` forwarding | Decision 3 | Not tested here — separate unit test |
+| Assumption                                             | ADR-0021 section | Notes                                |
+|--------------------------------------------------------|------------------|--------------------------------------|
+| `http://localhost:PORT` accepted                       | Decision 1-2     | Loopback wildcard semantics          |
+| `http://127.0.0.1:PORT` accepted                       | Decision 1-2     | Same                                 |
+| `http://[::1]:PORT` accepted                           | Decision 1-2     | IPv6 loopback                        |
+| `http://evil.com` rejected 403                         | Decision 6       | Non-loopback, no allowlist           |
+| `Access-Control-Allow-Origin: <validated>`             | Decision 4       | Never `*`                            |
+| `Vary: Origin` on all responses                        | Decision 4       | With Origin header present           |
+| `Access-Control-Allow-Credentials: true` when auth set | Decision 4       | Only on allowed origins              |
+| OPTIONS handled (not 405)                              | Decision 5       | New arm in `service()`               |
+| OPTIONS → 403 without Origin                           | Decision 5       | No CORS contract                     |
+| OPTIONS → 403 with disallowed Origin                   | Decision 5       | Origin gate before preflight         |
+| `ACMAXAge: 86400` on preflight                         | Decision 5       | 24-hour cache                        |
+| Bearer auth evaluated after origin check               | Decision 4, 6    | Independent gates                    |
+| `McpServer.Builder.allowedOrigins(Set)` forwarding     | Decision 3       | Not tested here — separate unit test |
 
 ### 8.2 Test infrastructure prerequisites
 
@@ -439,9 +439,9 @@ provide:
    `Access-Control-Allow-Credentials`, `Vary: Origin` written to the response
    in `handlePost`, `handleGet`, `handleDelete`.
 3. **OPTIONS arm in `service()`** — `OPTIONS` route that:
-   - Returns 403 if no `Origin` header.
-   - Returns 403 if `Origin` fails `isInvalidOrigin`.
-   - Otherwise returns 200 with all preflight headers.
+    - Returns 403 if no `Origin` header.
+    - Returns 403 if `Origin` fails `isInvalidOrigin`.
+    - Otherwise returns 200 with all preflight headers.
 4. **`McpServer.Builder.allowedOrigins(Set)`** — forwarded to
    `HttpTransportProvider.allowedOrigins(Set)`. Test TC 8 / TC 23 use the
    `HttpTransportProvider` API directly (lower-level); a unit test for the

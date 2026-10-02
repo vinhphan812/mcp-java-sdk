@@ -19,6 +19,12 @@ public final class McpHttpHeaders {
     /** {@code Last-Event-ID} — client-supplied SSE event cursor for replay. */
     public static final String LAST_EVENT_ID = "Last-Event-ID";
 
+    /** {@code Mcp-Method} — method mirrored from the JSON-RPC request body. */
+    public static final String METHOD = "Mcp-Method";
+
+    /** {@code Mcp-Name} — tool, resource, or prompt name mirrored from params. */
+    public static final String NAME = "Mcp-Name";
+
     /** {@code X-Forwarded-For} — original client IP when running behind a proxy. */
     public static final String X_FORWARDED_FOR = "X-Forwarded-For";
 

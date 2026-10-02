@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import io.github.vinhphan812.mcp.api.utils.McpError;
 import io.github.vinhphan812.mcp.api.utils.McpGson;
 import io.github.vinhphan812.mcp.api.utils.McpHttpHeaders;
+import io.github.vinhphan812.mcp.api.utils.McpJsonRpc;
 import io.github.vinhphan812.mcp.api.utils.McpMethodNames;
 import io.github.vinhphan812.mcp.core.McpProtocolHandler;
 import org.glassfish.grizzly.http.server.HttpHandler;
@@ -432,10 +433,32 @@ public final class McpHttpHandler extends HttpHandler {
         }
 
         String method = req.get("method").getAsString();
+        if (requiresModernRoutingHeaders(request)) {
+            String headerError = validateRoutingHeaders(request, req, method);
+            if (headerError != null) {
+                writeError(response, 400, headerError);
+                return;
+            }
+        }
         String sessionId = request.getHeader(McpHttpHeaders.SESSION);
         String clientIp = getClientIp(request);
 
-        if (requiresSession(method) && !handler.hasSession(sessionId)) {
+        // A 2026 request may select stateless operation through the required HTTP
+        // header rather than a top-level JSON-RPC protocolVersion field.
+        boolean headerSelectsStateless = McpJsonRpc.PROTOCOL_VERSION_STATELESS.equals(
+                request.getHeader(McpHttpHeaders.PROTOCOL));
+        boolean bodySelectsStateless = req.has("protocolVersion") && req.get("protocolVersion").isJsonPrimitive()
+                && req.get("protocolVersion").getAsJsonPrimitive().isString()
+                && McpJsonRpc.PROTOCOL_VERSION_STATELESS.equals(req.get("protocolVersion").getAsString());
+        if (headerSelectsStateless && !req.has("protocolVersion")) {
+            // The core negotiates from the JSON request, so carry the HTTP
+            // version selection into the request before dispatch.
+            req.addProperty("protocolVersion", McpJsonRpc.PROTOCOL_VERSION_STATELESS);
+            body = req.toString();
+            bodySelectsStateless = true;
+        }
+        boolean anyStateless = handler.isStatelessMode() || headerSelectsStateless || bodySelectsStateless;
+        if (requiresSession(method) && !anyStateless && !handler.hasSession(sessionId)) {
             writeError(response, 400, "Missing or invalid Mcp-Session-Id header");
             return;
         }
@@ -461,6 +484,50 @@ public final class McpHttpHandler extends HttpHandler {
         if (result.getSessionId() != null) response.setHeader(McpHttpHeaders.SESSION, result.getSessionId());
         response.setStatus(200);
         response.getWriter().write(result.getBody());
+    }
+
+    private boolean requiresModernRoutingHeaders(Request request) {
+        return McpJsonRpc.PROTOCOL_VERSION_STATELESS.equals(request.getHeader(McpHttpHeaders.PROTOCOL));
+    }
+
+    private String validateRoutingHeaders(Request request, JsonObject body, String method) {
+        String methodHeader = uniqueHeader(request, McpHttpHeaders.METHOD);
+        if (methodHeader == null) return "Missing required Mcp-Method header";
+        if (methodHeader.isEmpty()) return "Malformed Mcp-Method header";
+        if (!methodHeader.equals(method)) return "Mcp-Method header does not match request method";
+
+        boolean requiresName = McpMethodNames.TOOLS_CALL.equals(method)
+                || McpMethodNames.RESOURCES_READ.equals(method)
+                || McpMethodNames.PROMPTS_GET.equals(method);
+        String nameHeader = uniqueHeader(request, McpHttpHeaders.NAME);
+        if (requiresName && nameHeader == null) return "Missing required Mcp-Name header";
+        if (nameHeader != null && nameHeader.isEmpty()) return "Malformed Mcp-Name header";
+        if (!requiresName && nameHeader != null) return "Mcp-Name header is not valid for request method";
+        if (requiresName) {
+            JsonObject params = body.has("params") && body.get("params").isJsonObject()
+                    ? body.getAsJsonObject("params") : null;
+            String field = McpMethodNames.RESOURCES_READ.equals(method) ? "uri" : "name";
+            if (params == null || !params.has(field) || !params.get(field).isJsonPrimitive()
+                    || !params.get(field).getAsJsonPrimitive().isString()) {
+                return "Mcp-Name header requires a matching params." + field;
+            }
+            if (!nameHeader.equals(params.get(field).getAsString())) {
+                return "Mcp-Name header does not match request parameters";
+            }
+        }
+        return null;
+    }
+
+    private String uniqueHeader(Request request, String name) {
+        Iterable<String> values = request.getHeaders(name);
+        String value = null;
+        int count = 0;
+        for (String candidate : values) {
+            count++;
+            value = candidate;
+        }
+        if (count > 1) return "";
+        return value == null ? null : value.trim();
     }
 
     private boolean validContentType(Request request) {

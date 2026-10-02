@@ -19,8 +19,9 @@ This project is a lightweight Java 11-compatible MCP server implementation. It i
 
 ## Target baseline
 
-Target protocol baseline: `2025-11-25` (the latest stable baseline implemented by this Java 11 SDK). The newer
-documentation/specification snapshot `2026-07-28` was used for audit comparison but is not advertised as implemented.
+The server supports two configurable protocol modes: sessioned MCP `2025-11-25` by default (with legacy compatibility)
+and STATELESS MCP `2026-07-28`. In STATELESS mode, initialize and subsequent requests do not require an MCP session.
+This is an implementation capability, not a claim of full MCP certification or external-client interoperability.
 
 The server must accept a client protocol version only when it is supported. Unsupported versions must return an
 initialize error rather than silently advertising a different version.
@@ -56,8 +57,9 @@ initialize error rather than silently advertising a different version.
 - [x] Progress/cancellation notifications (progress tokens in `_meta`, `notifications/progress`)
 - [x] Client-initiated `notifications/cancelled` (cancels by request id)
 - [x] `tasks/create` (task-producing requests with `tasks/task` notifications)
-- [ ] Sampling.
-- [ ] Elicitation.
+- [~] Sampling — deferred stub: returns `{-32601, "Sampling not implemented"}` by default;
+  opt-in via `McpServerConfig.Builder.samplingEnabled(true)`.  See ADR-0022 §9a.
+- [~] Elicitation — designed in ADR-0022 §1–§8; implementation is follow-up work.
 - [ ] Async API.
 - [ ] STDIO transport.
 - [ ] Typed schema model.

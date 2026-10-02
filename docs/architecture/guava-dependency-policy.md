@@ -3,12 +3,15 @@
 **Status:** Accepted
 **Date:** 2026-09-29
 **Scope:** `com.google.guava:guava:33.3.0-jre`
-**Related decisions:** [ADR-0001](../adr/ADR-0001-portable-java8-core.md), [ADR-0002](../adr/ADR-0002-grizzly-transport-isolation.md)
+**Related decisions:
+** [ADR-0001](../adr/ADR-0001-portable-java8-core.md), [ADR-0002](../adr/ADR-0002-grizzly-transport-isolation.md)
 
 ## Context
 
 The SDK build declares Guava 33.3.0-jre while the production source currently has no
-Guava imports. The SDK is compiled for Java 11 and describes its published `annotations/`, `api/`, `core/`, and `transport/` component as a Java 11 artifact. It also has JVM/Grizzly transport code and Android/Cruzr-adjacent consumers.
+Guava imports. The SDK is compiled for Java 11 and describes its published `annotations/`, `api/`, `core/`, and
+`transport/` component as a Java 11 artifact. It also has JVM/Grizzly transport code and Android/Cruzr-adjacent
+consumers.
 
 Guava is an implementation dependency, not an SDK contract. The JRE artifact is
 appropriate for the supported JVM distribution, but it is not evidence that the
@@ -36,15 +39,15 @@ this policy does not expand the Android support claim in ADR-0001.
 
 ## Approved and prohibited APIs
 
-| API/pattern | Policy | Rationale |
-|---|---|---|
-| `ImmutableSet`, `ImmutableList`, `ImmutableMap` | Approved internally only | Useful for defensive internal state; convert/copy to JDK collection types at boundaries. Do not return or accept these Guava types publicly. |
-| Guava `HttpHeaders` | Not approved for migration | Keep existing SDK/transport header constants and JDK/Grizzly contracts. Do not introduce Guava header constants merely to replace literals. |
-| Guava `MediaType` | Not approved for migration | Keep the existing transport content-type representation and avoid a Guava type in transport/public contracts. |
-| Guava `Charsets` or deprecated Guava constants | Prohibited when a JDK equivalent exists | Use `StandardCharsets.UTF_8` and current JDK APIs. Do not add APIs deprecated in Guava 33.3.0-jre. |
-| Guava collections in public signatures | Prohibited | Prevents dependency leakage, preserves consumer compatibility, and keeps the API portable. |
-| Guava use in annotations, SPI contracts, DTOs, JSON/protocol models, or serialized data | Prohibited | These are compatibility boundaries. |
-| Broad replacement of existing JDK collections/constants with Guava | Prohibited | Dependency adoption must not create behaviour-changing or churn-only migration. |
+| API/pattern                                                                             | Policy                                  | Rationale                                                                                                                                    |
+|-----------------------------------------------------------------------------------------|-----------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `ImmutableSet`, `ImmutableList`, `ImmutableMap`                                         | Approved internally only                | Useful for defensive internal state; convert/copy to JDK collection types at boundaries. Do not return or accept these Guava types publicly. |
+| Guava `HttpHeaders`                                                                     | Not approved for migration              | Keep existing SDK/transport header constants and JDK/Grizzly contracts. Do not introduce Guava header constants merely to replace literals.  |
+| Guava `MediaType`                                                                       | Not approved for migration              | Keep the existing transport content-type representation and avoid a Guava type in transport/public contracts.                                |
+| Guava `Charsets` or deprecated Guava constants                                          | Prohibited when a JDK equivalent exists | Use `StandardCharsets.UTF_8` and current JDK APIs. Do not add APIs deprecated in Guava 33.3.0-jre.                                           |
+| Guava collections in public signatures                                                  | Prohibited                              | Prevents dependency leakage, preserves consumer compatibility, and keeps the API portable.                                                   |
+| Guava use in annotations, SPI contracts, DTOs, JSON/protocol models, or serialized data | Prohibited                              | These are compatibility boundaries.                                                                                                          |
+| Broad replacement of existing JDK collections/constants with Guava                      | Prohibited                              | Dependency adoption must not create behaviour-changing or churn-only migration.                                                              |
 
 Internal Guava collections must not be exposed through mutable aliases. When an
 internal value is returned through a JDK boundary, return an appropriate defensive

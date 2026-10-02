@@ -14,11 +14,9 @@ consumers.
 
 ### Protocol baseline
 
-The library targets MCP `2025-11-25` as the primary supported version. It also accepts `2025-03-26` for backward
-compatibility.
-
-The library does not claim support for newer snapshots (e.g. `2026-07-28`) and does not implement features from those
-snapshots unless explicitly noted.
+The library targets MCP `2025-11-25` as the default sessioned mode and also supports configurable STATELESS MCP
+`2026-07-28`. STATELESS mode does not require an MCP session for initialize or subsequent requests. This implementation
+is not a claim of full MCP certification or external-client interoperability.
 
 ### Implemented scope
 

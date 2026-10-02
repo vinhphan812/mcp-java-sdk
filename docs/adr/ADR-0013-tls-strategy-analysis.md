@@ -37,12 +37,12 @@ cloud load balancer). The `scheme()` method remains as documentation of the exte
 
 ### Deployment Complexity
 
-| Task                                            | Complexity                    |
-|-------------------------------------------------|-------------------------------|
-| Remove TlsConfig                                | Low — delete unused class     |
+| Task                                     | Complexity                    |
+|------------------------------------------|-------------------------------|
+| Remove TlsConfig                         | Low — delete unused class     |
 | Update StreamableServerTransportProvider | None — already plain HTTP     |
-| Documentation                                   | Low — clarify TLS is external |
-| Release notes                                   | Low                           |
+| Documentation                            | Low — clarify TLS is external |
+| Release notes                            | Low                           |
 
 ### Compatibility/Migration Impact
 

@@ -5,8 +5,10 @@
 `mcp-java-sdk` is an independent, portable MCP server SDK targeting Java 11. It is separated from Android, ROSA (Robot
 Operating System Android), and application-specific services.
 
-The implementation baseline is MCP `2025-11-25`. MCP `2026-07-28` is used only as a comparison reference; the SDK does
-not claim full support for that version.
+The default implementation baseline is sessioned MCP `2025-11-25` (with legacy compatibility). Configure
+`ProtocolMode.STATELESS` to use MCP `2026-07-28` without requiring an MCP session for initialize or subsequent requests.
+The SDK provides a practical subset of that mode and does not claim full MCP certification or external-client
+interoperability.
 
 The SDK currently provides a practical subset:
 
@@ -115,26 +117,23 @@ production package.
 Do not put credentials, API keys, tokens, passwords, or connection strings in source, tests, examples, or documentation.
 Use `[REDACTED]` for sensitive example values.
 
-## 4. Hosting an MCP server in an Android application
+## 4. Hosting an MCP server in an Android application (conditional, unverified)
 
-The SDK can run inside an Android application process and expose an MCP server over HTTP. This includes Android phones,
-embedded Android devices, and Android-based robots. The application owns the Android Service/lifecycle, network
-permissions, bind address, authentication policy, and provider implementations; the SDK supplies the MCP protocol core
-and optional Grizzly transport.
+The SDK does not currently claim verified Android or Android/ROSA device support. The core packages (`annotations/`,
+`api/`, and `core/`) contain no Android imports and are architecturally compatible with Android API 22+ when desugaring
+is enabled, but no Android emulator or physical-device startup, bind, MCP tool-call, or shutdown test has been
+completed.
+The full SDK includes Grizzly 4.0.x compiled as Java 11 bytecode (v55), and is not compatible with the standard Android
+runtime. Android consumers must provide an alternative HTTP transport and validate the dependency graph on the target
+API
+level.
 
-Typical Android integration:
+The CruzrEnglishAssistant application currently builds with `compileSdk 35`, `minSdk 22`, and `targetSdk 28`, but it
+does
+not declare the MCP Java SDK as a dependency. That APK build is not evidence that this SDK runs on Android.
 
-1. Add the `mcp-java-sdk:1.0.0` dependency.
-2. Create `McpServer` from an Android `Service` or another lifecycle owner.
-3. Register application-owned tools, resources, and prompts.
-4. Start the server on a selected address and port.
-5. Connect an MCP client to the device endpoint.
-6. Call `stop()`/`close()` when the Service or application stops.
-
-Use `127.0.0.1` for local-only access. Binding to a LAN address requires authentication, an Origin allowlist, request
-limits, network policy, and lifecycle controls. The bundled Grizzly transport is JVM/server-oriented and must be
-verified on the target Android API level. If Grizzly is unsuitable for a device runtime, implement or provide another
-transport through the public API while retaining the same MCP core.
+See [docs/android/android-support-verification.md](../android/android-support-verification.md) for the exact evidence
+record and remaining device requirements.
 
 ## 5. Server startup flow
 

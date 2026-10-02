@@ -186,6 +186,7 @@ public final class McpServer implements AutoCloseable {
          * @return this builder
          */
         public Builder allowedOrigins(Set<String> origins) {
+            if (origins == null) throw new IllegalArgumentException("allowedOrigins cannot be null");
             allowedOrigins = origins;
             return this;
         }
