@@ -1,0 +1,113 @@
+name: Doc Hygiene
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      sdk_version:
+        description: Override the documented SDK version.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate-doc-claims:
+    name: Validate maintained documentation claims
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve documented SDK version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${{ inputs.sdk_version }}" ]; then
+            version="${{ inputs.sdk_version }}"
+          else
+            # Only semantic vX.Y.Z tags reachable from this checkout are releases.
+            tag=$(git tag --merged HEAD --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-version:refname | head -n 1)
+            if ! [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::No reachable semantic vX.Y.Z release tag; use workflow_dispatch sdk_version."
+              exit 1
+            fi
+            version=${tag#v}
+          fi
+          echo "current=$version" >> "$GITHUB_OUTPUT"
+          echo "Resolved documented SDK version: $version"
+
+      - name: Find stale SDK-version claims
+        id: versions
+        env:
+          CURRENT: ${{ steps.version.outputs.current }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYTHON' > "$RUNNER_TEMP/stale-sdk-versions.txt"
+          import os
+          import re
+          from pathlib import Path
+
+          current = os.environ["CURRENT"]
+          excluded = {"audits", "audit", "inspect", "evidence"}
+          patterns = (
+              ("SDK coordinate", re.compile(r"io\.github\.vinhphan812\.mcp:mcp-java-sdk:(\d+\.\d+\.\d+)")),
+              ("SDK JAR", re.compile(r"mcp-java-sdk-(\d+\.\d+\.\d+)\.jar")),
+              ("serverVersion", re.compile(r"\.serverVersion\(\s*\"(\d+\.\d+\.\d+)\"\s*\)")),
+              # The version is deliberately tied to serverInfo, never clientInfo or arbitrary JSON.
+              ("serverInfo", re.compile(r'"serverInfo"\s*:\s*\{(?:(?!\}).)*?"version"\s*:\s*"(\d+\.\d+\.\d+)"', re.S)),
+          )
+          for path in Path("docs").rglob("*.md"):
+              if excluded.intersection(path.relative_to("docs").parts):
+                  continue
+              text = path.read_text(encoding="utf-8")
+              for label, pattern in patterns:
+                  for match in pattern.finditer(text):
+                      version = match.group(1)
+                      if version != current:
+                          line = text.count("\n", 0, match.start()) + 1
+                          snippet = match.group(0).replace("\n", " ")
+                          print(f"{path}:{line}: {label} uses {version} (expected {current}): {snippet}")
+          PYTHON
+          if [ -s "$RUNNER_TEMP/stale-sdk-versions.txt" ]; then
+            cat "$RUNNER_TEMP/stale-sdk-versions.txt"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            { echo 'violations<<EOF'; cat "$RUNNER_TEMP/stale-sdk-versions.txt"; echo EOF; } >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Find removed-class claims
+        id: classes
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=false
+          output="$RUNNER_TEMP/removed-class-claims.txt"
+          : > "$output"
+          while IFS= read -r -d '' file; do
+            while IFS=: read -r line text; do
+              printf '%s:%s: McpGrizzlyHandler: %s\n' "$file" "$line" "$text" | tee -a "$output"
+              found=true
+            done < <(grep -nE '\bMcpGrizzlyHandler\b' "$file" || true)
+          done < <(find docs -type d \( -path docs/audits -o -path docs/audit -o -path docs/inspect -o -path docs/evidence \) -prune -o -type f -name '*.md' -print0)
+          echo "found=$found" >> "$GITHUB_OUTPUT"
+          if [ "$found" = true ]; then
+            { echo 'violations<<EOF'; cat "$output"; echo EOF; } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report violations
+        if: steps.versions.outputs.found == 'true' || steps.classes.outputs.found == 'true'
+        run: |
+          echo "::error::Documentation drift detected."
+          echo "Expected SDK version: ${{ steps.version.outputs.current }}"
+          echo "${{ steps.versions.outputs.violations }}"
+          echo "${{ steps.classes.outputs.violations }}"
+          exit 1

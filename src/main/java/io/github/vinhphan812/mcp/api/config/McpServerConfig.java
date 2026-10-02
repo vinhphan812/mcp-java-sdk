@@ -95,9 +95,21 @@ public final class McpServerConfig {
      * Whether Streamable HTTP mode is enabled. When true, the server uses modern
      * Streamable HTTP transport (single POST endpoint with server-driven streaming).
      * When false, uses legacy HTTP+SSE mode (POST + GET + DELETE endpoints).
-     * Default is true.
+     * Default is true
      */
     public final boolean streamableHttp;
+    /**
+     * Whether elicitation capability is enabled. When true, the server can send
+     * requests to the client and receive responses (MRTR/elicitation).
+     * Default is false.
+     */
+    public final boolean elicitation;
+    /**
+     * Default timeout for elicitation requests in milliseconds.
+     * Used when client doesn't specify a timeout.
+     * Default is 60000 (60 seconds).
+     */
+    public final long elicitationTimeoutMs;
 
     /**
      * Returns the configured queue overflow listener.
@@ -139,6 +151,8 @@ public final class McpServerConfig {
         bindSessionToIp = builder.bindSessionToIp;
         streaming = builder.streaming;
         streamableHttp = builder.streamableHttp;
+        elicitation = builder.elicitation;
+        elicitationTimeoutMs = builder.elicitationTimeoutMs;
     }
 
     /** Creates a builder for server configuration.
@@ -181,6 +195,8 @@ public final class McpServerConfig {
         private boolean bindSessionToIp = false;
         private boolean streaming = true;
         private boolean streamableHttp = true;
+        private boolean elicitation = false;
+        private long elicitationTimeoutMs = 60_000L;
 
         /** Sets maximum page size for paginated responses.
          * @param value positive maximum item count
@@ -405,6 +421,32 @@ public final class McpServerConfig {
          */
         public Builder streamableHttp(boolean value) {
             this.streamableHttp = value;
+            return this;
+        }
+
+        /**
+         * Enables or disables elicitation capability. When enabled, the server can send
+         * requests to the client (MRTR/elicitation) and receive responses.
+         * Default is false.
+         * @param value whether elicitation is enabled
+         * @return this builder
+         */
+        public Builder elicitation(boolean value) {
+            this.elicitation = value;
+            return this;
+        }
+
+        /**
+         * Sets the default timeout for elicitation requests in milliseconds.
+         * When the server sends an elicitation request to the client, if no response
+         * arrives within this timeout the pending request is cancelled.
+         * Default is 60000 (60 seconds).
+         * @param value timeout in milliseconds, must be positive
+         * @return this builder
+         */
+        public Builder elicitationTimeoutMs(long value) {
+            if (value <= 0) throw new IllegalArgumentException("elicitationTimeoutMs must be positive");
+            this.elicitationTimeoutMs = value;
             return this;
         }
 

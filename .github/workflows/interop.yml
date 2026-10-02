@@ -1,0 +1,371 @@
+name: MCP Interoperability CI
+
+on:
+  schedule:
+    # Run external CI matrix daily at 06:00 UTC.
+    # Adjust to on-demand (workflow_dispatch) for faster iteration.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      transport:
+        description: 'Transport to test (http, stdio, both)'
+        required: false
+        default: 'both'
+      sdk_ref:
+        description: 'SDK GitRef to test (branch, tag, or commit SHA)'
+        required: false
+        default: ''
+  push:
+    branches:
+      - 'feature/mcp-2026-07-28-protocol'
+  pull_request:
+    branches:
+      - master
+      - 'feature/**'
+
+env:
+  # Pin external MCP clients to specific releases for reproducibility.
+  # Update these when updating client versions in the harness.
+  PYTHON_VERSION: '3.11'
+  SDK_BUILD_TIMEOUT_MINUTES: 10
+  TEST_TIMEOUT_MINUTES: 15
+
+jobs:
+  # ── Job 1: Build SDK JAR ────────────────────────────────────────────────────
+  build-sdk:
+    name: Build SDK (${{ matrix.java-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java-version: ['11', '17']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Shallow clone is sufficient for interop CI.
+          fetch-depth: 1
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java-version }}
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build SDK JAR
+        run: ./gradlew jar --console=plain -PsdkVersion=1.0.0-interop-test
+
+      - name: Build examples (required for STDIO harness classpath)
+        run: ./gradlew -p examples compileJava --console=plain
+
+      - name: Locate JARs
+        run: |
+          ls -lh build/libs/
+          ls -lh examples/build/classes/java/main/
+
+      - name: Upload SDK JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-sdk-jar-java${{ matrix.java-version }}
+          path: build/libs/mcp-java-sdk-1.0.0-interop-test.jar
+          retention-days: 3
+
+      - name: Upload examples classes
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-examples-classes-java${{ matrix.java-version }}
+          path: examples/build/classes/java/main/
+          retention-days: 3
+
+  # ── Job 1b: Official MCP Conformance Tests ────────────────────────────────────
+  conformance:
+    name: MCP Conformance [${{ matrix.suite }}]
+    runs-on: ubuntu-latest
+    needs: build-sdk
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: ['active', 'draft']
+        include:
+          - suite: 'active'
+            spec_version: '2025-11-25'
+          - suite: 'draft'
+            spec_version: '2026-07-28'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Download SDK JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: mcp-sdk-jar-java17
+          path: build/libs/
+
+      - name: Download examples classes
+        uses: actions/download-artifact@v4
+        with:
+          name: mcp-examples-classes-java17
+          path: examples/build/classes/java/main/
+
+      - name: Build examples
+        run: ./gradlew -p examples compileJava --console=plain
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Start SDK server (HTTP)
+        run: |
+          # Start server in background, capturing PID
+          java -cp "build/libs/mcp-java-sdk-1.0.0-interop-test.jar:examples/build/classes/java/main" \
+            io.github.vinhphan812.mcp.examples.HttpExample \
+            > /tmp/server.log 2>&1 &
+          SERVER_PID=$!
+          echo $SERVER_PID > /tmp/server.pid
+          echo "Server PID: $SERVER_PID"
+          # Wait for server to be ready
+          for i in {1..30}; do
+            if curl -s http://localhost:8080/mcp > /dev/null 2>&1; then
+              echo "Server ready after $i seconds"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Run MCP Conformance (server)
+        run: |
+          set -o pipefail
+          npx @modelcontextprotocol/conformance@latest server \
+            --url http://localhost:8080/mcp \
+            --suite ${{ matrix.suite }} \
+            --spec-version ${{ matrix.spec_version }} \
+            --expected-failures ./conformance-baseline.yml \
+            --verbose 2>&1 | tee conformance-${{ matrix.suite }}.log
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Upload conformance results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: conformance-results-${{ matrix.suite }}
+          path: |
+            conformance-${{ matrix.suite }}.log
+          retention-days: 14
+
+      - name: Display conformance summary
+        run: |
+          echo "=== MCP Conformance (${{ matrix.suite }}) Summary ==="
+          grep -E "(PASS|FAIL|passed|failed|error)" conformance-${{ matrix.suite }}.log | tail -20 || true
+
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f /tmp/server.pid ]; then
+            kill $(cat /tmp/server.pid) 2>/dev/null || true
+          fi
+
+  # ── Job 2: HTTP Transport Interop Tests ─────────────────────────────────────
+  http-interop:
+    name: HTTP Interop [${{ matrix.client }} / ${{ matrix.version }}]
+    runs-on: ubuntu-latest
+    needs: build-sdk
+    strategy:
+      fail-fast: false
+      matrix:
+        client: ['modelcontextprotocol/python-sdk', 'modelcontextprotocol/claude-code']
+        version: ['latest']
+        include:
+          - client: 'modelcontextprotocol/python-sdk'
+            version: '1.0.0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download SDK JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: mcp-sdk-jar-java17
+          path: build/libs/
+
+      - name: Install Python harness dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests httpx sseclient-py tqdm pytest pytest-timeout pytest-xdist jq 2>&1 | tail -5
+
+      - name: Copy HTTP test harness
+        run: cp harness/test_http_client.py harness/test_http_client.py.bak 2>/dev/null || true
+
+      - name: Run HTTP Interop Tests
+        id: http-tests
+        run: |
+          set -o pipefail
+          python harness/test_http_client.py \
+            --jar build/libs/mcp-java-sdk-1.0.0-interop-test.jar \
+            --client "${{ matrix.client }}" \
+            --version "${{ matrix.version }}" \
+            --output test-results-http-${{ matrix.client }}-${{ matrix.version }}.json \
+            --timeout ${{ env.TEST_TIMEOUT_MINUTES }} 2>&1 | \
+            tee test-results-http-${{ matrix.client }}-${{ matrix.version }}.log
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Upload HTTP test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: http-results-${{ matrix.client }}-${{ matrix.version }}
+          path: |
+            test-results-http-${{ matrix.client }}-${{ matrix.version }}.json
+            test-results-http-${{ matrix.client }}-${{ matrix.version }}.log
+          retention-days: 14
+
+      - name: Parse and display HTTP results
+        if: always()
+        run: |
+          if [ -f "test-results-http-${{ matrix.client }}-${{ matrix.version }}.json" ]; then
+            echo "=== HTTP Interop Summary ==="
+            jq '{client: .client, version: .version, passed: .summary.passed, failed: .summary.failed, errors: .summary.errors, duration_s: .duration_seconds}' \
+              test-results-http-${{ matrix.client }}-${{ matrix.version }}.json
+          fi
+
+  # ── Job 3: STDIO Transport Interop Tests ────────────────────────────────────
+  stdio-interop:
+    name: STDIO Interop [${{ matrix.client }} / ${{ matrix.version }}]
+    runs-on: ubuntu-latest
+    needs: build-sdk
+    strategy:
+      fail-fast: false
+      matrix:
+        client: ['modelcontextprotocol/python-sdk']
+        version: ['latest']
+        include:
+          - client: 'modelcontextprotocol/python-sdk'
+            version: '1.0.0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Download SDK JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: mcp-sdk-jar-java17
+          path: build/libs/
+
+      - name: Download examples classes
+        uses: actions/download-artifact@v4
+        with:
+          name: mcp-examples-classes-java17
+          path: examples/build/classes/java/main/
+
+      - name: Install Python harness dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-timeout tqdm jq 2>&1 | tail -5
+
+      - name: Run STDIO Interop Tests
+        id: stdio-tests
+        run: |
+          set -o pipefail
+          python harness/test_stdio_client.py \
+            --classpath "build/libs/mcp-java-sdk-1.0.0-interop-test.jar:examples/build/classes/java/main" \
+            --client "${{ matrix.client }}" \
+            --version "${{ matrix.version }}" \
+            --output test-results-stdio-${{ matrix.client }}-${{ matrix.version }}.json \
+            --timeout ${{ env.TEST_TIMEOUT_MINUTES }} 2>&1 | \
+            tee test-results-stdio-${{ matrix.client }}-${{ matrix.version }}.log
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Upload STDIO test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stdio-results-${{ matrix.client }}-${{ matrix.version }}
+          path: |
+            test-results-stdio-${{ matrix.client }}-${{ matrix.version }}.json
+            test-results-stdio-${{ matrix.client }}-${{ matrix.version }}.log
+          retention-days: 14
+
+      - name: Parse and display STDIO results
+        if: always()
+        run: |
+          if [ -f "test-results-stdio-${{ matrix.client }}-${{ matrix.version }}.json" ]; then
+            echo "=== STDIO Interop Summary ==="
+            jq '{client: .client, version: .version, passed: .summary.passed, failed: .summary.failed, errors: .summary.errors, duration_s: .duration_seconds}' \
+              test-results-stdio-${{ matrix.client }}-${{ matrix.version }}.json
+          fi
+
+  # ── Job 4: Compile Matrix Report ─────────────────────────────────────────────
+  matrix-report:
+    name: Compile Compatibility Matrix
+    runs-on: ubuntu-latest
+    needs: [http-interop, stdio-interop, conformance]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Download all test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-results-*'
+          path: test-results/
+          merge-multiple: true
+
+      - name: Generate Compatibility Matrix
+        run: |
+          python harness/compile_matrix.py \
+            --results-dir test-results/ \
+            --output MCP-COMPATIBILITY-MATRIX.md \
+            --sdk-ref "${{ github.sha }}" \
+            --run-id "${{ github.run_id }}"
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+
+      - name: Upload Compatibility Matrix
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-compatibility-matrix
+          path: MCP-COMPATIBILITY-MATRIX.md
+          retention-days: 90
+
+      - name: Display Compatibility Matrix
+        run: |
+          echo "=== MCP External Interoperability Matrix ==="
+          cat MCP-COMPATIBILITY-MATRIX.md
+
+      # Gate: fail if any client test failed.
+      - name: Check gate
+        run: |
+          echo "Checking gate: ${{ needs.http-interop.result }} ${{ needs.stdio-interop.result }}"
+          if [[ "${{ needs.http-interop.result }}" == "failure" ]] || \
+             [[ "${{ needs.stdio-interop.result }}" == "failure" ]]; then
+            echo "FAILURE: One or more interop client tests failed."
+            exit 1
+          fi
+          echo "All interop tests passed."

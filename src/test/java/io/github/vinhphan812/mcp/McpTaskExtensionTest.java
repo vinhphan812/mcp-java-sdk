@@ -816,4 +816,175 @@ class McpTaskExtensionTest {
         assertEquals(-32000, r.error.code);
         assertEquals("msg", r.error.message);
     }
+
+    // ── Top-level extensions array ────────────────────────────────────────────────
+
+    @Test
+    void extensionsArray_absentWhenNoExtension() {
+        // No extension configured — extensions field must be absent from initialize response
+        McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(),
+                McpServerConfig.builder()
+                        .serverName("test").serverVersion("1.0")
+                        .protocolMode(McpServerConfig.ProtocolMode.STATELESS)
+                        .tasks(true).build());
+        JsonObject resp = initStateless(handler);
+        assertFalse(resp.getAsJsonObject("result").has("extensions"),
+                "extensions must be absent when no extension is configured: " + resp);
+    }
+
+    @Test
+    void extensionsArray_absentWhenExtensionReturnsNull() {
+        // Extension configured but advertiseExtension() returns null — extensions must be absent
+        McpTaskExtension ext = new McpTaskExtension() {
+            @Override
+            public boolean supports(String protocolVersion) {
+                return true;
+            }
+
+            @Override
+            public Map<String, Object> advertiseExtension(String protocolVersion) {
+                return null; // explicitly returns null
+            }
+        };
+        McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(),
+                McpServerConfig.builder()
+                        .serverName("test").serverVersion("1.0")
+                        .protocolMode(McpServerConfig.ProtocolMode.STATELESS)
+                        .tasks(true).tasksExtension(ext).build());
+        JsonObject resp = initStateless(handler);
+        assertFalse(resp.getAsJsonObject("result").has("extensions"),
+                "extensions must be absent when advertiseExtension returns null: " + resp);
+    }
+
+    @Test
+    void extensionsArray_absentWhenExtensionDoesNotSupportVersion() {
+        // Extension exists but does not support this version — extensions must be absent
+        McpTaskExtension ext = new McpTaskExtension() {
+            @Override
+            public boolean supports(String protocolVersion) {
+                return "2025-11-25".equals(protocolVersion);
+            }
+
+            @Override
+            public Map<String, Object> advertiseExtension(String protocolVersion) {
+                // Never called because supports() returns false for 2026
+                return null;
+            }
+        };
+        McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(),
+                McpServerConfig.builder()
+                        .serverName("test").serverVersion("1.0")
+                        .protocolMode(McpServerConfig.ProtocolMode.STATELESS)
+                        .tasks(true).tasksExtension(ext).build());
+        JsonObject resp = initStateless(handler);
+        assertFalse(resp.getAsJsonObject("result").has("extensions"),
+                "extensions must be absent when extension does not support 2026: " + resp);
+    }
+
+    @Test
+    void extensionsArray_presentWithExtensionSupportingVersion() {
+        // Extension supports version and returns non-null from advertiseExtension()
+        final Map<String, Object>[] capturedVersion = new Map[1];
+        McpTaskExtension ext = new McpTaskExtension() {
+            @Override
+            public boolean supports(String protocolVersion) {
+                return "2026-07-28".equals(protocolVersion);
+            }
+
+            @Override
+            public Map<String, Object> advertiseExtension(String protocolVersion) {
+                Map<String, Object> extMeta = new LinkedHashMap<>();
+                extMeta.put("name", McpTaskExtension.NAMESPACE);
+                extMeta.put("version", "1.0");
+                capturedVersion[0] = extMeta;
+                return extMeta;
+            }
+        };
+        McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(),
+                McpServerConfig.builder()
+                        .serverName("test").serverVersion("1.0")
+                        .protocolMode(McpServerConfig.ProtocolMode.STATELESS)
+                        .tasks(true).tasksExtension(ext).build());
+        JsonObject resp = initStateless(handler);
+        JsonObject result = resp.getAsJsonObject("result");
+        assertTrue(result.has("extensions"), "extensions must be present: " + resp);
+        assertEquals(1, result.getAsJsonArray("extensions").size());
+        JsonObject extEntry = result.getAsJsonArray("extensions").get(0).getAsJsonObject();
+        assertEquals(McpTaskExtension.NAMESPACE, extEntry.get("name").getAsString());
+        assertEquals("1.0", extEntry.get("version").getAsString());
+    }
+
+    @Test
+    void extensionsArray_receivesNegotiatedVersion() {
+        // advertiseExtension() must receive the negotiated version, not the default
+        final String[] receivedVersion = new String[1];
+        McpTaskExtension ext = new McpTaskExtension() {
+            @Override
+            public boolean supports(String protocolVersion) {
+                return true;
+            }
+
+            @Override
+            public Map<String, Object> advertiseExtension(String protocolVersion) {
+                receivedVersion[0] = protocolVersion;
+                Map<String, Object> extMeta = new LinkedHashMap<>();
+                extMeta.put("name", McpTaskExtension.NAMESPACE);
+                return extMeta;
+            }
+        };
+        McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(),
+                McpServerConfig.builder()
+                        .serverName("test").serverVersion("1.0")
+                        .protocolMode(McpServerConfig.ProtocolMode.STATELESS)
+                        .tasks(true).tasksExtension(ext).build());
+        initStateless(handler);
+        assertEquals("2026-07-28", receivedVersion[0],
+                "advertiseExtension must receive the negotiated protocol version");
+    }
+
+    @Test
+    void extensionsArray_absentInServerDiscoverWhenNoExtension() {
+        // server/discover without an extension — extensions field must be absent
+        McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(),
+                McpServerConfig.builder()
+                        .serverName("test").serverVersion("1.0")
+                        .protocolMode(McpServerConfig.ProtocolMode.STATELESS)
+                        .tasks(true).build());
+        String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\"}";
+        JsonObject resp = gson.fromJson(handler.handleRequestResponse(body, null).getBody(), JsonObject.class);
+        assertFalse(resp.getAsJsonObject("result").has("extensions"),
+                "extensions must be absent in server/discover when no extension: " + resp);
+    }
+
+    @Test
+    void extensionsArray_presentInServerDiscoverWithExtension() {
+        // server/discover with extension supporting the default version
+        McpTaskExtension ext = new McpTaskExtension() {
+            @Override
+            public boolean supports(String protocolVersion) {
+                return "2026-07-28".equals(protocolVersion);
+            }
+
+            @Override
+            public Map<String, Object> advertiseExtension(String protocolVersion) {
+                Map<String, Object> extMeta = new LinkedHashMap<>();
+                extMeta.put("name", McpTaskExtension.NAMESPACE);
+                extMeta.put("version", "2.0");
+                return extMeta;
+            }
+        };
+        McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(),
+                McpServerConfig.builder()
+                        .serverName("test").serverVersion("1.0")
+                        .protocolMode(McpServerConfig.ProtocolMode.STATELESS)
+                        .tasks(true).tasksExtension(ext).build());
+        String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\"}";
+        JsonObject resp = gson.fromJson(handler.handleRequestResponse(body, null).getBody(), JsonObject.class);
+        JsonObject result = resp.getAsJsonObject("result");
+        assertTrue(result.has("extensions"), "extensions must be present in server/discover: " + resp);
+        assertEquals(1, result.getAsJsonArray("extensions").size());
+        JsonObject extEntry = result.getAsJsonArray("extensions").get(0).getAsJsonObject();
+        assertEquals(McpTaskExtension.NAMESPACE, extEntry.get("name").getAsString());
+        assertEquals("2.0", extEntry.get("version").getAsString());
+    }
 }

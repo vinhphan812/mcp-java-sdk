@@ -1,7 +1,8 @@
 # MCP Compatibility Plan
 
-Status: P0 and P1 work complete; P2 follow-up remains. This is a compatibility plan, not a claim of certification or
-external-client interoperability.
+Status: P0, P1, and P2 core work substantially complete. External conformance verification infrastructure exists
+(`harness/` + official `@modelcontextprotocol/conformance` CLI). Full feature-by-feature compliance matrix: see
+[MCP-CONFORMANCE-MATRIX.md](./MCP-CONFORMANCE-MATRIX.md).
 
 Reference documentation:
 
@@ -57,29 +58,24 @@ initialize error rather than silently advertising a different version.
 - [x] Progress/cancellation notifications (progress tokens in `_meta`, `notifications/progress`)
 - [x] Client-initiated `notifications/cancelled` (cancels by request id)
 - [x] `tasks/create` (task-producing requests with `tasks/task` notifications)
+- [x] STDIO transport (`StdioTransportProvider`; line-delimited JSON-RPC; clean EOF shutdown)
 - [~] Sampling — deferred stub: returns `{-32601, "Sampling not implemented"}` by default;
   opt-in via `McpServerConfig.Builder.samplingEnabled(true)`.  See ADR-0022 §9a.
 - [~] Elicitation — designed in ADR-0022 §1–§8; implementation is follow-up work.
 - [ ] Async API.
-- [ ] STDIO transport.
 - [ ] Typed schema model.
 
-## Compatibility limitations
+## Conformance verification
 
-Until P1/P2 work is complete, documentation must not claim full compliance with the latest MCP specification. Existing
-custom APIs remain source-compatible where possible, but wire behaviour follows the target MCP specification.
+External client interoperability is verified through two complementary approaches:
 
-## Validation
+1. **Custom interop harness** (`harness/test_http_client.py`, `harness/test_stdio_client.py`) —
+   simulates independent MCP clients making HTTP and STDIO requests; covers all major protocol
+   methods, header routing, and error cases.
 
-Local evidence currently includes `./gradlew.bat --no-daemon test --console=plain` with 49 passing tests, focused
-protocol capability tests, security-matrix tests, pagination/list-change/task tests, and in-process Grizzly smoke tests.
-This does not establish external client interoperability. The following remains the broader validation checklist:
+2. **Official MCP conformance CLI** (`@modelcontextprotocol/conformance`) —
+   runs the spec-authoritative test suite; CI jobs run both `active` and `draft` (2026-07-28)
+   suites.  Known failures are tracked in `conformance-baseline.yml`.
 
-1. `./gradlew clean test build --console=plain`
-2. Start Grizzly on port `0`.
-3. Send real HTTP `initialize` request.
-4. Read returned `Mcp-Session-Id` and negotiated protocol version.
-5. Send `notifications/initialized` and verify no response body.
-6. Send `tools/list`, `resources/list`, `resources/read`, `prompts/list`, and `prompts/get` using that session.
-7. Verify invalid Origin, content type, accept header, and missing session behaviour.
-8. Stop server and verify port release.
+See [MCP-CONFORMANCE-MATRIX.md](./MCP-CONFORMANCE-MATRIX.md) for the full feature-by-feature
+compliance status and the official conformance CLI integration guide.

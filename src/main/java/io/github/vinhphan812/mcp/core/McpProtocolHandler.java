@@ -21,8 +21,11 @@ import com.google.gson.reflect.TypeToken;
 import io.github.vinhphan812.mcp.api.config.McpSecurityDefaults;
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.api.config.RateLimits;
+import io.github.vinhphan812.mcp.api.dto.ElicitRequest;
+import io.github.vinhphan812.mcp.api.dto.ElicitationMessage;
 import io.github.vinhphan812.mcp.api.dto.McpBlobContent;
 import io.github.vinhphan812.mcp.api.dto.McpTask;
+import io.github.vinhphan812.mcp.api.handler.ElicitationCallback;
 import io.github.vinhphan812.mcp.api.handler.*;
 import io.github.vinhphan812.mcp.api.logging.McpLogger;
 import io.github.vinhphan812.mcp.api.spi.McpAuthorization;
@@ -35,6 +38,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -72,6 +78,20 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private final McpTaskExtension tasksExtension;
     private final McpTaskExtension.TaskRegistry taskRegistry;
 
+    // ==================== Elicitation (ADR-0022) ====================
+
+    /** Elicitation callback for receiving client responses. */
+    private final ElicitationCallback elicitationCallback;
+
+    /** Pending elicitation requests keyed by correlation ID. */
+    private final ConcurrentHashMap<String, PendingElicit> pendingElicits = new ConcurrentHashMap<>();
+
+    /** Tracks timeout tasks for pending elicits. */
+    private final ConcurrentHashMap<String, ScheduledFuture<?>> elicitationTimeouts = new ConcurrentHashMap<>();
+
+    /** Executor for scheduling elicitation timeouts. */
+    private final ScheduledExecutorService elicitationExecutor;
+
     public McpServerConfig getConfig() {
         return config;
     }
@@ -84,6 +104,21 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private final McpAuthorization authorization;
     private final QueueOverflowListener overflowListener;
     private final int maxQueuedEvents;
+
+    // ==================== Elicitation (ADR-0022) ====================
+
+    /** Pending elicitation request state. */
+    private static class PendingElicit {
+        final ElicitRequest request;
+        final String sessionId;
+        final long enqueuedAt;
+
+        PendingElicit(ElicitRequest request, String sessionId) {
+            this.request = request;
+            this.sessionId = sessionId;
+            this.enqueuedAt = System.currentTimeMillis();
+        }
+    }
 
     // Sliding-window rate limit tracker
     private static final class RateLimitRecord {
@@ -278,6 +313,22 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     public McpProtocolHandler(McpRegistry registry, McpServerConfig config,
                               QueueOverflowListener overflowListener,
                               McpAuthorization authorization) {
+        this(registry, config, overflowListener, authorization, null);
+    }
+
+    /**
+     * Creates a protocol handler with elicitation callback.
+     *
+     * @param registry               application-owned MCP registry
+     * @param config                 protocol metadata and capability configuration
+     * @param overflowListener       listener for queue overflow events (may be null)
+     * @param authorization          tool authorization handler (may be null)
+     * @param elicitationCallback    callback for elicitation responses (may be null)
+     */
+    public McpProtocolHandler(McpRegistry registry, McpServerConfig config,
+                              QueueOverflowListener overflowListener,
+                              McpAuthorization authorization,
+                              ElicitationCallback elicitationCallback) {
         if (registry == null) throw new IllegalArgumentException("registry cannot be null");
         if (config == null) throw new IllegalArgumentException("config cannot be null");
         this.mapper = McpGson.get();
@@ -292,6 +343,15 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         this.authorization = authorization;
         this.tasksExtension = config.tasksExtension;
         this.taskRegistry = new TaskRegistryImpl(registry);
+        this.elicitationCallback = elicitationCallback;
+        // Initialize executor only if elicitation is enabled
+        this.elicitationExecutor = config.elicitation && elicitationCallback != null
+                ? java.util.concurrent.Executors.newScheduledThreadPool(1, r -> {
+                    Thread t = new Thread(r, "mcp-elicitation-timeout");
+                    t.setDaemon(true);
+                    return t;
+                })
+                : null;
         if (this.tasksExtension != null) {
             this.tasksExtension.register(this.taskRegistry);
         }
@@ -351,6 +411,9 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         cleanupThread = null;
         ipRateLimits.clear();
         sessionRateLimits.clear();
+        if (elicitationExecutor != null) {
+            elicitationExecutor.shutdownNow();
+        }
     }
 
     // ==================== Public API ====================
@@ -766,6 +829,12 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 case McpMethodNames.PING:
                     result = new LinkedHashMap<>();
                     break;
+                case McpMethodNames.ELICITATION_RESPONSE:
+                    if (!config.elicitation) {
+                        return new McpResponse(capabilityError(id, "elicitation"), sessionId);
+                    }
+                    result = handleElicitResponse(params instanceof Map ? (Map<String, Object>) params : null);
+                    break;
                 default:
                     return new McpResponse(errorResponse(id, McpError.methodNotFound("Method not found: " + method)), sessionId);
             }
@@ -891,6 +960,190 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         return state != null && !state.pendingNotifications.isEmpty();
     }
 
+    // ==================== Elicitation API (ADR-0022) ====================
+
+    /**
+     * Returns whether elicitation is enabled in the server configuration.
+     *
+     * @return true if elicitation is enabled
+     */
+    public boolean isElicitationEnabled() {
+        return config.elicitation;
+    }
+
+    /**
+     * Returns the count of pending elicitation requests for a session.
+     *
+     * @param sessionId session identifier
+     * @return number of pending elicitation requests for this session
+     */
+    public int getPendingElicitationCount(String sessionId) {
+        int count = 0;
+        for (PendingElicit pending : pendingElicits.values()) {
+            if (sessionId.equals(pending.sessionId)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Sends an elicitation request to the client via the session's event queue.
+     *
+     * <p>The request is serialized as a JSON-RPC notification and enqueued as an SSE event
+     * (or written directly to STDIO for the STDIO transport).  The request's correlation ID
+     * is used to match the eventual client response.
+     *
+     * <p>When the configured timeout expires before a response is received,
+     * {@link ElicitationCallback#onTimeout(String, long)} is invoked.
+     *
+     * @param sessionId target session ID
+     * @param request   the elicitation request to send
+     * @throws IllegalArgumentException if sessionId is null or request is null
+     * @throws IllegalStateException   if elicitation is not enabled or no callback is configured
+     */
+    public void sendElicitRequest(String sessionId, ElicitRequest request) {
+        if (sessionId == null) throw new IllegalArgumentException("sessionId cannot be null");
+        if (request == null) throw new IllegalArgumentException("request cannot be null");
+        if (!config.elicitation) throw new IllegalStateException("Elicitation is not enabled");
+        if (elicitationCallback == null) throw new IllegalStateException("No elicitation callback configured");
+
+        SessionState state = sessions.get(sessionId);
+        if (state == null) {
+            throw new IllegalArgumentException("Unknown session: " + sessionId);
+        }
+
+        // Store pending request
+        String requestId = request.getRequestId();
+        PendingElicit pending = new PendingElicit(request, sessionId);
+        pendingElicits.put(requestId, pending);
+
+        // Serialize and send as notification
+        Map<String, Object> notifParams = new LinkedHashMap<>();
+        notifParams.put("requestId", requestId);
+        notifParams.put("message", request.getMessage());
+        notifParams.put("metadata", request.getMetadata());
+
+        String body = mapper.toJson(mapAsRpcNotification(McpMethodNames.ELICITATION_REQUEST, notifParams));
+        state.enqueueEvent(body);
+
+        // Schedule timeout
+        if (elicitationExecutor != null && request.getTimeoutMs() > 0) {
+            ScheduledFuture<?> future = elicitationExecutor.schedule(
+                    () -> handleElicitTimeout(requestId),
+                    request.getTimeoutMs(),
+                    TimeUnit.MILLISECONDS);
+            elicitationTimeouts.put(requestId, future);
+        }
+
+        LOGGER.info("Elicitation request sent: requestId=" + requestId + " session=" + sessionId);
+    }
+
+    /**
+     * Handles elicitation request timeout.
+     */
+    private void handleElicitTimeout(String requestId) {
+        PendingElicit pending = pendingElicits.remove(requestId);
+        ScheduledFuture<?> future = elicitationTimeouts.remove(requestId);
+        if (future != null) {
+            future.cancel(false);
+        }
+
+        if (pending != null && elicitationCallback != null) {
+            LOGGER.warning("Elicitation request timed out: requestId=" + requestId);
+            elicitationCallback.onTimeout(requestId, pending.request.getTimeoutMs());
+        }
+    }
+
+    /**
+     * Cancels a pending elicitation request.
+     *
+     * <p>If the client has already responded, this method has no effect.
+     * If the request is cancelled before a response is received,
+     * {@link ElicitationCallback#onCancelled(String, String)} is invoked.
+     *
+     * @param requestId the correlation ID of the request to cancel
+     * @param reason    optional cancellation reason
+     */
+    public void cancelElicitRequest(String requestId, String reason) {
+        if (requestId == null || requestId.trim().isEmpty()) {
+            throw new IllegalArgumentException("requestId cannot be null or empty");
+        }
+
+        PendingElicit pending = pendingElicits.remove(requestId);
+        ScheduledFuture<?> future = elicitationTimeouts.remove(requestId);
+        if (future != null) {
+            future.cancel(false);
+        }
+
+        if (pending != null && elicitationCallback != null) {
+            LOGGER.info("Elicitation request cancelled: requestId=" + requestId);
+            elicitationCallback.onCancelled(requestId, reason);
+        }
+    }
+
+    /**
+     * Handles an incoming elicitation/response from a client.
+     *
+     * <p>This method is called by the protocol handler when processing a client's
+     * {@code elicitation/response} request.  It looks up the pending request
+     * by correlation ID and invokes the appropriate callback method.
+     *
+     * @param params the parsed JSON-RPC params from the client's response
+     * @return JSON-RPC response (empty object on success)
+     */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> handleElicitResponse(Map<String, Object> params) {
+        if (!config.elicitation) {
+            throw McpException.methodNotFound("Elicitation is not enabled");
+        }
+
+        String requestId = params.get("requestId") instanceof String
+                ? (String) params.get("requestId") : null;
+        if (requestId == null || requestId.trim().isEmpty()) {
+            throw McpException.invalidParams("requestId is required");
+        }
+
+        PendingElicit pending = pendingElicits.remove(requestId);
+        ScheduledFuture<?> future = elicitationTimeouts.remove(requestId);
+        if (future != null) {
+            future.cancel(false);
+        }
+
+        if (pending == null) {
+            // Unknown request ID - may have already completed, timed out, or been cancelled
+            if (elicitationCallback != null) {
+                elicitationCallback.onUnknownRequestId(requestId);
+            }
+            return new LinkedHashMap<>();
+        }
+
+        // Parse response
+        String content = params.get("content") instanceof String
+                ? (String) params.get("content") : null;
+        Boolean cancelled = params.get("cancelled") instanceof Boolean
+                ? (Boolean) params.get("cancelled") : false;
+        String reason = params.get("reason") instanceof String
+                ? (String) params.get("reason") : null;
+        Map<String, Object> data = params.get("data") instanceof Map
+                ? (Map<String, Object>) params.get("data") : Collections.emptyMap();
+
+        ElicitationMessage response = ElicitationMessage.builder()
+                .requestId(requestId)
+                .content(content)
+                .cancelled(cancelled)
+                .reason(reason)
+                .data(data)
+                .build();
+
+        if (elicitationCallback != null) {
+            elicitationCallback.onResponse(requestId, response);
+        }
+
+        LOGGER.info("Elicitation response received: requestId=" + requestId + " cancelled=" + cancelled);
+        return new LinkedHashMap<>();
+    }
+
     // ==================== Rate Limiting (ADR-0011) ====================
 
     /**
@@ -982,6 +1235,11 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("protocolVersion", negotiatedVersion);
+        // Include sessionId in the response body for clients that cannot read HTTP headers
+        // (e.g. STDIO transport). The session ID is already stored in the sessions map.
+        if (newSessionId != null) {
+            result.put("sessionId", newSessionId);
+        }
 
         Map<String, Object> capabilities = new LinkedHashMap<>();
 
@@ -1013,9 +1271,26 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 capabilities.put("tasks", new LinkedHashMap<String, Object>());
             }
         }
+        if (config.elicitation) {
+            Map<String, Object> elicitationCap = new LinkedHashMap<>();
+            elicitationCap.put("requestTimeoutMs", config.elicitationTimeoutMs);
+            capabilities.put("elicitation", elicitationCap);
+        }
         if (!config.experimental.isEmpty()) capabilities.put("experimental", config.experimental);
 
         result.put("capabilities", capabilities);
+
+        // Top-level extensions array (MCP 2026-07-28)
+        List<Map<String, Object>> extensions = new ArrayList<>();
+        if (tasksExtension != null) {
+            Map<String, Object> extMeta = tasksExtension.advertiseExtension(negotiatedVersion);
+            if (extMeta != null) {
+                extensions.add(extMeta);
+            }
+        }
+        if (!extensions.isEmpty()) {
+            result.put("extensions", extensions);
+        }
 
         Map<String, Object> serverInfo = new LinkedHashMap<>();
         serverInfo.put("name", config.serverName);
@@ -1073,7 +1348,24 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 capabilities.put("tasks", new LinkedHashMap<String, Object>());
             }
         }
+        if (config.elicitation) {
+            Map<String, Object> elicitationCap = new LinkedHashMap<>();
+            elicitationCap.put("requestTimeoutMs", config.elicitationTimeoutMs);
+            capabilities.put("elicitation", elicitationCap);
+        }
         result.put("capabilities", capabilities);
+
+        // Top-level extensions array (MCP 2026-07-28)
+        List<Map<String, Object>> extensions = new ArrayList<>();
+        if (tasksExtension != null) {
+            Map<String, Object> extMeta = tasksExtension.advertiseExtension(config.protocolVersion);
+            if (extMeta != null) {
+                extensions.add(extMeta);
+            }
+        }
+        if (!extensions.isEmpty()) {
+            result.put("extensions", extensions);
+        }
 
         Map<String, Object> meta = new LinkedHashMap<>();
         Map<String, Object> serverInfo = new LinkedHashMap<>();

@@ -249,4 +249,17 @@ class McpProtocolHandlerTest {
         assertTrue(handler.supportsProtocolVersion("2025-11-25")); // still accepts sessioned versions
         assertTrue(handler.supportsProtocolVersion(null));      // null always accepted
     }
+
+    @Test
+    void statelessInitializeWithNonStringProtocolVersionReturnsError() {
+        // protocolVersion at top-level body (not inside params) must be a string.
+        // Handler rejects it before ever reaching method dispatch.
+        McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry());
+        String response = handler.handleRequest(
+                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\",\"protocolVersion\":123}", null);
+        assertTrue(response.contains("-32602"),
+                "Expected -32602 (Invalid params) for non-string protocolVersion, got: " + response);
+        assertTrue(response.contains("protocolVersion must be a string"),
+                "Expected error message 'protocolVersion must be a string', got: " + response);
+    }
 }

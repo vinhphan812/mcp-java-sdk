@@ -1,0 +1,83 @@
+# MCP Conformance Baseline — Known Failures
+#
+# This file tracks known conformance test failures. When a baseline entry passes,
+# it becomes a regression — the test run FAILS until the entry is removed.
+# This is the inverse of most CI: passing a known failure is flagged as a regression.
+#
+# Updated: 2026-10-02
+# Tool: npx @modelcontextprotocol/conformance@latest
+#
+# Usage:
+#   npx @modelcontextprotocol/conformance server \
+#     --url http://localhost:8080/mcp \
+#     --suite active \
+#     --expected-failures ./conformance-baseline.yml
+
+server:
+  # ── Active suite (2025-11-25) ─────────────────────────────────────────────
+  expected_failures: []
+
+  # ── Draft suite (2026-07-28) ─────────────────────────────────────────────
+  # These fail because the SDK doesn't implement SEP-2322 (Elicitation) yet.
+  # When elicitation is implemented, remove these entries and the suite will pass.
+  #
+  # Note: Running draft suite requires --suite draft --spec-version 2026-07-28
+  draft_expected_failures:
+    - scenario: sep-2322-elicitation-client-defaults
+      reason: "Elicitation not implemented; see ADR-0022 design doc"
+    - scenario: sep-2322-elicitation-server-defaults
+      reason: "Elicitation not implemented; see ADR-0022 design doc"
+    - scenario: sep-2322-elicitation-client-required
+      reason: "Elicitation not implemented; see ADR-0022 design doc"
+    - scenario: sep-2322-elicitation-server-required
+      reason: "Elicitation not implemented; see ADR-0022 design doc"
+    - scenario: sep-2322-elicitation-client-cancelled
+      reason: "Elicitation not implemented; see ADR-0022 design doc"
+    - scenario: sep-2322-elicitation-server-cancelled
+      reason: "Elicitation not implemented; see ADR-0022 design doc"
+    - scenario: sep-2322-elicitation-client-resourced
+      reason: "Elicitation not implemented; see ADR-0022 design doc"
+    - scenario: sep-2322-elicitation-server-resourced
+      reason: "Elicitation not implemented; see ADR-0022 design doc"
+    - scenario: sep-2322-elicitation-client-prompt
+      reason: "Elicitation not implemented; see ADR-0022 design doc"
+    - scenario: sep-2322-elicitation-server-prompt
+      reason: "Elicitation not implemented; see ADR-0022 design doc"
+    - scenario: sep-2322-elicitation-client-missing
+      reason: "Elicitation not implemented; see ADR-0022 design doc"
+    - scenario: sep-2322-elicitation-server-missing
+      reason: "Elicitation not implemented; see ADR-0022 design doc"
+
+# Auth scenarios require OAuth resource-server implementation.
+# The SDK is a library; OAuth is typically handled at the deployment layer.
+auth_expected_failures:
+  - scenario: auth/dpop
+    reason: "No OAuth DPoP resource-server implementation in SDK"
+  - scenario: auth/bearer
+    reason: "No OAuth bearer resource-server implementation in SDK"
+
+# SSE retry is a SHOULD requirement — SDK reconnects immediately without respecting retry: field
+sse_retry_failure:
+  - scenario: sse-retry
+    reason: "SSE retry: field not parsed; reconnects immediately (SHOULD requirement)"
+
+# ── Running with baseline ─────────────────────────────────────────────────────
+# Example:
+#   # Active suite
+#   npx @modelcontextprotocol/conformance server \
+#     --url http://localhost:8080/mcp \
+#     --suite active \
+#     --expected-failures ./conformance-baseline.yml
+#
+#   # Draft suite (2026-07-28)
+#   npx @modelcontextprotocol/conformance server \
+#     --url http://localhost:8080/mcp \
+#     --suite draft \
+#     --spec-version 2026-07-28 \
+#     --expected-failures ./conformance-baseline.yml
+#
+#   # Auth suite
+#   npx @modelcontextprotocol/conformance server \
+#     --url http://localhost:8080/mcp \
+#     --suite auth \
+#     --expected-failures ./conformance-baseline.yml

@@ -67,4 +67,7 @@ is not a claim of full MCP certification or external-client interoperability.
 
 - Partial MCP compliance may confuse consumers who expect full support.
 - The protocol version list is hardcoded; adding new versions requires a code change.
-- External client interoperability has not been verified.
+- External client interoperability is verified through two complementary approaches:
+  (1) custom interop harness covering HTTP and STDIO (`harness/`), and
+  (2) the official MCP conformance test suite (`@modelcontextprotocol/conformance`) run in CI.
+  Known conformance gaps are tracked in `conformance-baseline.yml`.

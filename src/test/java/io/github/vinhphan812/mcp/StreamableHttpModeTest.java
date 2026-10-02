@@ -176,6 +176,43 @@ class StreamableHttpModeTest {
     }
 
     @Test
+    void testStatelessToolsCallWithoutInitialize() throws Exception {
+        // tools/call via HTTP stateless 2026 routing — no prior initialize, no session required.
+        McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(),
+                McpServerConfig.builder().protocolMode(McpServerConfig.ProtocolMode.STATELESS).build());
+        // Register a tool so tools/call has something to invoke.
+        handler.registerTool("test_echo", "Echoes the message argument",
+                new java.util.LinkedHashMap<>(), null,
+                (java.util.Map<String, Object> args) -> {
+                    java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+                    result.put("echo", args.getOrDefault("message", ""));
+                    return result;
+                });
+        try (HttpTransportProvider transport = new HttpTransportProvider(handler)
+                .port(0).endpoint("/mcp").transportMode(TransportMode.STREAMABLE_HTTP)) {
+            transport.start();
+            String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\","
+                    + "\"params\":{\"name\":\"test_echo\",\"arguments\":{\"message\":\"hello stateless\"}}}";
+            HttpURLConnection connection = (HttpURLConnection) new URL(transport.getUrl()).openConnection();
+            connection.setRequestMethod("POST");
+            connection.setDoOutput(true);
+            connection.setRequestProperty("Content-Type", "application/json");
+            connection.setRequestProperty("Accept", "application/json, text/event-stream");
+            connection.setRequestProperty("Mcp-Protocol-Version", "2026-07-28");
+            connection.setRequestProperty("Mcp-Method", "tools/call");
+            connection.setRequestProperty("Mcp-Name", "test_echo");
+            connection.getOutputStream().write(body.getBytes(StandardCharsets.UTF_8));
+            int status = connection.getResponseCode();
+            String respBody = readBody(connection);
+            assertEquals(200, status, "tools/call stateless should return 200: " + respBody);
+            assertTrue(respBody.contains("\"result\""), "Should be a JSON-RPC success: " + respBody);
+            assertTrue(respBody.contains("hello stateless"), "Should return the echoed value: " + respBody);
+            assertNull(connection.getHeaderField("Mcp-Session-Id"),
+                    "Response should not contain Mcp-Session-Id: " + connection.getHeaderField("Mcp-Session-Id"));
+        }
+    }
+
+    @Test
     void testHeaderSelectedStatelessRequestWithoutInitializeOrSession() throws Exception {
         McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(),
                 McpServerConfig.builder().protocolMode(McpServerConfig.ProtocolMode.STATELESS).build());

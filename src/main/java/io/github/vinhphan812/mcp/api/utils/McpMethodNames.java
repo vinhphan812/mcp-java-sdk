@@ -120,6 +120,20 @@ public final class McpMethodNames {
      */
     public static final String NOTIF_RESOURCES_UPDATED = "notifications/resources/updated";
 
+    // ── Server → Client notifications (MRTR/Elicitation) ──────────────────────
+
+    /**
+     * {@code elicitation/request} — server-initiated request to the client.
+     * The client must respond with {@link #ELICITATION_RESPONSE}.
+     */
+    public static final String ELICITATION_REQUEST = "elicitation/request";
+
+    /**
+     * {@code elicitation/response} — client response to a server elicitation request.
+     * The client MUST include the matching {@code requestId} from the original request.
+     */
+    public static final String ELICITATION_RESPONSE = "elicitation/response";
+
     // ── Ping ────────────────────────────────────────────────────────────────
 
     /**

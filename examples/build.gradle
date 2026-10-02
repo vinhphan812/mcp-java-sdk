@@ -1,22 +1,31 @@
 plugins {
     id 'java'
-    id 'application'
-}
-
-application {
-    mainClass = 'io.github.vinhphan812.mcp.examples.HttpExample'
 }
 
 def sdkJar = project.findProperty('sdkJar') != null
         ? project.property('sdkJar')
         : '../build/libs/mcp-java-sdk-1.0-SNAPSHOT.jar'
 
+def sdkClasses = project.findProperty('sdkClasses') != null
+        ? project.property('sdkClasses')
+        : '../build/classes/java/main'
+
 repositories {
     mavenCentral()
 }
 
+sourceSets {
+    main {
+        java {
+            // Compile against compiled SDK classes directly (no JAR needed).
+            srcDirs = ['src/main/java']
+        }
+    }
+}
+
 dependencies {
     implementation files(sdkJar)
+    implementation files(sdkClasses)
     implementation 'com.google.code.gson:gson:2.11.0'
     implementation 'org.glassfish.grizzly:grizzly-http-server:4.0.2'
 }

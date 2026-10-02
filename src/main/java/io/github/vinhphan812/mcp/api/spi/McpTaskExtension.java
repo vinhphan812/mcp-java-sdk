@@ -74,6 +74,25 @@ public interface McpTaskExtension {
     }
 
     /**
+     * Returns extension metadata to include in the top-level {@code extensions} array
+     * of the {@code initialize} / {@code server/discover} response.
+     *
+     * <p>The default implementation returns {@code null}, meaning no entry is added
+     * to the extensions array.  Subclasses may override to supply version, schema,
+     * or other extension-specific fields alongside the capability metadata.
+     *
+     * <p>The returned map is placed directly in the extensions array as-is, so it
+     * should at minimum contain {@code "name"} and optionally {@code "version"}
+     * and a {@code "capabilities"} sub-object.
+     *
+     * @param protocolVersion the negotiated protocol version (never {@code null})
+     * @return extension metadata map, or {@code null} to skip this extension
+     */
+    default Map<String, Object> advertiseExtension(String protocolVersion) {
+        return null;
+    }
+
+    /**
      * Lifecycle hook called when the extension is registered with the server registry.
      *
      * <p>Subclasses can override to perform one-time initialisation (e.g. opening
