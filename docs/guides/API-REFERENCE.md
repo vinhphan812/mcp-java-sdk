@@ -234,7 +234,7 @@ Entry point. Use the builder to configure and start the server.
 McpServer server = McpServer.builder()
         .config(McpServerConfig.builder()
                 .serverName("my-server")
-                .serverVersion("1.0.0")
+                .serverVersion("1.0.1")
                 .protocolVersion("2025-11-25")
                 .build())
         .host("127.0.0.1")
@@ -265,7 +265,7 @@ close();
 | Method                                    | Default        | Description                                                                |
 |-------------------------------------------|----------------|----------------------------------------------------------------------------|
 | `serverName(String)`                      | `"mcp-server"` | Server name advertised in `initialize` response                            |
-| `serverVersion(String)`                   | `"1.0.0"`      | Server version string                                                      |
+| `serverVersion(String)`                   | `"1.0.1"`      | Server version string                                                      |
 | `protocolVersion(String)`                 | `"2025-11-25"` | Supported MCP protocol version                                             |
 | `tools(boolean)`                          | `true`         | Advertise tools capability                                                 |
 | `resources(boolean)`                      | `true`         | Advertise resources capability                                             |

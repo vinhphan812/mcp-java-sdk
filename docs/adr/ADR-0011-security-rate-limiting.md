@@ -223,7 +223,7 @@ accepts optional rate-limit overrides:
 ```java
 McpServerConfig.builder()
     .serverName("my-server")
-    .serverVersion("1.0.0")
+    .serverVersion("1.0.1")
     // Rate limit overrides
     .maxConcurrentSessions(10)
     .maxRequestsPerIpPerMinute(60)

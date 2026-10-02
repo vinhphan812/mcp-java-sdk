@@ -169,7 +169,7 @@ public final class McpServerConfig {
         private String protocolVersion = "2025-11-25";
         private ProtocolMode protocolMode = ProtocolMode.SESSIONED;
         private String serverName = "mcp-server";
-        private String serverVersion = "1.0.0";
+        private String serverVersion = "1.0.1";
         private boolean tools = true, resources = true, resourceSubscriptions = true, prompts = true;
         private boolean logging, completions, tasks;
         private McpTaskExtension tasksExtension;

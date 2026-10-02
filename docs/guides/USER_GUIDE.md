@@ -28,7 +28,7 @@ import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 McpServer server = McpServer.builder()
         .config(McpServerConfig.builder()
                 .serverName("my-server")
-                .serverVersion("1.0.0")
+                .serverVersion("1.0.1")
                 .protocolVersion("2025-11-25")
                 .tools(true)
                 .resources(true)

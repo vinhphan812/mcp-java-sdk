@@ -182,7 +182,7 @@ Providers are registered before `start()`:
 McpServer server = McpServer.builder()
         .config(McpServerConfig.builder()
                 .serverName("my-server")
-                .serverVersion("1.0.0")
+                .serverVersion("1.0.1")
                 .protocolVersion("2025-11-25")
                 .tools(true)
                 .resources(true)
@@ -277,7 +277,7 @@ The client sends `initialize` using JSON-RPC 2.0:
   "params": {
     "protocolVersion": "2025-11-25",
     "capabilities": {},
-    "clientInfo": {"name": "client", "version": "1.0.0"}
+    "clientInfo": {"name": "client", "version": "1.0.1"}
   }
 }
 ```

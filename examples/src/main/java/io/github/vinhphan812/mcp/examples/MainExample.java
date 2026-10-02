@@ -53,7 +53,7 @@ public final class MainExample {
 
         McpServerConfig.Builder configBuilder = McpServerConfig.builder()
                 .serverName("grizzly-example")
-                .serverVersion("1.0.0")
+                .serverVersion("1.0.1")
                 .protocolVersion("2025-11-25")
                 .tools(true).resources(true).prompts(true)
                 .logging(true).completions(true).tasks(true)

@@ -511,7 +511,7 @@ class StreamableHttpModeTest {
     void testServerDiscoverReturnsServerInfoWithoutSession() throws Exception {
         McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(),
                 McpServerConfig.builder().protocolMode(McpServerConfig.ProtocolMode.STATELESS)
-                        .serverName("test-server").serverVersion("1.0.0").build());
+                        .serverName("test-server").serverVersion("1.0.1").build());
         try (HttpTransportProvider transport = new HttpTransportProvider(handler)
                 .port(0).endpoint("/mcp").transportMode(TransportMode.STREAMABLE_HTTP)) {
             transport.start();

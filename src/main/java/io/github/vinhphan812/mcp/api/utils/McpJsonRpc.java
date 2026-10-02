@@ -36,5 +36,5 @@ public final class McpJsonRpc {
      * Default server implementation version, used as the {@code info.version}
      * field in {@code initialize} responses.
      */
-    public static final String SERVER_VERSION = "1.0.0";
+    public static final String SERVER_VERSION = "1.0.1";
 }
