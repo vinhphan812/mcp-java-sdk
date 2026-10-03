@@ -30,12 +30,14 @@ import java.util.Map;
  *
  * <h2>Transport modes</h2>
  *
- * <p>{@link Builder#streamableHttp(boolean)} controls whether the server uses the
- * modern <strong>Streamable HTTP</strong> transport (single POST endpoint, server-driven
- * streaming, the default) or the legacy <strong>HTTP+SSE</strong> transport
- * (POST + GET + DELETE endpoints, client-driven streaming). Legacy mode is deprecated
- * as of MCP protocol {@code 2025-03-26}. New deployments should use the default
- * (Streamable HTTP).
+ * <p>{@link Builder#streamableHttp(boolean)} is stored in the configuration but
+ * has <strong>no runtime effect in this release</strong>. The transport layer
+ * selects between modern Streamable HTTP and legacy HTTP+SSE exclusively through
+ * {@link io.github.vinhphan812.mcp.transport.TransportMode} on
+ * {@link io.github.vinhphan812.mcp.api.McpServer.Builder#transportMode(TransportMode)},
+ * not through this flag. This flag is reserved for a future release that wires
+ * it end-to-end. Until then, callers who need a specific transport mode must use
+ * {@code McpServer.builder().transportMode(TransportMode.STREAMABLE_HTTP)} directly.
  *
  * <p>{@link Builder#streaming(boolean)} controls whether the server advertises the
  * {@code streaming: {}} capability in its {@code initialize} response. Clients use this
@@ -203,7 +205,7 @@ public final class McpServerConfig {
      *
      * <p>Initialises all fields to the values declared in {@link McpSecurityDefaults}
      * except {@code serverName} (default: {@code "mcp-server"}) and
-     * {@code serverVersion} (default: {@code "1.0.1"}).
+     * {@code serverVersion} (default: {@code "1.0.0"}).
      *
      * <p>Calling {@link #protocolMode(ProtocolMode)} with
      * {@link ProtocolMode#STATELESS} automatically sets the protocol version to
@@ -483,11 +485,12 @@ public final class McpServerConfig {
         }
 
         /**
-         * Enables or disables Streamable HTTP mode. When enabled, the server uses modern
-         * Streamable HTTP transport (single POST endpoint with server-driven streaming).
-         * When disabled, uses legacy HTTP+SSE mode (POST + GET + DELETE endpoints).
+         * Stores the Streamable HTTP preference but has <strong>no runtime effect</strong>
+         * in this release. The transport layer selects the transport mode exclusively via
+         * {@link io.github.vinhphan812.mcp.api.McpServer.Builder#transportMode(TransportMode)}.
+         * This flag is reserved for a future release that wires it end-to-end.
          * Default is true.
-         * @param value whether Streamable HTTP mode is enabled
+         * @param value whether Streamable HTTP mode is preferred
          * @return this builder
          */
         public Builder streamableHttp(boolean value) {

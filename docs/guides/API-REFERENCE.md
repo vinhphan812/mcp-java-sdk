@@ -287,7 +287,7 @@ Controls MCP protocol version, capabilities, sessions, and rate limits.
 | `protocolMode(ProtocolMode)` | `SESSIONED` | `SESSIONED` = stateful sessions (default); `STATELESS` = per-request (`2026-07-28`) |
 | `protocolVersion(String)` | `"2025-11-25"` | Advertised protocol version string |
 | `serverName(String)` | `"mcp-server"` | Server name in `initialize` response |
-| `serverVersion(String)` | `"1.0.1"` | Server version string |
+| `serverVersion(String)` | `"1.0.0"` | Server version string |
 | `experimental(Map<String,Object>)` | empty | Arbitrary metadata added to capabilities |
 
 **Capabilities**
@@ -308,7 +308,7 @@ Controls MCP protocol version, capabilities, sessions, and rate limits.
 | Method | Default | Description |
 |--------|---------|-------------|
 | `streaming(boolean)` | `true` | Advertise `streaming: {}` capability in `initialize` response |
-| `streamableHttp(boolean)` | `true` | Use modern Streamable HTTP transport (single POST, server-driven streaming); `false` = legacy HTTP+SSE (deprecated) |
+| `streamableHttp(boolean)` | `true` | **No runtime effect in this release.** Transport mode is set exclusively via `McpServer.builder().transportMode(TransportMode.STREAMABLE_HTTP)`. This flag is reserved for a future release. |
 
 **Trusted-proxy and session security**
 
