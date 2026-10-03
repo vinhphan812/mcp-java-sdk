@@ -260,7 +260,7 @@ public final class HttpExample {
                         .resourceSubscriptions(true)
                         .build())
                 .host("127.0.0.1")
-                .port(3011)
+                .port(8080)
                 .endpoint("/mcp")
                 .build()
                 .register(new DemoTools())

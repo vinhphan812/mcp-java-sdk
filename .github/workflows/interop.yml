@@ -64,7 +64,7 @@ jobs:
           - suite: 'active'
             spec_version: '2025-11-25'
           - suite: 'draft'
-            spec_version: '2026-07-28'
+            spec_version: 'draft'
     steps:
       - uses: actions/checkout@v4
       - name: Set up Java 17
