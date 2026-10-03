@@ -234,54 +234,106 @@ Entry point. Use the builder to configure and start the server.
 McpServer server = McpServer.builder()
         .config(McpServerConfig.builder()
                 .serverName("my-server")
-                .serverVersion("1.0.0")
+                .serverVersion("1.0.1")
                 .protocolVersion("2025-11-25")
+                .tools(true)
+                .resources(true)
+                .prompts(true)
                 .build())
         .host("127.0.0.1")
         .port(3011)
         .endpoint("/mcp")
+        .apiKeySupplier(() -> System.getenv("MCP_API_KEY"))
         .build()
         .register(new MyTools())
         .register(new MyResources())
         .register(new MyPrompts());
 
-server.
+server.start();
+System.out.println(server.getUrl());  // http://127.0.0.1:3011/mcp
 
-start();
-Logger.
-
-getLogger("mcp-server").
-
-info(server.getUrl());  // http://127.0.0.1:3011/mcp
-
-// shutdown
-        server.
-
-close();
+// later — stop gracefully
+server.close();
 ```
 
-**Builder methods**
+#### `McpServer.Builder` — transport-level configuration
 
-| Method                                    | Default        | Description                                                                |
-|-------------------------------------------|----------------|----------------------------------------------------------------------------|
-| `serverName(String)`                      | `"mcp-server"` | Server name advertised in `initialize` response                            |
-| `serverVersion(String)`                   | `"1.0.0"`      | Server version string                                                      |
-| `protocolVersion(String)`                 | `"2025-11-25"` | Supported MCP protocol version                                             |
-| `tools(boolean)`                          | `true`         | Advertise tools capability                                                 |
-| `resources(boolean)`                      | `true`         | Advertise resources capability                                             |
-| `prompts(boolean)`                        | `true`         | Advertise prompts capability                                               |
-| `logging(boolean)`                        | `false`        | Advertise logging capability                                               |
-| `completions(boolean)`                    | `false`        | Advertise completion capability                                            |
-| `tasks(boolean)`                          | `false`        | Advertise server-managed tasks capability                                  |
-| `resourceSubscriptions(boolean)`          | `true`         | Enable resource subscription capability (requires `resources: true`)       |
-| `logger(McpLogger)`                       | JDK logger     | Supply custom logger adapter; null resets to default                       |
-| `pageSize(int)`                           | `50`           | Maximum items per paginated response (must be positive)                    |
-| `overflowListener(QueueOverflowListener)` | `null`         | Notification queue overflow handler; null throws on overflow               |
-| `authorization(McpAuthorization)`         | `null`         | Tool authorisation handler; null allows all tools                          |
-| `rateLimits(RateLimits)`                  | defaults       | Rate-limit and security configuration; null uses built-in defaults         |
-| `trustXForwardedFor(boolean)`             | `false`        | Trust `X-Forwarded-For` header for client IP (enable behind trusted proxy) |
-| `bindSessionToIp(boolean)`                | `false`        | Bind session to client IP at `initialize` time (AUTH-03 mitigation)        |
-| `experimental(Map)`                       | empty          | Arbitrary key-value metadata added to capabilities                         |
+Controls the HTTP transport (bind address, port, authentication, CORS).
+
+| Method | Default | Description |
+|--------|---------|-------------|
+| `registry(McpRegistry)` | auto-created | Pre-configured registry instance |
+| `config(McpServerConfig)` | auto-created | Protocol and capability configuration |
+| `host(String)` | `"127.0.0.1"` | TCP bind address. `"127.0.0.1"` = loopback only; `"0.0.0.0"` = all interfaces (network-exposed; use with firewall/TLS) |
+| `port(int)` | `3011` | TCP port. `0` = OS ephemeral; retrieve via `server.getUrl()` after `start()` |
+| `endpoint(String)` | `"/mcp"` | HTTP path for JSON-RPC requests |
+| `apiKey(String)` | disabled | Fixed Bearer token (prefer `apiKeySupplier`) |
+| `apiKeySupplier(Supplier<String>)` | disabled | Token supplier called on every request; use for rotating credentials |
+| `allowedOrigins(Set<String>)` | loopback-only | Additional non-loopback allowed origins; see CORS note below |
+| `build()` | — | Returns the configured `McpServer` (not started) |
+
+**CORS / Origin note:** The SDK accepts all `127.0.0.0/8` and `::1` origins regardless of port without any configuration. `allowedOrigins` is only needed for non-loopback origins such as `https://my-app.example.com`. The origin policy is entirely independent of the bind address and of Bearer authentication. See ADR-0021.
+
+**0.0.0.0 note:** Binding to `0.0.0.0` exposes the server on every IPv4 interface. The SDK does not perform TLS in-process; for production, bind to `127.0.0.1` behind a reverse proxy that terminates TLS.
+
+#### `McpServerConfig.Builder` — protocol-level configuration
+
+Controls MCP protocol version, capabilities, sessions, and rate limits.
+
+**Metadata**
+
+| Method | Default | Description |
+|--------|---------|-------------|
+| `protocolMode(ProtocolMode)` | `SESSIONED` | `SESSIONED` = stateful sessions (default); `STATELESS` = per-request (`2026-07-28`) |
+| `protocolVersion(String)` | `"2025-11-25"` | Advertised protocol version string |
+| `serverName(String)` | `"mcp-server"` | Server name in `initialize` response |
+| `serverVersion(String)` | `"1.0.1"` | Server version string |
+| `experimental(Map<String,Object>)` | empty | Arbitrary metadata added to capabilities |
+
+**Capabilities**
+
+| Method | Default | Description |
+|--------|---------|-------------|
+| `tools(boolean)` | `true` | Advertise tools capability |
+| `resources(boolean)` | `true` | Advertise resources capability |
+| `resourceSubscriptions(boolean)` | `true` | Advertise resource subscriptions (requires `resources`) |
+| `prompts(boolean)` | `true` | Advertise prompts capability |
+| `logging(boolean)` | `false` | Advertise logging capability |
+| `completions(boolean)` | `false` | Advertise completion capability |
+| `tasks(boolean)` | `false` | Advertise tasks capability |
+| `tasksExtension(McpTaskExtension)` | null | Pluggable tasks extension; controls version-gated task method dispatch |
+
+**Sessions and streaming**
+
+| Method | Default | Description |
+|--------|---------|-------------|
+| `streaming(boolean)` | `true` | Advertise `streaming: {}` capability in `initialize` response |
+| `streamableHttp(boolean)` | `true` | Use modern Streamable HTTP transport (single POST, server-driven streaming); `false` = legacy HTTP+SSE (deprecated) |
+
+**Trusted-proxy and session security**
+
+| Method | Default | Description |
+|--------|---------|-------------|
+| `trustXForwardedFor(boolean)` | `false` | Extract client IP from `X-Forwarded-For` instead of socket address |
+| `bindSessionToIp(boolean)` | `false` | Lock session to client IP at `initialize` time (AUTH-03 / session-fixation mitigation). Requires `trustXForwardedFor` when behind a reverse proxy |
+
+**Rate limits and authorization**
+
+| Method | Default | Description |
+|--------|---------|-------------|
+| `rateLimits(RateLimits)` | `McpSecurityDefaults` | Full rate-limit and security tunables (see `RateLimits`) |
+| `authorization(McpAuthorization)` | null | Tool authorisation handler; `null` = allow all |
+| `pageSize(int)` | `50` | Maximum items per paginated response |
+| `maxQueuedEvents(int)` | `1000` | Max SSE events held in session queue before oldest evicted |
+| `overflowListener(QueueOverflowListener)` | null | Called when notification queue overflows; `null` throws `QueueOverflowException` |
+| `logger(McpLogger)` | JDK logger | Application logger adapter |
+
+**Elicitation (MRTR)**
+
+| Method | Default | Description |
+|--------|---------|-------------|
+| `elicitation(boolean)` | `false` | Enable server-to-client request capability (MRTR/elicitation) |
+| `elicitationTimeoutMs(long)` | `60000` | Timeout for elicitation requests in milliseconds |
 
 ---
 
@@ -617,19 +669,23 @@ Supported MCP JSON-RPC methods:
 
 - Default bind: `127.0.0.1` (loopback only)
 - Default max body: 1 MiB
-- Unknown Origin: rejected with `403`
+- Unknown Origin (non-loopback, not in explicit allowlist): rejected with HTTP `403`
 - Bearer token: constant-time comparison via `MessageDigest.isEqual`
 - SSE CRLF: sanitised before transmission
+- CORS: loopback origins (`127.0.0.0/8`, `::1`, any port) accepted automatically; non-loopback origins require explicit allowlist entry via `McpServer.Builder.allowedOrigins(Set)`. Origin policy is independent of bind address and Bearer auth (see [ADR-0021](../adr/ADR-0021-cors-loopback-origin-policy.md))
 
 ---
 
 ## Related documentation
 
-| Document                                                       | Description                                                |
-|----------------------------------------------------------------|------------------------------------------------------------|
-| [Project Guide](PROJECT-GUIDE.md)                              | Architecture, usage guide, and protocol overview           |
-| [HTTP Transport Example](HTTP-TRANSPORT-EXAMPLE.md)            | Standalone HTTP/SSE transport example with request samples |
-| [Implementation Status](IMPLEMENTATION-STATUS.md)              | Completed, incomplete, and unverified areas                |
-| [MCP Compatibility](../architecture/MCP-COMPATIBILITY-2026.md) | MCP baseline and P0/P1/P2 compatibility status             |
-| [docs/adr/](../adr/)                                           | Architecture Decision Records                              |
+| Document | Description |
+|---|---|
+| [Project Guide](PROJECT-GUIDE.md) | Architecture, usage guide, and protocol overview |
+| [HTTP Transport Example](HTTP-TRANSPORT-EXAMPLE.md) | Standalone HTTP/SSE transport example with request samples |
+| [Transport — Streamable HTTP](../transport/TRANSPORT-STREAMABLE-HTTP.md) | SSE connection flow, TLS reverse-proxy topology |
+| [ADR-0021 — CORS Loopback Origin Policy](../adr/ADR-0021-cors-loopback-origin-policy.md) | Full CORS policy: loopback rule, allowlist, preflight, auth independence |
+| [ADR-0018 — Transport Contract](../adr/ADR-0018-transport-contract-http-sse-vs-streamable-http.md) | Legacy HTTP+SSE vs modern Streamable HTTP comparison |
+| [Implementation Status](IMPLEMENTATION-STATUS.md) | Completed, incomplete, and unverified areas |
+| [MCP Compatibility](../architecture/MCP-COMPATIBILITY-2026.md) | MCP baseline and P0/P1/P2 compatibility status |
+| [docs/adr/](../adr/) | Architecture Decision Records |
 
