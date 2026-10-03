@@ -437,6 +437,21 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 || McpJsonRpc.PROTOCOL_VERSION_STATELESS.equals(config.protocolVersion);
     }
 
+    /**
+     * Returns the negotiated protocol version for an active session, or the
+     * configured default for stateless mode.
+     *
+     * @param sessionId session identifier, or null for stateless
+     * @return negotiated version string
+     */
+    public String getNegotiatedProtocolVersion(String sessionId) {
+        if (sessionId == null) {
+            return isStatelessMode() ? McpJsonRpc.PROTOCOL_VERSION_STATELESS : config.protocolVersion;
+        }
+        SessionState state = sessions.get(sessionId);
+        return state != null ? state.negotiatedVersion : config.protocolVersion;
+    }
+
     /** Returns whether the request explicitly selects the stateless 2026 mode. */
     private boolean isStatelessProtocol(String requestedVersion) {
         return McpJsonRpc.PROTOCOL_VERSION_STATELESS.equals(requestedVersion)

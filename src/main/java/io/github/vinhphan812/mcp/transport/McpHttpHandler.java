@@ -479,6 +479,7 @@ public final class McpHttpHandler extends HttpHandler {
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
         writeCorsHeaders(response, origin);
+        response.setHeader(McpHttpHeaders.PROTOCOL, handler.getNegotiatedProtocolVersion(sessionId));
         if (result.getSessionId() != null) response.setHeader(McpHttpHeaders.SESSION, result.getSessionId());
         response.setStatus(200);
         response.getWriter().write(result.getBody());
@@ -563,6 +564,7 @@ public final class McpHttpHandler extends HttpHandler {
             setSseHeaders(response, true);
             writeCorsHeaders(response, origin);
             response.setStatus(200);
+            response.setHeader(McpHttpHeaders.PROTOCOL, handler.getNegotiatedProtocolVersion(sessionId));
             if (sessionId != null) response.setHeader(McpHttpHeaders.SESSION, sessionId);
             // First event: the JSON-RPC response
             response.getWriter().write(sseMessage(result.getBody()));
