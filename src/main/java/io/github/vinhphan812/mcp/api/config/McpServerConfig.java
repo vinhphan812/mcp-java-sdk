@@ -12,6 +12,58 @@ import java.util.Map;
 
 /**
  * Immutable protocol metadata and capability configuration for an MCP server.
+ *
+ * <p>Use {@link #builder()} to construct. All fields are immutable once the
+ * configuration is built.
+ *
+ * <h2>Protocol modes</h2>
+ *
+ * <p>{@link ProtocolMode#SESSIONED} (the default) uses stateful sessions with a
+ * {@code Mcp-Session-Id} header. Each client connection is tracked and can receive
+ * push notifications over a long-lived SSE stream. Compatible with protocol versions
+ * {@code 2024-11-05} through {@code 2025-11-25}.
+ *
+ * <p>{@link ProtocolMode#STATELESS} uses per-request semantics from the
+ * {@code 2026-07-28} protocol revision. Sessions are not tracked server-side;
+ * each POST is self-contained. The server automatically sets its protocol version to
+ * {@code 2026-07-28} when this mode is selected.
+ *
+ * <h2>Transport modes</h2>
+ *
+ * <p>{@link Builder#streamableHttp(boolean)} is stored in the configuration but
+ * has <strong>no runtime effect in this release</strong>. The transport layer
+ * selects between modern Streamable HTTP and legacy HTTP+SSE exclusively through
+ * {@link io.github.vinhphan812.mcp.transport.TransportMode} on
+ * {@link io.github.vinhphan812.mcp.api.McpServer.Builder#transportMode(TransportMode)},
+ * not through this flag. This flag is reserved for a future release that wires
+ * it end-to-end. Until then, callers who need a specific transport mode must use
+ * {@code McpServer.builder().transportMode(TransportMode.STREAMABLE_HTTP)} directly.
+ *
+ * <p>{@link Builder#streaming(boolean)} controls whether the server advertises the
+ * {@code streaming: {}} capability in its {@code initialize} response. Clients use this
+ * to discover SSE support. Defaults to {@code true}.
+ *
+ * <h2>Trusted-proxy setups</h2>
+ *
+ * <p>When the server runs behind a reverse proxy that adds {@code X-Forwarded-For},
+ * set {@link Builder#trustXForwardedFor(boolean) trustXForwardedFor(true)} so the
+ * SDK uses the real client IP instead of the proxy's address for rate-limiting and
+ * session binding.
+ *
+ * <p>When {@link Builder#bindSessionToIp(boolean) bindSessionToIp(true)} is also set,
+ * each session is locked to the client IP seen at {@code initialize} time
+ * (AUTH-03 / session-fixation mitigation). A request arriving from a different IP
+ * is rejected with JSON-RPC error {@code -32602 (Invalid params)}. This requires
+ * {@code trustXForwardedFor = true} to work correctly behind a proxy.
+ *
+ * <h2>Rate limits</h2>
+ *
+ * <p>See {@link RateLimits} for the full tunable surface. The builder initialises
+ * all rate-limit fields to the values declared in {@link McpSecurityDefaults}.
+ *
+ * @see McpServer
+ * @see RateLimits
+ * @see McpSecurityDefaults
  */
 public final class McpServerConfig {
     /** Session-oriented or stateless MCP protocol operation mode. */
@@ -150,6 +202,19 @@ public final class McpServerConfig {
 
     /**
      * Builder for immutable MCP server configuration.
+     *
+     * <p>Initialises all fields to the values declared in {@link McpSecurityDefaults}
+     * except {@code serverName} (default: {@code "mcp-server"}) and
+     * {@code serverVersion} (default: {@code "1.0.0"}).
+     *
+     * <p>Calling {@link #protocolMode(ProtocolMode)} with
+     * {@link ProtocolMode#STATELESS} automatically sets the protocol version to
+     * {@code "2026-07-28"}. Calling {@link #protocolVersion(String)} with a non-blank
+     * version does <em>not</em> change the protocol mode — the caller is responsible
+     * for keeping the two in sync.
+     *
+     * @see McpServerConfig
+     * @see McpSecurityDefaults
      */
     public static final class Builder {
         private String protocolVersion = "2025-11-25";
@@ -201,17 +266,41 @@ public final class McpServerConfig {
             return this;
         }
 
-        /** Sets protocol version advertised during initialization.
-         * @param value nonblank protocol version
+        /**
+         * Selects sessioned or stateless protocol handling.
+         *
+         * <ul>
+         *   <li>{@link ProtocolMode#SESSIONED} (default) — stateful sessions with
+         *       {@code Mcp-Session-Id} tracking. Supports SSE push notifications
+         *       over a long-lived GET connection. Compatible with protocol
+         *       {@code 2024-11-05} through {@code 2025-11-25}.
+         *   <li>{@link ProtocolMode#STATELESS} — per-request semantics from the
+         *       {@code 2026-07-28} protocol revision. Sessions are not tracked
+         *       server-side. Automatically sets {@code protocolVersion} to
+         *       {@code "2026-07-28"}.
+         * </ul>
+         *
+         * @param value sessioned or stateless mode; {@code null} resolves to SESSIONED.
          * @return this builder
          */
-        /** Selects sessioned or stateless protocol handling. */
         public Builder protocolMode(ProtocolMode value) {
             protocolMode = value == null ? ProtocolMode.SESSIONED : value;
             if (protocolMode == ProtocolMode.STATELESS) protocolVersion = "2026-07-28";
             return this;
         }
 
+        /**
+         * Sets the protocol version string advertised in the {@code initialize} response.
+         *
+         * <p><strong>Tip:</strong> prefer {@link #protocolMode(ProtocolMode)} with
+         * {@link ProtocolMode#STATELESS} when targeting the {@code 2026-07-28} protocol,
+         * as it automatically sets this field. Setting the version manually does
+         * <em>not</em> change the protocol mode — callers are responsible for keeping
+         * the two in sync.
+         *
+         * @param value non-blank version string, e.g. {@code "2025-11-25"}.
+         * @return this builder
+         */
         public Builder protocolVersion(String value) {
             protocolVersion = requireText(value, "protocolVersion");
             return this;
@@ -396,11 +485,12 @@ public final class McpServerConfig {
         }
 
         /**
-         * Enables or disables Streamable HTTP mode. When enabled, the server uses modern
-         * Streamable HTTP transport (single POST endpoint with server-driven streaming).
-         * When disabled, uses legacy HTTP+SSE mode (POST + GET + DELETE endpoints).
+         * Stores the Streamable HTTP preference but has <strong>no runtime effect</strong>
+         * in this release. The transport layer selects the transport mode exclusively via
+         * {@link io.github.vinhphan812.mcp.api.McpServer.Builder#transportMode(TransportMode)}.
+         * This flag is reserved for a future release that wires it end-to-end.
          * Default is true.
-         * @param value whether Streamable HTTP mode is enabled
+         * @param value whether Streamable HTTP mode is preferred
          * @return this builder
          */
         public Builder streamableHttp(boolean value) {
