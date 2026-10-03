@@ -83,7 +83,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
       - name: Start SDK server (HTTP)
         run: |
           java -cp "build/libs/mcp-java-sdk-1.0.0-interop-test.jar" \
