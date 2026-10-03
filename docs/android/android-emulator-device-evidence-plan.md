@@ -140,9 +140,9 @@ The SDK supports two transport modes relevant to Android:
 | Transport             | File                                      | Android Compatible? | Port Required? |
 |-----------------------|-------------------------------------------|--------------------|---------------|
 | Grizzly HTTP          | `transport/HttpTransportProvider.java`    | NO (JVM 11+)       | Yes           |
-| STDIO                 | `transport/StdioTransportProvider.java`   | YES (pure Java 8)  | No            |
+| STDIO                 | `transport/StdioTransportProvider.java`   | N/A — not implemented | N/A          |
 
-For Android testing, **STDIO transport** is the recommended path since it requires no network binding and is fully Java 8-compatible.
+STDIO transport is not implemented. For Android testing, HTTP transport is the only available option (requires JVM).
 
 ---
 
@@ -154,7 +154,7 @@ For Android testing, **STDIO transport** is the recommended path since it requir
 EXPECTED LOG LINES (test assertions against logcat / service log):
 [Log] MCP Server initializing...
 [Log] Registry bound: <N> tools, <M> resources, <K> prompts
-[Log] Transport started: <STDIO|HTTP:port>
+[Log] Transport started: HTTP:port
 [Log] Server ready — listening for requests
 ```
 
@@ -178,13 +178,6 @@ Content-Type: application/json
 
 EXPECTED RESPONSE:
 {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"<result>"}]}}
-```
-
-**STDIO variant (via Android shell):**
-```bash
-# The STDIO transport communicates via stdin/stdout
-# Test harness spawns the process, sends JSON-RPC on stdin, reads from stdout
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | adb shell "su -c '/data/local/tmp/mcp-test-app'" 
 ```
 
 ### 4.3 Graceful Shutdown Evidence
@@ -406,7 +399,6 @@ To proceed with evidence collection, provision ONE of the following:
 
 **Limitation:** Robolectric cannot verify:
 - Actual network binding on a real device
-- STDIO transport subprocess spawning on Android
 - Real Android runtime behavior (ART vs. JVM differences)
 
 ---
@@ -488,11 +480,6 @@ adb logcat -d | grep -iE "shutdown|stopped" > server-shutdown-log.txt
 ```bash
 # 12. Collect all artifacts
 adb pull /sdcard/Android/data/com.example.app/files/ ./
-
-# 13. Run STDIO transport test (no port required)
-# In the test app, spawn MCP server as subprocess:
-adb shell "su -c '/data/local/tmp/mcp-stdio-server' < /sdcard/test-requests.txt > /sdcard/stdio-responses.txt"
-adb pull /sdcard/stdio-responses.txt ./
 ```
 
 ---

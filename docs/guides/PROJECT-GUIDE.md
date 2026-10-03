@@ -100,7 +100,7 @@ The package split is intentionally small and clean:
 
 This arrangement keeps dependency direction clear: annotations describe providers; API exposes extension points; core
 owns MCP semantics; transport adapts network I/O. Intentionally excluded are Android application services, robot/domain
-models, WebSocket and STDIO implementations, persistence, authentication backends, and broad framework abstractions.
+models, WebSocket implementations, persistence, authentication backends, and broad framework abstractions.
 Those belong in consuming applications or separate adapters. The standalone example is under `examples/`, not a
 production package.
 
@@ -341,7 +341,7 @@ The following features are not implemented or have not been fully demonstrated:
 - elicitation request/response flow (not implemented);
 - async task orchestration and `tasks/create` (implemented — P2);
 - async server API (not implemented);
-- STDIO transport;
+- STDIO transport (not implemented);
 - typed schema model beyond `@McpTool(outputSchema)`;
 - POST event-stream response mode (results returned as JSON);
 - complete CORS policy beyond Origin rejection;

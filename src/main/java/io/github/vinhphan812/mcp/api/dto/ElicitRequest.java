@@ -25,7 +25,7 @@ import java.util.Map;
  * <p>This type is used both as a DTO for the public API and as the internal
  * state stored in the pending-requests map. Callers use {@link #builder()} to
  * construct instances; the protocol handler serialises instances to JSON-RPC
- * and enqueues them as SSE events or writes them to STDIO.
+ * and enqueues them as SSE events.
  *
  * <p>See ADR-0022 for the full design.
  *

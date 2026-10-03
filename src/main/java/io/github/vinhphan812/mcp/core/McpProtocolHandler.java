@@ -991,7 +991,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
      * Sends an elicitation request to the client via the session's event queue.
      *
      * <p>The request is serialized as a JSON-RPC notification and enqueued as an SSE event
-     * (or written directly to STDIO for the STDIO transport).  The request's correlation ID
+     * The request's correlation ID
      * is used to match the eventual client response.
      *
      * <p>When the configured timeout expires before a response is received,
@@ -1235,8 +1235,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("protocolVersion", negotiatedVersion);
-        // Include sessionId in the response body for clients that cannot read HTTP headers
-        // (e.g. STDIO transport). The session ID is already stored in the sessions map.
+        // Include sessionId in the response body for clients that cannot read HTTP headers.
+        // The session ID is already stored in the sessions map.
         if (newSessionId != null) {
             result.put("sessionId", newSessionId);
         }

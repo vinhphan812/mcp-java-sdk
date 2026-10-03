@@ -41,7 +41,7 @@ is not a claim of full MCP certification or external-client interoperability.
 | Progress/cancellation                        | No            | Yes             |
 | `tasks/create`                               | No            | Yes             |
 | Async server API                             | No            | Yes             |
-| STDIO transport                              | No            | Yes             |
+| STDIO transport                              | No            | N/A — not provided |
 | Typed schema model                           | Partial       | Yes             |
 
 ### Compatibility strategy
@@ -68,6 +68,6 @@ is not a claim of full MCP certification or external-client interoperability.
 - Partial MCP compliance may confuse consumers who expect full support.
 - The protocol version list is hardcoded; adding new versions requires a code change.
 - External client interoperability is verified through two complementary approaches:
-  (1) custom interop harness covering HTTP and STDIO (`harness/`), and
+  (1) custom interop harness covering HTTP (`harness/`), and
   (2) the official MCP conformance test suite (`@modelcontextprotocol/conformance`) run in CI.
   Known conformance gaps are tracked in `conformance-baseline.yml`.

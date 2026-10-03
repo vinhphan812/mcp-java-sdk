@@ -39,7 +39,7 @@ conformance:
     - name: Start SDK server
       run: |
         java -cp "build/libs/mcp-java-sdk-*.jar" \
-          io.github.vinhphan812.mcp.examples.StdioExample &
+          io.github.vinhphan812.mcp.examples.HttpExample &
         echo $! > /tmp/server.pid
         # Wait for server to be ready
         sleep 5
@@ -93,7 +93,7 @@ server:
 # 1. Start the server in one terminal
 ./gradlew jar --console=plain
 java -cp "build/libs/mcp-java-sdk-*.jar:examples/build/classes/java/main" \
-  io.github.vinhphan812.mcp.examples.StdioExample &
+  io.github.vinhphan812.mcp.examples.HttpExample &
 
 # 2. Run conformance suite in another terminal
 npx @modelcontextprotocol/conformance@latest server \
@@ -208,8 +208,8 @@ npx @modelcontextprotocol/conformance@latest tier-check \
 |---------|-----------|--------|-------|
 | Streamable HTTP | HTTP/SSE | PASS | Grizzly 4.0.2; `Content-Type`, `Accept`, `Origin`, `Mcp-Session-Id` validated |
 | HTTP header routing | 2026-07-28 | PASS | `Mcp-Method`, `Mcp-Protocol-Version` headers |
-| STDIO | STDIO | PASS | `StdioTransportProvider`; line-delimited JSON-RPC |
-| STDIO — clean EOF | STDIO | PASS | Closes stdin → clean process exit (exit code 0) |
+| STDIO | STDIO | NOT IMPLEMENTED | STDIO is not supported by this SDK; HTTP/SSE only |
+| STDIO — clean EOF | STDIO | NOT IMPLEMENTED | N/A — STDIO not supported |
 | TLS/HTTPS | HTTPS | NOT TESTED | External; see `docs/mcp-tls-strategy.md` |
 
 ### Security

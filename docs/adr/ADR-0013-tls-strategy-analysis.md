@@ -128,7 +128,7 @@ Modify the `start()` method to configure SSL:
 public synchronized void start() throws IOExceptionUnchecked {
     if (isRunning()) return;
     try {
-        McpGrizzlyHandler httpHandler = new McpGrizzlyHandler(...);
+        HttpTransportProvider httpHandler = new HttpTransportProvider(...);
         server = new HttpServer();
         NetworkListener listener = new NetworkListener(LISTENER_NAME, host, port);
 

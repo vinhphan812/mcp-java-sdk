@@ -525,7 +525,7 @@ verification record and remaining device requirements.
 ### Excluded
 
 - WebSocket transport (use external bridge if needed)
-- STDIO transport
+- STDIO transport (not implemented)
 - Robot/ROSA domain models (belong in the consuming application)
 - Authentication backends (supply through the public API)
 - Persistence (supply through resources or application code)

@@ -1,11 +1,11 @@
 # MCP Transport — SSE Connection Flow
 
 This document describes the Server-Sent Events (SSE) transport implementation in the MCP Java SDK, specifically the
-`McpGrizzlyHandler` class and its connection management semantics.
+`HttpTransportProvider` class and its connection management semantics.
 
 ## Overview
 
-The SDK uses Grizzly HTTP server as its transport layer. `McpGrizzlyHandler` handles two HTTP methods:
+The SDK uses Grizzly HTTP server as its transport layer. `HttpTransportProvider` handles HTTP transport:
 
 - **POST /mcp** — JSON-RPC request/response for client-to-server RPC
 - **GET /mcp** — SSE stream for server-to-client notifications
@@ -17,7 +17,7 @@ This document focuses on the SSE connection flow.
 ```mermaid
 sequenceDiagram
     participant Client as HTTP Client
-    participant Handler as McpGrizzlyHandler
+    participant Handler as HttpTransportProvider
  participant Protocol as McpProtocolHandler
     participant Semaphore as sseConnections (Semaphore)
 
@@ -77,10 +77,10 @@ The SSE connection limit is enforced via a `Semaphore`:
 
 ```java
 // Default: 4 connections
-McpGrizzlyHandler handler = new McpGrizzlyHandler(protocolHandler);
+HttpTransportProvider handler = new HttpTransportProvider(protocolHandler);
 
 // Custom: 10 connections
-McpGrizzlyHandler handler = new McpGrizzlyHandler(
+HttpTransportProvider handler = new HttpTransportProvider(
         protocolHandler,
         "/mcp",
         null,                              // apiKeySupplier
@@ -323,7 +323,7 @@ Set<String> origins = new HashSet<>(Arrays.asList(
         "https://example.com"
 ));
 
-McpGrizzlyHandler handler = new McpGrizzlyHandler(
+HttpTransportProvider handler = new HttpTransportProvider(
         protocolHandler,
         "/mcp",
         () -> System.getenv("MCP_API_KEY"),  // API key supplier

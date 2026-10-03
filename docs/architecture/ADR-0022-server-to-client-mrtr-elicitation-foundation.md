@@ -22,7 +22,7 @@ We will implement:
 2. **Request timeouts** — configurable timeout for server-initiated requests
 3. **Cooperative cancellation** — allow cancellation of pending elicitation requests
 4. **Typed elicitation API** — `ElicitRequest` and `ElicitationMessage` types
-5. **Transport-neutral routing** — support both SSE and STDIO transports
+5. **Transport-neutral routing** — support SSE transport (STDIO is not supported)
 6. **Capability advertisement** — advertise elicitation in `initialize` response
 
 ## Architecture
@@ -63,7 +63,7 @@ public class ElicitationMessage {
 
 Elicitation works over:
 - **SSE**: Push `elicitation/request` as an SSE event; client sends `POST /mcp` with `elicitation/response`
-- **STDIO**: Send `elicitation/request` as JSON-RPC; client responds with `elicitation/response`
+- **STDIO**: Not supported
 
 ## Capability Advertisement
 
@@ -114,7 +114,7 @@ version-specific metadata (name, version, capabilities, schema).
 ## Consequences
 
 - **Positive**: Enables bidirectional MCP communication; matches MCP spec
-- **Positive**: Transport-neutral design works for SSE and STDIO
+- **Positive**: Transport-neutral design works for HTTP/SSE (STDIO not supported)
 - **Negative**: Requires client implementation of `elicitation/response` method
 
 ## Implementation Notes

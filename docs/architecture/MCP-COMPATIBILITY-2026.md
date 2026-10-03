@@ -58,7 +58,7 @@ initialize error rather than silently advertising a different version.
 - [x] Progress/cancellation notifications (progress tokens in `_meta`, `notifications/progress`)
 - [x] Client-initiated `notifications/cancelled` (cancels by request id)
 - [x] `tasks/create` (task-producing requests with `tasks/task` notifications)
-- [x] STDIO transport (`StdioTransportProvider`; line-delimited JSON-RPC; clean EOF shutdown)
+- [ ] STDIO transport — not implemented; HTTP/SSE only
 - [~] Sampling — deferred stub: returns `{-32601, "Sampling not implemented"}` by default;
   opt-in via `McpServerConfig.Builder.samplingEnabled(true)`.  See ADR-0022 §9a.
 - [~] Elicitation — designed in ADR-0022 §1–§8; implementation is follow-up work.
@@ -69,9 +69,9 @@ initialize error rather than silently advertising a different version.
 
 External client interoperability is verified through two complementary approaches:
 
-1. **Custom interop harness** (`harness/test_http_client.py`, `harness/test_stdio_client.py`) —
-   simulates independent MCP clients making HTTP and STDIO requests; covers all major protocol
-   methods, header routing, and error cases.
+1. **Custom interop harness** (`harness/test_http_client.py`) —
+   simulates independent MCP clients making HTTP requests; covers all major protocol
+   methods, header routing, and error cases. STDIO is not tested.
 
 2. **Official MCP conformance CLI** (`@modelcontextprotocol/conformance`) —
    runs the spec-authoritative test suite; CI jobs run both `active` and `draft` (2026-07-28)
