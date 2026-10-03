@@ -87,7 +87,7 @@ jobs:
       - name: Start SDK server (HTTP)
         run: |
           java -cp "build/libs/mcp-java-sdk-1.0.0-interop-test.jar" \
-            io.github.vinhphan812.mcp.examples.HttpExample \
+            io.github.vinhphan812.mcp.cmd.ConformanceHarness \
             > /tmp/server.log 2>&1 &
           SERVER_PID=$!
           echo $SERVER_PID > /tmp/server.pid
