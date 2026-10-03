@@ -287,7 +287,7 @@ Controls MCP protocol version, capabilities, sessions, and rate limits.
 | `protocolMode(ProtocolMode)` | `SESSIONED` | `SESSIONED` = stateful sessions (default); `STATELESS` = per-request (`2026-07-28`) |
 | `protocolVersion(String)` | `"2025-11-25"` | Advertised protocol version string |
 | `serverName(String)` | `"mcp-server"` | Server name in `initialize` response |
-| `serverVersion(String)` | `"1.0.0"` | Server version string |
+| `serverVersion(String)` | `"1.0.1"` | Server version string |
 | `experimental(Map<String,Object>)` | empty | Arbitrary metadata added to capabilities |
 
 **Capabilities**
