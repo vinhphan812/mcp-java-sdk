@@ -140,7 +140,7 @@ The SDK supports two transport modes relevant to Android:
 | Transport             | File                                      | Android Compatible? | Port Required? |
 |-----------------------|-------------------------------------------|--------------------|---------------|
 | Grizzly HTTP          | `transport/HttpTransportProvider.java`    | NO (JVM 11+)       | Yes           |
-| STDIO                 | `transport/StdioTransportProvider.java`   | N/A — not implemented | N/A          |
+| STDIO                 | N/A — not implemented                    | N/A — not implemented | N/A          |
 
 STDIO transport is not implemented. For Android testing, HTTP transport is the only available option (requires JVM).
 
