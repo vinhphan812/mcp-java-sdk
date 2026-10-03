@@ -205,7 +205,7 @@ public final class McpServerConfig {
      *
      * <p>Initialises all fields to the values declared in {@link McpSecurityDefaults}
      * except {@code serverName} (default: {@code "mcp-server"}) and
-     * {@code serverVersion} (default: {@code "1.0.1"}).
+     * {@code serverVersion} (default: {@code "1.0.0"}).
      *
      * <p>Calling {@link #protocolMode(ProtocolMode)} with
      * {@link ProtocolMode#STATELESS} automatically sets the protocol version to
@@ -220,7 +220,7 @@ public final class McpServerConfig {
         private String protocolVersion = "2025-11-25";
         private ProtocolMode protocolMode = ProtocolMode.SESSIONED;
         private String serverName = "mcp-server";
-        private String serverVersion = "1.0.1";
+        private String serverVersion = "1.0.0";
         private boolean tools = true, resources = true, resourceSubscriptions = true, prompts = true;
         private boolean logging, completions, tasks;
         private McpTaskExtension tasksExtension;
