@@ -401,10 +401,6 @@ public final class McpHttpHandler extends HttpHandler {
             writeError(response, 400, "Unsupported MCP protocol version");
             return;
         }
-        if (!acceptsPostResponse(request)) {
-            writeError(response, 406, "Accept must include application/json and text/event-stream");
-            return;
-        }
 
         String body;
         try {
@@ -471,8 +467,10 @@ public final class McpHttpHandler extends HttpHandler {
             return;
         }
 
-        // Server-driven SSE streaming on POST
-        if (isModernClient(request) && sessionId != null && handler.hasPendingNotifications(sessionId)) {
+        // Server-driven SSE streaming on POST: only if client explicitly opts in
+        // via Accept: text/event-stream AND there are pending notifications.
+        boolean clientAcceptsSse = acceptsSseContentType(request);
+        if (clientAcceptsSse && sessionId != null && handler.hasPendingNotifications(sessionId)) {
             handlePostStreaming(response, result, origin);
             return;
         }
@@ -535,11 +533,16 @@ public final class McpHttpHandler extends HttpHandler {
         return v != null && v.toLowerCase(Locale.ROOT).startsWith("application/json");
     }
 
-    private boolean acceptsPostResponse(Request request) {
+    /**
+     * Returns true when the client Accept header indicates willingness to receive
+     * text/event-stream responses (SSE).  Used to gate SSE streaming on POST;
+     * JSON-RPC responses are always returned regardless of Accept header.
+     */
+    private boolean acceptsSseContentType(Request request) {
         String v = request.getHeader("Accept");
         if (v == null) return false;
         String l = v.toLowerCase(Locale.ROOT);
-        return l.contains("application/json") && l.contains("text/event-stream");
+        return l.contains("text/event-stream");
     }
 
     private boolean validProtocolHeader(Request request) {
