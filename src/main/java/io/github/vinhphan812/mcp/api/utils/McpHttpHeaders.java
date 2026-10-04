@@ -1,9 +1,8 @@
 package io.github.vinhphan812.mcp.api.utils;
 
 /**
- * Canonical HTTP header name constants used by MCP transport handlers.
- * Having these in one place eliminates duplicated string literals across
- * {@code McpHttpHandler} and the deprecated {@code McpGrizzlyHandler}.
+ * Canonical HTTP header name constants used by the MCP transport handler.
+ * Having these in one place eliminates duplicated string literals.
  */
 public final class McpHttpHeaders {
 

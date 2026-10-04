@@ -3,8 +3,7 @@ package io.github.vinhphan812.mcp.transport;
 import java.util.regex.Pattern;
 
 /**
- * Unified SSE (Server-Sent Events) formatter shared by {@link McpHttpHandler}
- * (and previously by the deprecated {@code McpGrizzlyHandler}).
+ * Unified SSE (Server-Sent Events) formatter shared by {@link McpHttpHandler}.
  *
  * <p>Provides:
  * <ul>

@@ -119,32 +119,21 @@ private SSLEngineConfigurator createSSLEngineConfigurator(TlsConfig tls) {
 }
 ```
 
-#### 3. Enable TLS on NetworkListener
+#### 3. TLS is handled by the reverse proxy (accepted approach)
 
-Modify the `start()` method to configure SSL:
+The SDK does **not** terminate TLS in-process. Set `scheme("https")` on the `HttpTransportProvider` to advertise the correct external URL:
 
 ```java
-@Override
-public synchronized void start() throws IOExceptionUnchecked {
-    if (isRunning()) return;
-    try {
-        McpGrizzlyHandler httpHandler = new McpGrizzlyHandler(...);
-        server = new HttpServer();
-        NetworkListener listener = new NetworkListener(LISTENER_NAME, host, port);
+HttpTransportProvider transport = new HttpTransportProvider(handler)
+        .endpoint("/mcp")
+        .scheme("https");  // Advertises https:// in getUrl()
 
-        if (tlsConfig != null) {
-            SSLEngineConfigurator sslConfig = createSSLEngineConfigurator(tlsConfig);
-            listener.setSSLEngineConfigurator(sslConfig);
-        }
-
-        server.addListener(listener);
-        server.getServerConfiguration().addHttpHandler(httpHandler, endpoint);
-        server.start();
-    } catch (Exception e) {
-        // error handling
-    }
-}
+transport.start();
+// TLS is terminated by the reverse proxy (nginx, HAProxy, cloud LB, K8s Ingress)
+// The SDK receives plain HTTP over localhost/VPC
 ```
+
+See `HttpTransportProvider.scheme(String)` for details.
 
 #### 4. Keystore Management
 

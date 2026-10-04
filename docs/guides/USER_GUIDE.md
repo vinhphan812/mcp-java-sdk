@@ -2,7 +2,7 @@
 
 ## 1. Getting Started (5 minutes)
 
-`mcp-java-sdk` is an independent, portable MCP server SDK for Java 8. It provides a lightweight framework to expose
+`mcp-java-sdk` is an independent, portable MCP server SDK for Java 11+. It provides a lightweight framework to expose
 tools, resources, and prompts over HTTP using an annotation-based API.
 
 ### Quick Setup

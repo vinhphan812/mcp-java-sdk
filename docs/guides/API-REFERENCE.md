@@ -234,7 +234,7 @@ Entry point. Use the builder to configure and start the server.
 McpServer server = McpServer.builder()
         .config(McpServerConfig.builder()
                 .serverName("my-server")
-                .serverVersion("1.0.1")
+                .serverVersion("1.0.0")
                 .protocolVersion("2025-11-25")
                 .tools(true)
                 .resources(true)

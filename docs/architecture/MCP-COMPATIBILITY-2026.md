@@ -64,6 +64,31 @@ initialize error rather than silently advertising a different version.
 - [ ] STDIO transport.
 - [ ] Typed schema model.
 
+## External client interoperability (future work — not planned)
+
+Issue #6 "External interoperability" was triaged and **closed as not planned** (2026-10-03).
+The proposal required automated CI gates against real non-Java MCP clients (Python SDK, Claude Code),
+which would introduce Node.js/npm tooling and a harness layer outside this SDK's scope.
+
+Decision rationale:
+- The SDK is a **server-only Java library**. Adding a Node.js-based test harness for external
+  client validation creates a non-trivial second project with its own CI maintenance burden.
+- The `interop.yml` workflow introduced in PR #12 (feature/post-pr11-elicitation-interop) never
+  reached master; every scheduled CI run failed, and the referenced harness scripts
+  (`harness/test_http_client.py`, `harness/compile_matrix.py`) did not ship in that branch.
+- The acceptance criteria require automated pass/fail gates with a compatibility matrix — this
+  cannot be delivered reliably without dedicated ownership and infrastructure.
+- Internal validation (JUnit suite, Grizzly smoke test, MCP Conformance CLI) remains the current
+  evidence base for protocol correctness.
+
+This SDK may gain external interop CI when:
+- A lightweight, maintained harness exists that does not require Node.js as a dependency of the SDK project.
+- External client evidence is available from real deployments (device logs, integration test results).
+- A project owner volunteers to maintain the CI pipeline.
+
+The `MCP-COMPATIBILITY-2026.md` validation checklist (steps 1–8) remains the documented manual
+acceptance procedure for HTTP transport interoperability.
+
 ## Compatibility limitations
 
 Until P1/P2 work is complete, documentation must not claim full compliance with the latest MCP specification. Existing

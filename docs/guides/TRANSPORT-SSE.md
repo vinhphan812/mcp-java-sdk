@@ -1,11 +1,11 @@
 # MCP Transport — SSE Connection Flow
 
 This document describes the Server-Sent Events (SSE) transport implementation in the MCP Java SDK, specifically the
-`McpGrizzlyHandler` class and its connection management semantics.
+`McpHttpHandler` class and its connection management semantics.
 
 ## Overview
 
-The SDK uses Grizzly HTTP server as its transport layer. `McpGrizzlyHandler` handles two HTTP methods:
+The SDK uses Grizzly HTTP server as its transport layer. `McpHttpHandler` handles two HTTP methods:
 
 - **POST /mcp** — JSON-RPC request/response for client-to-server RPC
 - **GET /mcp** — SSE stream for server-to-client notifications
@@ -17,8 +17,8 @@ This document focuses on the SSE connection flow.
 ```mermaid
 sequenceDiagram
     participant Client as HTTP Client
-    participant Handler as McpGrizzlyHandler
- participant Protocol as McpProtocolHandler
+    participant Handler as McpHttpHandler
+    participant Protocol as McpProtocolHandler
     participant Semaphore as sseConnections (Semaphore)
 
     Note over Client,Handler: Step 1: Validate Request
@@ -73,22 +73,18 @@ sequenceDiagram
 The SSE connection limit is enforced via a `Semaphore`:
 
 - **Default limit:** 4 concurrent SSE connections
-- **Configurable:** Pass `maxSseConnections` to the constructor
+- **Configurable:** Use `McpHttpHandler.Builder` to set `maxSseConnections`
 
 ```java
-// Default: 4 connections
-McpGrizzlyHandler handler = new McpGrizzlyHandler(protocolHandler);
+// Default: 4 connections via HttpTransportProvider
+HttpTransportProvider transport = new HttpTransportProvider(handler)
+        .endpoint("/mcp");
 
-// Custom: 10 connections
-McpGrizzlyHandler handler = new McpGrizzlyHandler(
-        protocolHandler,
-        "/mcp",
-        null,                              // apiKeySupplier
-        DEFAULT_ALLOWED_ORIGINS,
-        1024 * 1024,                       // maxRequestBodyBytes
-        10,                                // maxSseConnections
-        false                              // trustXForwardedFor
-);
+// Custom: 10 connections via McpHttpHandler.Builder
+McpHttpHandler httpHandler = new McpHttpHandler.Builder(handler)
+        .endpoint("/mcp")
+        .maxSseConnections(10)
+        .build();
 ```
 
 ## Required Operation Sequence
@@ -99,7 +95,7 @@ The SSE connection flow MUST follow this exact order:
 
 Before any I/O or permit acquisition, validate:
 
-- **Origin:** Must be in `allowedOrigins` (checked via `Origin` header)
+- **Origin:** Must be in `CorsOriginPolicy` (checked via `Origin` header)
 - **Authorization:** Must provide valid `Authorization: Bearer <apiKey>` if API key is configured
 - **Session:** Must provide valid `Mcp-Session-Id` header referencing an active session
 
@@ -275,16 +271,16 @@ sequenceDiagram
 
 The handler returns structured error responses:
 
-| Status | Condition                                                     |
-|--------|---------------------------------------------------------------|
-| 400    | Missing/invalid session ID, invalid Last-Event-ID, empty body |
-| 401    | Missing or invalid Authorization header                       |
-| 403    | Origin not in allowed origins                                 |
-| 404    | Unknown endpoint, unknown session (DELETE)                    |
-| 405    | Unsupported HTTP method                                       |
-| 413    | Request body exceeds `maxRequestBodyBytes`                    |
-| 415    | Content-Type must be application/json                         |
-| 406    | Accept must include application/json and text/event-stream    |
+| Status | Condition                                                      |
+|--------|----------------------------------------------------------------|
+| 400    | Missing/invalid session ID, invalid Last-Event-ID, empty body  |
+| 401    | Missing or invalid Authorization header                          |
+| 403    | Origin not in allowed origins                                  |
+| 404    | Unknown endpoint, unknown session (DELETE)                      |
+| 405    | Unsupported HTTP method                                        |
+| 413    | Request body exceeds `maxRequestBodyBytes`                     |
+| 415    | Content-Type must be application/json                          |
+| 406    | Accept must include application/json and text/event-stream     |
 | 429    | Too many SSE connections (semaphore exhausted)                |
 
 All errors follow JSON-RPC error response format:
@@ -317,21 +313,29 @@ All errors follow JSON-RPC error response format:
 ### Setting Custom Origins
 
 ```java
+// Via HttpTransportProvider convenience API
+HttpTransportProvider transport = new HttpTransportProvider(handler)
+        .endpoint("/mcp")
+        .allowedOrigins(Set.of(
+                "http://localhost",
+                "https://example.com"
+        ));
+
+// Or via McpHttpHandler.Builder for advanced options
 Set<String> origins = new HashSet<>(Arrays.asList(
         "http://localhost",
         "http://127.0.0.1",
         "https://example.com"
 ));
 
-McpGrizzlyHandler handler = new McpGrizzlyHandler(
-        protocolHandler,
-        "/mcp",
-        () -> System.getenv("MCP_API_KEY"),  // API key supplier
-        origins,
-        1024 * 1024,            // 1 MB max body
-        10,                     // 10 concurrent SSE
-        true                    // trust X-Forwarded-For
-);
+McpHttpHandler httpHandler = new McpHttpHandler.Builder(handler)
+        .endpoint("/mcp")
+        .apiKeySupplier(() -> System.getenv("MCP_API_KEY"))
+        .allowedOrigins(origins)
+        .maxRequestBodyBytes(1024 * 1024)  // 1 MB
+        .maxSseConnections(10)               // 10 concurrent SSE
+        .trustXForwardedFor(true)
+        .build();
 ```
 
 ## Connection State Diagram
@@ -433,24 +437,22 @@ The `scheme(String)` method configures the URL scheme that clients should use to
 
 ```java
 // Default: http
-McpGrizzlyServer server = McpGrizzlyServer.create(transportProvider, protocolHandler);
+HttpTransportProvider transport = new HttpTransportProvider(handler)
+        .endpoint("/mcp");
 
 // Advertise https (for reverse proxy termination)
-McpGrizzlyServer server = McpGrizzlyServer.create(
-        transportProvider,
-        protocolHandler,
-        null,
-        "/mcp"
-);
-transportProvider.
+HttpTransportProvider transport = new HttpTransportProvider(handler)
+        .endpoint("/mcp")
+        .scheme("https");
 
-scheme("https");  // Sets advertised URL scheme
+transport.start();
+System.out.println(transport.getUrl()); // https://127.0.0.1:3011/mcp
 ```
 
-| Call                       | `getUrl()` returns           |
-|----------------------------|------------------------------|
-| `scheme("http")` (default) | `http://host:port/endpoint`  |
-| `scheme("https")`          | `https://host:port/endpoint` |
+| Call                        | `getUrl()` returns            |
+|-----------------------------|-------------------------------|
+| `scheme("http")` (default) | `http://host:port/endpoint`   |
+| `scheme("https")`           | `https://host:port/endpoint`  |
 
 **Important:** Calling `scheme("https")` does NOT enable TLS on the server. It only sets the URL scheme that clients
 should use to connect. The actual TLS termination happens at your reverse proxy.
