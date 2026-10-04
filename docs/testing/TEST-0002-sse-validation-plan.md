@@ -26,11 +26,15 @@ compatibility assessment.
 
 ### 1.1 Unit Tests (Direct Impact)
 
+> **[HISTORICAL]** `McpGrizzlyResumabilityTest`, `McpGrizzlyLiveTest`, and `McpGrizzlySecurityMatrixTest`
+> were never committed and do not exist. All SSE/resumability testing is covered by `McpIntegrationTest`,
+> `StreamableHttpModeTest`, and related tests in the test suite.
+
 | Test File                         | Test Method                               | Impact   | Notes                                           |
 |-----------------------------------|-------------------------------------------|----------|-------------------------------------------------|
-| `McpGrizzlyResumabilityTest.java` | `parsesAbsentAndNonNegativeLastEventId()` | **Low**  | Tests parsing only, no ordering dependency      |
-| `McpGrizzlyResumabilityTest.java` | `rejectsMalformedLastEventId()`           | **Low**  | Tests parsing validation only                   |
-| `McpGrizzlyResumabilityTest.java` | `emitsSseEventIdBeforeEventAndData()`     | **None** | Tests static formatting, no ordering dependency |
+| `McpGrizzlyResumabilityTest.java` | `parsesAbsentAndNonNegativeLastEventId()` | **Low**  | Tests parsing only, no ordering dependency       |
+| `McpGrizzlyResumabilityTest.java` | `rejectsMalformedLastEventId()`           | **Low**  | Tests parsing validation only                    |
+| `McpGrizzlyResumabilityTest.java` | `emitsSseEventIdBeforeEventAndData()`     | **None** | Tests static formatting, no ordering dependency  |
 
 **Assessment:** Existing unit tests are unaffected as they test isolated components.
 
@@ -39,21 +43,24 @@ compatibility assessment.
 | Test File                           | Test Method | Potential Impact | Notes                                         |
 |-------------------------------------|-------------|------------------|-----------------------------------------------|
 | `McpIntegrationTest.java`           | All 9 tests | **Medium**       | May create SSE connections; need verification |
-| `McpGrizzlyLiveTest.java`           | Unknown     | **High**         | Likely tests SSE streaming behavior           |
-| `McpGrizzlySecurityMatrixTest.java` | Unknown     | **Medium**       | Security tests may involve SSE auth           |
+| `McpGrizzlyLiveTest.java` [HISTORICAL — never committed; SSE covered by `McpIntegrationTest`]           | N/A         | N/A             | Superseded                                     |
+| `McpGrizzlySecurityMatrixTest.java` [HISTORICAL — never committed] | N/A         | N/A             | Superseded                                     |
 
 ### 1.3 Tests to Verify After Fix
 
+> **Historical note:** The original command referenced `McpGrizzlyResumabilityTest` and `McpGrizzlyLiveTest`
+> which were never committed. The actual test suite is verified via `./gradlew test`.
+
 ```
 Recommended verification command after fix:
-./gradlew test --tests "McpGrizzlyResumabilityTest" --tests "McpIntegrationTest" --tests "McpGrizzlyLiveTest"
+./gradlew test
 ```
 
 ### 1.4 Test Files Requiring Review
 
 | Priority | File                      | Action Required                 |
 |----------|---------------------------|---------------------------------|
-| HIGH     | `McpGrizzlyLiveTest.java` | Review for SSE connection tests |
+| HIGH     | `McpGrizzlyLiveTest.java` [HISTORICAL — never committed] | N/A |
 | MEDIUM   | `McpIntegrationTest.java` | Review for SSE initialization   |
 | LOW      | All other test files      | Verify no SSE handleGet calls   |
 
@@ -231,19 +238,19 @@ For existing MCP server deployments:
 
 ### 5.1 Pre-Fix Tests (Baseline)
 
-| Test        | Command                                               | Expected Before Fix |
-|-------------|-------------------------------------------------------|---------------------|
-| Unit tests  | `./gradlew test --tests "McpGrizzlyResumabilityTest"` | Pass                |
-| Integration | `./gradlew test --tests "McpIntegrationTest"`         | Pass                |
+> **[HISTORICAL]** `McpGrizzlyResumabilityTest` and `McpGrizzlyLiveTest` were never committed.
+> The actual test suite is the `./gradlew test` command.
+
+| Test        | Command              | Expected Before Fix |
+|-------------|----------------------|---------------------|
+| Unit tests  | `./gradlew test`     | Pass                |
+| Integration | `./gradlew test`     | Pass                |
 
 ### 5.2 Post-Fix Validation
 
-| Test                  | Command                                                | Expected After Fix |
-|-----------------------|--------------------------------------------------------|--------------------|
-| Unit tests            | `./gradlew test --tests "McpGrizzlyResumabilityTest"`  | Pass               |
-| Integration           | `./gradlew test --tests "McpIntegrationTest"`          | Pass               |
-| Live SSE              | `./gradlew test --tests "McpGrizzlyLiveTest"`          | Pass               |
-| New tests (TEST-0001) | `./gradlew test --tests "McpSseConnectionReleaseTest"` | Pass               |
+| Test     | Command          | Expected After Fix |
+|----------|------------------|-------------------|
+| All tests | `./gradlew test` | Pass              |
 
 ### 5.3 Manual Verification Checklist
 

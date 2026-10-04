@@ -196,7 +196,8 @@ entry is orphaned, inflating `sessions.size()`.
 
 #### 1.4.3 Disconnect Guarantees (SSE Path)
 
-`McpGrizzlyHandler.handleGet()` SSE disconnect at L385 releases the SSE permit but does not call `terminateSession`. The
+[HISTORICAL — class renamed to `McpHttpHandler` during the ADR-0019 HTTP transport rename (2026-09).]
+`McpHttpHandler.handleGet()` SSE disconnect releases the SSE permit but does not call `terminateSession`. The
 session remains alive until idle timeout. This is acceptable: the session is not leaked, but its cancellation state is
 not cleaned up until timeout (see Section 3).
 
@@ -207,8 +208,9 @@ not cleaned up until timeout (see Section 3).
 
 ### 1.5 Policy Error Responses
 
+[HISTORICAL — `McpGrizzlyHandler` renamed to `McpHttpHandler` during the ADR-0019 HTTP transport rename (2026-09).]
 All rate-limit and security denials return MCP error responses via `errorResponse(id, code, message)`. The HTTP status
-code is set by the transport layer (`McpGrizzlyHandler`); the MCP handler sets only the JSON-RPC error code.
+code is set by the transport layer (`McpHttpHandler`); the MCP handler sets only the JSON-RPC error code.
 
 | Condition                           | MCP error code       | Message pattern                                           | HTTP status (transport) | Abuse score    |
 |-------------------------------------|----------------------|-----------------------------------------------------------|-------------------------|----------------|
@@ -423,7 +425,8 @@ against registered tool names via the registry.
 - Owns all session state maps (`sessions`, `sessionOwners`, `sessionRateLimits`, `cancelledRequests` via registry
   reference).
 - Coordinates all four session termination paths.
-- Adding cleanup here avoids spreading teardown responsibility across `McpGrizzlyHandler` (transport) and `McpServer` (
+[HISTORICAL — `McpGrizzlyHandler` renamed to `McpHttpHandler` during the ADR-0019 HTTP transport rename (2026-09).]
+- Adding cleanup here avoids spreading teardown responsibility across `McpHttpHandler` (transport) and `McpServer` (
   bootstrap).
 - The `registry` reference is already held; no new dependency is introduced.
 

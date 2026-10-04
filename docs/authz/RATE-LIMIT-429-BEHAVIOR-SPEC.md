@@ -6,7 +6,7 @@
 **Parent Tasks:** `t_59da6f1b`
 **Reference Source Files:**
 
-- `McpGrizzlyHandler.java` — HTTP transport (denial output)
+- `McpHttpHandler.java` — HTTP transport (denial output)
 - `McpProtocolHandler.java` — MCP protocol + rate-limit logic
   **Supersedes:** Partial gaps in ADR-0016 (permit ordering), ADR-0017 (error framing)
   **Requires Implementation:** `t_...` (child tasks, to be created)
@@ -17,7 +17,7 @@
 
 ### 1.1 In Scope
 
-Four concrete questions answered for `McpProtocolHandler` + `McpGrizzlyHandler`:
+Four concrete questions answered for `McpProtocolHandler` + `McpHttpHandler`:
 
 | #  | Question                                                                                    | Layer     |
 |----|---------------------------------------------------------------------------------------------|-----------|
@@ -218,7 +218,7 @@ determine if a 429 occurred.
 
 ### 4.1 Detection Mechanism
 
-`McpGrizzlyHandler.handleGet()` detects client disconnects via `IOException` thrown from
+`McpHttpHandler.handleGet()` detects client disconnects via `IOException` thrown from
 `response.getWriter().write(...)` or `response.getWriter().flush(...)` inside the polling loop:
 
 ```java
