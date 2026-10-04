@@ -16,6 +16,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate Markdown tables and links
         run: python validate_docs.py
+      - name: Check stale class references in docs
+        run: python docs_check_stale_classes.py
 
   build:
     strategy:
