@@ -26,6 +26,8 @@ flowchart LR
     Core9["ADR-0009: Code audit"]
     Core10["ADR-0010: Package restructure"]
     Core11["ADR-0011: Security & rate limiting\n(owner sessions, abuse scoring)"]
+    Core22["ADR-0022: MRTR / Elicitation\n(server-initiated requests)"]
+    Core23["ADR-0023: Sampling/Roots/Logging\ndeprecation strategy"]
 
     Core1 --> Core2
     Core1 --> Core3
@@ -40,6 +42,7 @@ flowchart LR
     Core9 --> Core1
     Core10 --> Core7
     Core11 --> Core6
+    Core22 --> Core23
 ```
 
 ## Index
@@ -66,6 +69,8 @@ flowchart LR
 | [ADR-0018](ADR-0018-transport-contract-http-sse-vs-streamable-http.md) | Transport Contract: Legacy HTTP+SSE vs Modern Streamable HTTP                   | Accepted   | 2026-09-22 |
 | [ADR-0019](ADR-0019-java-runtime-floor.md)                             | Java Runtime Floor: Java 11+ Required for Grizzly Transport                     | Accepted   | 2026-09-29 |
 | [ADR-0021](ADR-0021-cors-loopback-origin-policy.md)                    | CORS Loopback Origin Policy: Preflight, Allowlist, and Response Headers         | Accepted   | 2026-09-30 |
+| [ADR-0022](ADR-0022-server-to-client-mrtr-elicitation-foundation.md) | MRTR Server-to-Client Foundation and Elicitation                               | Accepted   | 2026-10-02 |
+| [ADR-0023](ADR-0023-deprecation-sampling-roots-logging.md)            | Deprecation Strategy: Sampling, Roots, and Logging Capabilities                | Accepted   | 2026-10-05 |
 
 ## When to create an ADR
 

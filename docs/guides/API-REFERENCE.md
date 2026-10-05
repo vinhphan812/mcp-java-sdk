@@ -303,6 +303,8 @@ Controls MCP protocol version, capabilities, sessions, and rate limits.
 | `completions(boolean)` | `false` | Advertise completion capability |
 | `tasks(boolean)` | `false` | Advertise tasks capability |
 | `tasksExtension(McpTaskExtension)` | null | Pluggable tasks extension; controls version-gated task method dispatch |
+| `elicitation(boolean)` | `false` | Advertise elicitation capability (requires `protocolMode(STATELESS)` and `protocolVersion("2026-07-28")`) |
+| `elicitationTimeoutMs(long)` | `60000` | Timeout for elicitation requests in milliseconds |
 
 **Sessions and streaming**
 
@@ -328,13 +330,6 @@ Controls MCP protocol version, capabilities, sessions, and rate limits.
 | `maxQueuedEvents(int)` | `1000` | Max SSE events held in session queue before oldest evicted |
 | `overflowListener(QueueOverflowListener)` | null | Called when notification queue overflows; `null` throws `QueueOverflowException` |
 | `logger(McpLogger)` | JDK logger | Application logger adapter |
-
-**Elicitation (MRTR)**
-
-| Method | Default | Description |
-|--------|---------|-------------|
-| `elicitation(boolean)` | `false` | Enable server-to-client request capability (MRTR/elicitation) |
-| `elicitationTimeoutMs(long)` | `60000` | Timeout for elicitation requests in milliseconds |
 
 ---
 
@@ -572,6 +567,54 @@ Tasks created programmatically (no MCP wire call):
 
 ---
 
+## Elicitation
+
+Elicitation enables the server to prompt the client for confirmation or text input during tool execution.
+All methods return `CompletableFuture` — the call is non-blocking.
+
+See [ELICITATION.md](ELICITATION.md) for the full guide, including async pipeline examples.
+
+### Configuration
+
+Enable in `McpServerConfig`:
+
+```java
+McpServerConfig.builder()
+        .protocolVersion("2026-07-28")
+        .protocolMode(ProtocolMode.STATELESS)
+        .elicitation(true)
+        .elicitationTimeoutMs(60_000)  // default: 60 s
+        .build();
+```
+
+### API — `McpProtocolHandler`
+
+| Method | Description |
+|--------|-------------|
+| `elicitConfirmation(sessionId, message, actions, timeoutMs)` | Prompt with labelled actions; resolves to selected action label; throws `McpElicitationException` on decline or timeout |
+| `elicitInput(sessionId, message, defaultValue, timeoutMs)` | Prompt for free-form text; returns `defaultValue` on decline; throws on timeout |
+
+### Error codes
+
+| Code | Constant | When |
+|------|----------|------|
+| `-32003` | `SERVER_REQUEST_TIMEOUT` | Client did not respond within timeout |
+| `-32004` | `ELICITATION_REJECTED` | Client declined or dismissed |
+| `-32601` | `METHOD_NOT_FOUND` | Transport does not support elicitation (e.g., STDIO) |
+
+### Key types
+
+| Type | Package | Purpose |
+|------|---------|---------|
+| `ElicitAction` | `api.dto` | Labelled action (label + optional description) |
+| `ElicitRequest` | `api.dto` | Immutable elicitation request (builder API) |
+| `ElicitationResult` | `api.dto` | Parsed client response; distinguishes action, value, and decline |
+| `McpElicitationException` | `api.utils` | Thrown on timeout, decline, or transport error; extends `RuntimeException` |
+
+Transport: **HTTP/SSE only** — not available over STDIO or Streamable HTTP POST responses.
+
+---
+
 ## Logging
 
 ### `McpLogger`
@@ -679,6 +722,7 @@ Supported MCP JSON-RPC methods:
 | `tasks/get`                 | request      | `tasks: true`       |
 | `tasks/result`              | request      | `tasks: true`       |
 | `tasks/cancel`              | request      | `tasks: true`       |
+| `elicitation/create`        | server-initiated request | `elicitation: true` (HTTP/SSE only) |
 
 ## HTTP transport
 
