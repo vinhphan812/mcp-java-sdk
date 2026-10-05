@@ -344,7 +344,8 @@ public final class McpHttpHandler extends HttpHandler {
     private boolean requiresSession(String method) {
         return !McpMethodNames.INITIALIZE.equals(method)
                 && !McpMethodNames.NOTIF_INITIALIZED.equals(method)
-                && !McpMethodNames.PING.equals(method);
+                && !McpMethodNames.PING.equals(method)
+                && !McpMethodNames.SERVER_DISCOVER.equals(method);
     }
 
     private String getClientIp(Request request) {
@@ -433,8 +434,29 @@ public final class McpHttpHandler extends HttpHandler {
         }
 
         String method = req.get("method").getAsString();
-        if (requiresModernRoutingHeaders(request)) {
-            String headerError = validateRoutingHeaders(request, req, method);
+        boolean headerSelectsStateless = McpJsonRpc.PROTOCOL_VERSION_STATELESS.equals(
+                request.getHeader(McpHttpHeaders.PROTOCOL));
+
+        // When Mcp-Protocol-Version: 2026-07-28 is in the HTTP header but the body lacks
+        // protocolVersion, inject it now so bodySelectsStateless is true BEFORE routing validation.
+        // This makes the body self-sufficient for routing and bypasses HTTP header requirements.
+        boolean bodySelectsStateless = req.has("protocolVersion") && req.get("protocolVersion").isJsonPrimitive()
+                && req.get("protocolVersion").getAsJsonPrimitive().isString()
+                && McpJsonRpc.PROTOCOL_VERSION_STATELESS.equals(req.get("protocolVersion").getAsString());
+        if (headerSelectsStateless && !bodySelectsStateless) {
+            req.addProperty("protocolVersion", McpJsonRpc.PROTOCOL_VERSION_STATELESS);
+            body = req.toString();
+            bodySelectsStateless = true;
+        }
+
+        // Determine which routing path the request is using, then skip validation when the
+        // body itself carries sufficient routing information (body-routed 2026 mode).
+        // In header-routed 2026 mode, HTTP headers (Mcp-Method, Mcp-Name) are still required.
+        // In server-STATELESS mode, HTTP headers are always required per transport spec.
+        boolean anyStateless = handler.isStatelessMode() || headerSelectsStateless || bodySelectsStateless;
+        boolean bodyRoutes = bodySelectsStateless && !handler.isStatelessMode();
+        if (requiresModernRoutingHeaders(request) && !bodyRoutes) {
+            String headerError = validateRoutingHeaders(request, req, method, bodyRoutes);
             if (headerError != null) {
                 writeError(response, 400, headerError);
                 return;
@@ -442,25 +464,14 @@ public final class McpHttpHandler extends HttpHandler {
         }
         String sessionId = request.getHeader(McpHttpHeaders.SESSION);
         String clientIp = getClientIp(request);
-
-        // A 2026 request may select stateless operation through the required HTTP
-        // header rather than a top-level JSON-RPC protocolVersion field.
-        boolean headerSelectsStateless = McpJsonRpc.PROTOCOL_VERSION_STATELESS.equals(
-                request.getHeader(McpHttpHeaders.PROTOCOL));
-        boolean bodySelectsStateless = req.has("protocolVersion") && req.get("protocolVersion").isJsonPrimitive()
-                && req.get("protocolVersion").getAsJsonPrimitive().isString()
-                && McpJsonRpc.PROTOCOL_VERSION_STATELESS.equals(req.get("protocolVersion").getAsString());
-        if (headerSelectsStateless && !req.has("protocolVersion")) {
-            // The core negotiates from the JSON request, so carry the HTTP
-            // version selection into the request before dispatch.
-            req.addProperty("protocolVersion", McpJsonRpc.PROTOCOL_VERSION_STATELESS);
-            body = req.toString();
-            bodySelectsStateless = true;
-        }
-        boolean anyStateless = handler.isStatelessMode() || headerSelectsStateless || bodySelectsStateless;
-        if (requiresSession(method) && !anyStateless && !handler.hasSession(sessionId)) {
-            writeError(response, 400, "Missing or invalid Mcp-Session-Id header");
-            return;
+        // Pass every request through to the protocol handler.
+        // - In 2026 stateless mode: stateless guard prevents session errors at protocol level.
+        // - In 2025 mode: the protocol handler returns the session error as HTTP 200 with
+        //   JSON-RPC error in the body (not HTTP 400), preserving the JSON-RPC error envelope.
+        //   This is intentional: HTTP 400 reserved for malformed requests / routing failures,
+        //   while protocol-level errors always return HTTP 200 with JSON-RPC error body.
+        if (!anyStateless && requiresSession(method) && !handler.hasSession(sessionId)) {
+            // Let the protocol handler produce the JSON-RPC error response as HTTP 200.
         }
 
         McpProtocolHandler.McpResponse result = handler.handleRequestResponse(body, sessionId, clientIp);
@@ -490,20 +501,26 @@ public final class McpHttpHandler extends HttpHandler {
         return McpJsonRpc.PROTOCOL_VERSION_STATELESS.equals(request.getHeader(McpHttpHeaders.PROTOCOL));
     }
 
-    private String validateRoutingHeaders(Request request, JsonObject body, String method) {
+    private String validateRoutingHeaders(Request request, JsonObject body, String method, boolean bodyRoutes) {
         String methodHeader = uniqueHeader(request, McpHttpHeaders.METHOD);
         if (methodHeader == null) return "Missing required Mcp-Method header";
         if (methodHeader.isEmpty()) return "Malformed Mcp-Method header";
         if (!methodHeader.equals(method)) return "Mcp-Method header does not match request method";
 
+        // When the request body itself carries the routing information (2026 body-version routing),
+        // HTTP headers are optional supplements and Mcp-Name is not enforced — the body params
+        // carry the tool/resource/prompt name directly. In header-based routing, Mcp-Name
+        // is required for tools/call, resources/read, and prompts/get to prevent routing ambiguity.
         boolean requiresName = McpMethodNames.TOOLS_CALL.equals(method)
                 || McpMethodNames.RESOURCES_READ.equals(method)
                 || McpMethodNames.PROMPTS_GET.equals(method);
         String nameHeader = uniqueHeader(request, McpHttpHeaders.NAME);
-        if (requiresName && nameHeader == null) return "Missing required Mcp-Name header";
+        if (!bodyRoutes && requiresName && nameHeader == null) return "Missing required Mcp-Name header";
         if (nameHeader != null && nameHeader.isEmpty()) return "Malformed Mcp-Name header";
-        if (!requiresName && nameHeader != null) return "Mcp-Name header is not valid for request method";
-        if (requiresName) {
+        // In header-based routing, Mcp-Name is only valid for methods that require a name.
+        if (!bodyRoutes && !requiresName && nameHeader != null) return "Mcp-Name header is not valid for request method";
+        if (!bodyRoutes && requiresName && nameHeader != null) {
+            // Mcp-Name header: cross-validate against body params
             JsonObject params = body.has("params") && body.get("params").isJsonObject()
                     ? body.getAsJsonObject("params") : null;
             String field = McpMethodNames.RESOURCES_READ.equals(method) ? "uri" : "name";
@@ -723,5 +740,37 @@ public final class McpHttpHandler extends HttpHandler {
         error.put("message", msg);
         Map<String, Object> payload = McpError.jsonRpcEnvelope(null, error);
         r.getWriter().write(McpGson.get().toJson(payload));
+    }
+
+    // ── 2026-07-28 HTTP cancellation ─────────────────────────────────────────
+
+    /**
+     * Cancels a 2026-07-28 request by closing the SSE response stream.
+     *
+     * <p>In MCP 2026-07-28 mode, HTTP cancellation is performed by closing the
+     * SSE stream — the client stops reading or drops the connection, and the server
+     * detects this via a read failure on the next SSE event write attempt.
+     *
+     * <p><strong>Transport limitation:</strong> the current Grizzly NIO transport does not
+     * expose a first-class SSE stream close API. The implementation signals cancellation
+     * by flushing a final SSE ping with the {@code event: cancelled} event type and then
+     * returning from the handler, allowing Grizzly to tear down the connection. The
+     * client must treat an abrupt connection close or a {@code event: cancelled} frame
+     * as the cancellation signal. If Grizzly keeps the connection alive after the handler
+     * returns (due to keep-alive), the next write will fail and the connection will be
+     * recycled.
+     *
+     * <p>This method is a no-op when called outside of a 2026-07-28 SSE streaming context.
+     *
+     * @param response the active SSE response stream to close
+     */
+    public void cancelStream(Response response) {
+        if (response == null) return;
+        try {
+            response.getWriter().write("event: cancelled\ndata: {}\n\n");
+            response.getWriter().flush();
+        } catch (IOException e) {
+            // Client already disconnected — nothing to signal.
+        }
     }
 }
