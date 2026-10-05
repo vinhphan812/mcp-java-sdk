@@ -19,7 +19,8 @@ io.github.vinhphan812.mcp
 │   ├── spi/                   — registration and lifecycle contracts
 │   │   ├── McpRegistrar              — registration SPI
 │   │   ├── McpResourceUpdateListener  — resource change events
-│   │   └── McpRegistryChangeListener — registration change events
+│   │   ├── McpRegistryChangeListener — registration change events
+│   │   └── McpTaskExtension          — Tasks capability SPI (version-gated)
 │   ├── handler/               — application-owned behaviour contracts
 │   │   ├── McpToolHandler            — tool execution
 │   │   ├── McpResourceHandler       — text resource reading
@@ -502,32 +503,67 @@ MCP `resources/read` response for a blob:
 
 ### `McpTask`
 
-Represents a server-managed task with a bounded lifecycle.
+Immutable snapshot of a bounded server task. Created via `McpProtocolHandler.createTask()` or `tasks/create`.
 
 ```java
-public class McpTask {
-    public final String id;
-    public final String name;
-    public final Map<String, Object> input;
-    public Status status;   // PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED
-    public final long createdAt;
-    public long completedAt;
+public final class McpTask {
+    public enum Status { WORKING, COMPLETED, FAILED, CANCELLED }
 
-    public enum Status {PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED}
+    String getTaskId();
+    Status getStatus();
+    long getCreatedAt();
+    long getLastUpdatedAt();
+    Object getResult();       // non-null when COMPLETED
+    String getError();         // non-null when FAILED or CANCELLED
+
+    // Factory
+    static McpTask create();
+    static McpTask create(String name, String sessionId, String requestId,
+                           Map<String, Object> input, Map<String, Object> inputSchema);
+
+    // State transition — produces a new immutable snapshot
+    McpTask transition(Status nextStatus, Object nextResult, String nextError);
+
+    // JSON serialization
+    Map<String, Object> toMap();
 }
 ```
 
-### Task operations
+### `McpTaskExtension`
 
-| Method                              | Description                             |
-|-------------------------------------|-----------------------------------------|
-| `submitTask(input)`                 | Submit a task and return its ID         |
-| `getTask(id)`                       | Get task state by ID                    |
-| `getTaskResult(id)`                 | Get task result by ID                   |
-| `cancelTask(id)`                    | Cancel a pending or processing task     |
-| `publishTaskProgress(id, progress)` | Publish progress token to all sessions  |
-| `completeTask(id, result)`          | Mark task completed and notify sessions |
-| `failTask(id, error)`               | Mark task failed and notify sessions    |
+Pluggable SPI for the `io.modelcontextprotocol/tasks` capability.  See
+**[TASKS-EXTENSION.md](TASKS-EXTENSION.md)** for the full guide.
+
+```java
+McpServerConfig config = McpServerConfig.builder()
+    .tasks(true)
+    .tasksExtension(new MyTaskExtension())
+    .build();
+```
+
+### Task lifecycle
+
+| MCP method               | Description                                       |
+|--------------------------|---------------------------------------------------|
+| `tasks/create`           | Create a named deferred task                      |
+| `tasks/get`              | Fetch current task snapshot                       |
+| `tasks/cancel`           | Cancel a working task and emit `notifications/cancelled` |
+| `tasks/result`           | Fetch the final result (COMPLETED) or error (FAILED/CANCELLED) |
+
+Tasks created programmatically (no MCP wire call):
+
+| `McpProtocolHandler` method | Description                                      |
+|------------------------------|--------------------------------------------------|
+| `createTask()`               | Create a bounded task in WORKING state           |
+| `completeTask(id, result)`   | Transition to COMPLETED                          |
+| `failTask(id, error)`        | Transition to FAILED                             |
+
+### Error codes
+
+| Code  | Constant                      | When                                      |
+|-------|-------------------------------|-------------------------------------------|
+| -32001 | `RESULT_NOT_COMPLETE`          | `tasks/result` called on a WORKING task    |
+| -32002 | `RESULT_ALREADY_TERMINAL`      | `tasks/cancel` called on a terminal task  |
 
 ---
 

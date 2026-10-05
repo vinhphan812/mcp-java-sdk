@@ -1,5 +1,6 @@
 package io.github.vinhphan812.mcp.api.utils;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -145,6 +146,35 @@ public final class McpError {
      */
     public static Map<String, Object> rateLimitExceeded(String message) {
         return of(McpErrorCodes.RATE_LIMIT_EXCEEDED, "Too Many Requests: " + message);
+    }
+
+    /**
+     * {@code -32021} — Client did not declare a required capability in the
+     * per-request metadata.  Used by the Tasks extension when the server requires
+     * the client to include {@code io.modelcontextprotocol/tasks} in its
+     * {@code _meta.io.modelcontextprotocol/clientCapabilities.extensions}.
+     *
+     * <p>The returned error includes a {@code data.requiredCapabilities} object
+     * describing the missing extension.
+     *
+     * @param requiredCapability the capability namespace that was missing
+     * @return JSON-RPC error object with data payload
+     */
+    public static Map<String, Object> missingRequiredClientCapability(String requiredCapability) {
+        Map<String, Object> error = of(McpErrorCodes.MISSING_REQUIRED_CLIENT_CAPABILITY,
+                "Missing required client capability");
+        // Attach structured data for programmatic inspection
+        @SuppressWarnings("unchecked")
+        Map<String, Object> extensions = new LinkedHashMap<>();
+        extensions.put(requiredCapability, Collections.emptyMap());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> required = new LinkedHashMap<>();
+        required.put("extensions", extensions);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("requiredCapabilities", required);
+        error.put("data", data);
+        return error;
     }
 
     // ── HTTP transport ────────────────────────────────────────────────────────

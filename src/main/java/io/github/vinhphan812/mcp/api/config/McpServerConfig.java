@@ -150,6 +150,12 @@ public final class McpServerConfig {
      * Default is true.
      */
     public final boolean streamableHttp;
+    /**
+     * Maximum notification buffer size per {@code listens/subscribe} subscription.
+     * When the buffer is full, the oldest event is silently dropped.
+     * Default is 100.
+     */
+    public final int maxListenerBufferSize;
 
     /**
      * Returns the configured queue overflow listener.
@@ -191,6 +197,7 @@ public final class McpServerConfig {
         bindSessionToIp = builder.bindSessionToIp;
         streaming = builder.streaming;
         streamableHttp = builder.streamableHttp;
+        maxListenerBufferSize = builder.maxListenerBufferSize;
     }
 
     /** Creates a builder for server configuration.
@@ -246,6 +253,7 @@ public final class McpServerConfig {
         private boolean bindSessionToIp = false;
         private boolean streaming = true;
         private boolean streamableHttp = true;
+        private int maxListenerBufferSize = 100;
 
         /** Sets maximum page size for paginated responses.
          * @param value positive maximum item count
@@ -495,6 +503,20 @@ public final class McpServerConfig {
          */
         public Builder streamableHttp(boolean value) {
             this.streamableHttp = value;
+            return this;
+        }
+
+        /**
+         * Sets the maximum notification buffer size for each {@code listens/subscribe}
+         * subscription. When the buffer is full, the oldest event is silently dropped.
+         * Must be positive. Default is 100.
+         *
+         * @param value maximum buffer size per listener
+         * @return this builder
+         */
+        public Builder maxListenerBufferSize(int value) {
+            if (value <= 0) throw new IllegalArgumentException("maxListenerBufferSize must be positive");
+            this.maxListenerBufferSize = value;
             return this;
         }
 

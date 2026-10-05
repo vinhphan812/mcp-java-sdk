@@ -21,6 +21,7 @@ import com.google.gson.reflect.TypeToken;
 import io.github.vinhphan812.mcp.api.config.McpSecurityDefaults;
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.api.config.RateLimits;
+import io.github.vinhphan812.mcp.api.dto.ListenRequest;
 import io.github.vinhphan812.mcp.api.dto.McpBlobContent;
 import io.github.vinhphan812.mcp.api.dto.McpTask;
 import io.github.vinhphan812.mcp.api.dto.Mcp2026RequestContext;
@@ -85,6 +86,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private final McpAuthorization authorization;
     private final QueueOverflowListener overflowListener;
     private final int maxQueuedEvents;
+    private final SubscriptionManager listenerSubscriptions;
 
     // Sliding-window rate limit tracker
     private static final class RateLimitRecord {
@@ -296,6 +298,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (this.tasksExtension != null) {
             this.tasksExtension.register(this.taskRegistry);
         }
+        this.listenerSubscriptions = new SubscriptionManager(config.maxListenerBufferSize);
         registry.setNotificationTarget(this);
         registry.addRegistryChangeListener(this);
         startCleanupThread();
@@ -350,6 +353,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         cleanupRunning = false;
         if (cleanupThread != null) cleanupThread.interrupt();
         cleanupThread = null;
+        listenerSubscriptions.shutdown();
         ipRateLimits.clear();
         sessionRateLimits.clear();
     }
@@ -779,6 +783,12 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                             pp -> handleTasksCreate(pp, sessionId, requestId), p);
                     break;
                 }
+                case McpMethodNames.TASKS_UPDATE: {
+                    Map<String, Object> p = params instanceof Map ? (Map<String, Object>) params : null;
+                    result = dispatchTaskRequest(method, id, sessionId, requestId,
+                            pp -> handleTasksUpdate(pp, sessionId), p);
+                    break;
+                }
                 case McpMethodNames.COMPLETION_COMPLETE:
                     responseSessionId = null;
                     if (!config.completions) return new McpResponse(capabilityError(id, "completions"), sessionId);
@@ -795,6 +805,16 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                     return new McpResponse(null, sessionId);
                 case McpMethodNames.PING:
                     result = new LinkedHashMap<>();
+                    break;
+                case McpMethodNames.LISTEN_SUBSCRIBE:
+                    responseSessionId = null;
+                    result = handleListenSubscribe(
+                            params instanceof Map ? (Map<String, Object>) params : null);
+                    break;
+                case McpMethodNames.LISTEN_UNSUBSCRIBE:
+                    responseSessionId = null;
+                    result = handleListenUnsubscribe(
+                            params instanceof Map ? (Map<String, Object>) params : null);
                     break;
                 default:
                     return new McpResponse(errorResponse(id, McpError.methodNotFound("Method not found: " + method)), sessionId);
@@ -829,7 +849,9 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         return McpMethodNames.SERVER_DISCOVER.equals(method)
                 || McpMethodNames.INITIALIZE.equals(method)
                 || McpMethodNames.NOTIF_INITIALIZED.equals(method)
-                || McpMethodNames.PING.equals(method);
+                || McpMethodNames.PING.equals(method)
+                || McpMethodNames.LISTEN_SUBSCRIBE.equals(method)
+                || McpMethodNames.LISTEN_UNSUBSCRIBE.equals(method);
     }
 
     // Backward-compatible overload
@@ -1095,10 +1117,10 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (config.completions) capabilities.put("completions", new LinkedHashMap<String, Object>());
         if (config.logging) capabilities.put("logging", new LinkedHashMap<String, Object>());
         if (config.tasks) {
-            // server/discover always operates in 2026-07-28 stateless mode;
-            // advertise tasks when the extension supports that version.
-            if (tasksExtension != null && tasksExtension.supports(McpJsonRpc.PROTOCOL_VERSION_STATELESS)) {
-                capabilities.put("tasks", tasksExtension.advertiseCapabilities(McpJsonRpc.PROTOCOL_VERSION_STATELESS));
+            // Use the configured protocolVersion for extension capability checks.
+            // server/discover reflects the server's configured version, not a hardcoded one.
+            if (tasksExtension != null && tasksExtension.supports(config.protocolVersion)) {
+                capabilities.put("tasks", tasksExtension.advertiseCapabilities(config.protocolVersion));
             } else if (tasksExtension == null) {
                 capabilities.put("tasks", new LinkedHashMap<String, Object>());
             }
@@ -1195,12 +1217,23 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     }
 
     private Map<String, Object> handleTasksGet(Map<String, Object> params) {
-        return findTask(params).toMap();
+        McpTask task = findTask(params);
+        Map<String, Object> out = new LinkedHashMap<>();
+        // SEP-2663 §Task Polling: resultType MUST be "complete"
+        out.put("resultType", "complete");
+        // Copy the full task metadata from toMap()
+        for (Map.Entry<String, Object> e : task.toMap().entrySet()) {
+            out.put(e.getKey(), e.getValue());
+        }
+        return out;
     }
 
     private Map<String, Object> handleTasksResult(Map<String, Object> params) {
         McpTask task = findTask(params);
-        if (task.getStatus() == McpTask.Status.WORKING)
+        // SEP-2663: tasks/result only applies to terminal states.
+        // INPUT_REQUIRED is not terminal → throw.
+        if (task.getStatus() == McpTask.Status.WORKING
+                || task.getStatus() == McpTask.Status.INPUT_REQUIRED)
             throw McpException.taskNotComplete(task.getTaskId());
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("taskId", task.getTaskId());
@@ -1215,7 +1248,9 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
     private Map<String, Object> handleTasksCancel(Map<String, Object> params, String sessionId, Object requestId) {
         McpTask task = findTask(params);
-        if (task.getStatus() != McpTask.Status.WORKING)
+        // Allow cancelling WORKING or INPUT_REQUIRED tasks (both are non-terminal)
+        if (task.getStatus() != McpTask.Status.WORKING
+                && task.getStatus() != McpTask.Status.INPUT_REQUIRED)
             throw McpException.taskAlreadyTerminal(task.getStatus().name());
         registry.cancelRequest(sessionId, requestId == null ? null : requestId.toString());
         Map<String, Object> result = registry.cancelTask(task.getTaskId()).toMap();
@@ -1228,6 +1263,49 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             state.enqueueEvent(mapper.toJson(mapAsRpcNotification(McpMethodNames.NOTIF_CANCELLED, notifyParams)));
         }
         return result;
+    }
+
+    /**
+     * Handles SEP-2663 tasks/update: client provides inputResponses for an INPUT_REQUIRED task.
+     * Returns an empty acknowledgement on success (SEP-2663 §Task Update).
+     *
+     * @param params must contain "taskId" (String) and "inputResponses" (Map)
+     * @param sessionId MCP session id
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> handleTasksUpdate(Map<String, Object> params, String sessionId) {
+        if (params == null)
+            throw McpException.invalidParams("params required");
+        String taskId = params.get("taskId") instanceof String
+                ? (String) params.get("taskId") : null;
+        if (taskId == null || taskId.trim().isEmpty())
+            throw McpException.invalidParams("taskId is required");
+        Map<String, Object> inputResponses = params.get("inputResponses") instanceof Map
+                ? (Map<String, Object>) params.get("inputResponses") : null;
+        // Find task — throws INVALID_PARAMS if unknown
+        McpTask task = registry.getTask(taskId);
+        if (task == null)
+            throw McpException.invalidParams("Unknown task: " + taskId);
+        if (task.getStatus() != McpTask.Status.INPUT_REQUIRED)
+            throw McpException.invalidParams("tasks/update only valid for INPUT_REQUIRED tasks");
+        // Delegate to extension for input-response processing if present.
+        // The extension can choose to transition the task, store responses, etc.
+        if (tasksExtension != null) {
+            McpTaskExtension.RequestResult extResult =
+                    tasksExtension.onRequest(McpMethodNames.TASKS_UPDATE,
+                            params, sessionId);
+            if (extResult != null) {
+                if (extResult.isSuccess()) {
+                    return extResult.result != null ? extResult.result : new LinkedHashMap<>();
+                } else {
+                    throw new McpException(extResult.error.code, extResult.error.message);
+                }
+            }
+        }
+        // Default: acknowledge the update. The application is responsible for
+        // calling registry.transitionToInputRequired() or registry.completeTask()
+        // after processing the inputResponses out-of-band.
+        return new LinkedHashMap<>();
     }
 
     /**
@@ -1303,6 +1381,58 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         } catch (IllegalArgumentException e) {
             throw McpException.invalidParams("Invalid log level: " + params.get("level"));
         }
+    }
+
+    // ==================== 2026 subscriptions / listen ====================
+
+    /**
+     * Handles {@code listens/subscribe} (2026-07-28).
+     * Opens a sessionless listener subscription and returns the server-assigned token.
+     *
+     * <p>Response shape:
+     * <pre>{@code
+     * {
+     *   "subscription": { "token": "...", "topics": [...], "bufferSize": 100, "maxCapacity": 100 }
+     * }
+     * }</pre>
+     */
+    private Map<String, Object> handleListenSubscribe(Map<String, Object> params) {
+        ListenRequest req = ListenRequest.fromParams(params);
+        if (req.topics.isEmpty()) {
+            throw McpException.invalidParams("at least one topic is required in the topics array");
+        }
+        SubscriptionManager.ListenerOpenResult open =
+                listenerSubscriptions.subscribe(req.topics, req.subscriptionId, req.bufferSizeHint);
+        Map<String, Object> result = new LinkedHashMap<>();
+        Map<String, Object> subscription = new LinkedHashMap<>();
+        subscription.put("token", open.token());
+        subscription.put("topics", new java.util.ArrayList<>(req.topics));
+        subscription.put("bufferSize", open.bufferSize());
+        subscription.put("maxCapacity", open.maxCapacity());
+        result.put("subscription", subscription);
+        return result;
+    }
+
+    /**
+     * Handles {@code listens/unsubscribe} (2026-07-28).
+     * Closes an active listener subscription and releases its resources.
+     *
+     * <p>Response shape:
+     * <pre>{@code
+     * { "unsubscribed": true }
+     * }</pre>
+     */
+    private Map<String, Object> handleListenUnsubscribe(Map<String, Object> params) {
+        if (params == null) throw McpException.invalidParams("params required");
+        Object tokenObj = params.get("token");
+        if (!(tokenObj instanceof String) || ((String) tokenObj).isEmpty()) {
+            throw McpException.invalidParams("token is required and must be a non-empty string");
+        }
+        String token = (String) tokenObj;
+        listenerSubscriptions.unsubscribe(token);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("unsubscribed", true);
+        return result;
     }
 
     // ==================== Tools ====================
@@ -1750,6 +1880,24 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     }
 
     /**
+     * Transitions a working task to the INPUT_REQUIRED state with SEP-2663 metadata.
+     * Use this when a task needs client input before it can proceed.
+     *
+     * @param taskId task identifier
+     * @param statusMessage human-readable status message
+     * @param ttlMs time-to-live in ms, or null for unlimited
+     * @param pollIntervalMs suggested polling interval in ms, or null
+     * @param inputRequests pending MRTR input requests (SEP-2663 shape), or null
+     * @return updated INPUT_REQUIRED task snapshot
+     */
+    @SuppressWarnings("unused, UnusedReturnValue")
+    public McpTask transitionTaskToInputRequired(String taskId, String statusMessage,
+                                                  Long ttlMs, Integer pollIntervalMs,
+                                                  Map<String, Object> inputRequests) {
+        return registry.transitionToInputRequired(taskId, statusMessage, ttlMs, pollIntervalMs, inputRequests);
+    }
+
+    /**
      * Register a tool schema and handler.
      * Called by ToolManager.registerToolDefinitions() during initialization.
      */
@@ -1801,7 +1949,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     }
 
     /**
-     * Queues a list-changed notification for every active session.
+     * Queues a list-changed notification for every active session
+     * AND for every active 2026 listener subscription.
      */
     @Override
     public void onRegistryChanged(String listType) {
@@ -1819,14 +1968,18 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             default:
                 method = McpMethodNames.NOTIF_LIST_CHANGED;
         }
+        // Session-based notifications (legacy 2025 behaviour)
         String body = mapper.toJson(mapAsRpcNotification(method, null));
         for (SessionState state : sessions.values()) {
             state.enqueueEvent(body);
         }
+        // 2026 listener subscriptions
+        listenerSubscriptions.notifyRegistryChanged(listType, method, null, mapper);
     }
 
     /**
-     * Queue a resource update for every session subscribed to the URI.
+     * Queue a resource update for every session subscribed to the URI
+     * AND for every active 2026 listener subscription subscribed to {@code resources/updated}.
      * Uses bounded queue with overflow handling.
      */
     public void notifyResourceUpdated(String uri) {
@@ -1834,11 +1987,14 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("uri", uri);
         String body = mapper.toJson(mapAsRpcNotification(McpMethodNames.NOTIF_RESOURCES_UPDATED, params));
+        // Session-based resource updates (legacy 2025 behaviour)
         for (SessionState state : sessions.values()) {
             if (state.subscriptions.contains(uri)) {
                 enqueue(state, body);
             }
         }
+        // 2026 listener subscriptions
+        listenerSubscriptions.notifyResourceUpdated(uri, mapper);
     }
 
     /**
@@ -1940,6 +2096,45 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                         .append(escapeSseData(event.body))
                         .append("\n\n");
             }
+        }
+        return sb.toString();
+    }
+
+    // ── 2026 listener subscription polling ───────────────────────────────────────
+
+    /**
+     * Polls the next queued notification for a 2026 listener subscription.
+     * Returns the notification body as an SSE-formatted line, or null when the queue is empty.
+     *
+     * <p>This method is used by the transport layer to drain the listener's event queue
+     * and stream notifications over the HTTP response.
+     *
+     * @param subscriptionToken the server-assigned subscription token from {@code listens/subscribe}
+     * @return SSE-formatted notification line, or null
+     */
+    public String pollListenerNotification(String subscriptionToken) {
+        if (subscriptionToken == null) return null;
+        String body = listenerSubscriptions.poll(subscriptionToken);
+        if (body == null) return null;
+        return "event: message\ndata: " + body + "\n\n";
+    }
+
+    /**
+     * Drains and returns all queued notifications for a 2026 listener subscription.
+     * Used for replay when a client reconnects with {@code Last-Event-ID}.
+     *
+     * @param subscriptionToken the server-assigned subscription token
+     * @return concatenated SSE blocks for all queued notifications, or empty string
+     */
+    public String drainListenerNotifications(String subscriptionToken) {
+        if (subscriptionToken == null) return "";
+        java.util.List<String> bodies = listenerSubscriptions.drain(subscriptionToken);
+        if (bodies.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        for (String body : bodies) {
+            sb.append("event: message\ndata: ")
+                    .append(escapeSseData(body))
+                    .append("\n\n");
         }
         return sb.toString();
     }
