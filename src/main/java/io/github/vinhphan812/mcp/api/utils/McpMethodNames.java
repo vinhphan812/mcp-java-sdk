@@ -123,6 +123,21 @@ public final class McpMethodNames {
      */
     public static final String NOTIF_RESOURCES_UPDATED = "notifications/resources/updated";
 
+    // ── Server → Client requests ─────────────────────────────────────────────
+
+    /**
+     * {@code elicitation/create} — server-initiated elicitation of user confirmation or input.
+     * @since 2026-07-28
+     */
+    public static final String ELICITATION_CREATE = "elicitation/create";
+
+    /**
+     * {@code sampling/createMessage} — server-initiated request for the client to generate content.
+     * Stub-only in this release; returns {@code -32601} when called.
+     * @since 2026-07-28
+     */
+    public static final String SAMPLING_CREATE_MESSAGE = "sampling/createMessage";
+
     // ── Ping ────────────────────────────────────────────────────────────────
 
     /**
