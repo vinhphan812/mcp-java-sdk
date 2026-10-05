@@ -59,6 +59,18 @@ public final class McpErrorCodes {
      */
     public static final int RATE_LIMIT_EXCEEDED = -32029;
 
+    /**
+     * {@code -32003} — Server-initiated request (e.g. elicitation) timed out.
+     * @since 2026-07-28
+     */
+    public static final int SERVER_REQUEST_TIMEOUT = -32003;
+
+    /**
+     * {@code -32004} — Client rejected or declined an elicitation request.
+     * @since 2026-07-28
+     */
+    public static final int ELICITATION_REJECTED = -32004;
+
     private McpErrorCodes() {
         // utility class — prevent instantiation
     }
