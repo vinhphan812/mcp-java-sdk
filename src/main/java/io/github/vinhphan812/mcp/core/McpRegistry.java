@@ -355,6 +355,43 @@ public class McpRegistry implements McpRegistrar {
         return transitionTask(taskId, McpTask.Status.CANCELLED, null, "Task cancelled");
     }
 
+    /**
+     * Transitions a working task to the {@code INPUT_REQUIRED} state, preserving
+     * SEP-2663 metadata (statusMessage, ttlMs, pollIntervalMs, inputRequests).
+     *
+     * @param taskId task identifier
+     * @param statusMessage human-readable status message
+     * @param ttlMs time-to-live in ms, or null for unlimited
+     * @param pollIntervalMs suggested polling interval in ms, or null
+     * @param inputRequests pending MRTR input requests map, or null
+     * @return updated INPUT_REQUIRED task snapshot
+     */
+    public McpTask transitionToInputRequired(String taskId, String statusMessage,
+                                            Long ttlMs, Integer pollIntervalMs,
+                                            Map<String, Object> inputRequests) {
+        if (taskId == null || taskId.trim().isEmpty())
+            throw new IllegalArgumentException("taskId is required");
+        for (; ; ) {
+            McpTask current = tasks.get(taskId);
+            if (current == null)
+                throw new IllegalArgumentException("Unknown task: " + taskId);
+            if (current.getStatus() != McpTask.Status.WORKING
+                    && current.getStatus() != McpTask.Status.INPUT_REQUIRED)
+                throw new IllegalStateException("Task is already terminal: " + current.getStatus());
+            long now = System.currentTimeMillis();
+            McpTask next = new McpTask(
+                    taskId, McpTask.Status.INPUT_REQUIRED,
+                    current.getName(),
+                    current.getTaskId(), // reuse taskId as sessionId proxy (sessionId not stored in McpTask)
+                    null, // requestId
+                    current.getInput(),
+                    null, // inputSchema
+                    now, now,
+                    statusMessage, ttlMs, pollIntervalMs, inputRequests);
+            if (tasks.replace(taskId, current, next)) return next;
+        }
+    }
+
     private McpTask transitionTask(String taskId, McpTask.Status status, Object result, String error) {
         if (taskId == null || taskId.trim().isEmpty()) throw new IllegalArgumentException("taskId is required");
         for (; ; ) {

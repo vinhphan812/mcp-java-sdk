@@ -46,6 +46,14 @@ public final class McpErrorCodes {
     public static final int RESULT_ALREADY_TERMINAL = -32002;
 
     /**
+     * {@code -32021} — Client capability required by a server-side task operation
+     * was absent from the request. Used by the Tasks extension (io.modelcontextprotocol/tasks)
+     * when the server requires the client to declare the tasks extension in its
+     * per-request capabilities before the server will create a task for that request.
+     */
+    public static final int MISSING_REQUIRED_CLIENT_CAPABILITY = -32021;
+
+    /**
      * {@code -32029} — Request rejected due to rate limiting
      * (too many requests per IP, per session, per category, or per concurrent slot).
      */

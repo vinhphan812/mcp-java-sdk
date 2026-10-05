@@ -779,6 +779,12 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                             pp -> handleTasksCreate(pp, sessionId, requestId), p);
                     break;
                 }
+                case McpMethodNames.TASKS_UPDATE: {
+                    Map<String, Object> p = params instanceof Map ? (Map<String, Object>) params : null;
+                    result = dispatchTaskRequest(method, id, sessionId, requestId,
+                            pp -> handleTasksUpdate(pp, sessionId), p);
+                    break;
+                }
                 case McpMethodNames.COMPLETION_COMPLETE:
                     responseSessionId = null;
                     if (!config.completions) return new McpResponse(capabilityError(id, "completions"), sessionId);
@@ -1095,10 +1101,10 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (config.completions) capabilities.put("completions", new LinkedHashMap<String, Object>());
         if (config.logging) capabilities.put("logging", new LinkedHashMap<String, Object>());
         if (config.tasks) {
-            // server/discover always operates in 2026-07-28 stateless mode;
-            // advertise tasks when the extension supports that version.
-            if (tasksExtension != null && tasksExtension.supports(McpJsonRpc.PROTOCOL_VERSION_STATELESS)) {
-                capabilities.put("tasks", tasksExtension.advertiseCapabilities(McpJsonRpc.PROTOCOL_VERSION_STATELESS));
+            // Use the configured protocolVersion for extension capability checks.
+            // server/discover reflects the server's configured version, not a hardcoded one.
+            if (tasksExtension != null && tasksExtension.supports(config.protocolVersion)) {
+                capabilities.put("tasks", tasksExtension.advertiseCapabilities(config.protocolVersion));
             } else if (tasksExtension == null) {
                 capabilities.put("tasks", new LinkedHashMap<String, Object>());
             }
@@ -1195,12 +1201,23 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     }
 
     private Map<String, Object> handleTasksGet(Map<String, Object> params) {
-        return findTask(params).toMap();
+        McpTask task = findTask(params);
+        Map<String, Object> out = new LinkedHashMap<>();
+        // SEP-2663 §Task Polling: resultType MUST be "complete"
+        out.put("resultType", "complete");
+        // Copy the full task metadata from toMap()
+        for (Map.Entry<String, Object> e : task.toMap().entrySet()) {
+            out.put(e.getKey(), e.getValue());
+        }
+        return out;
     }
 
     private Map<String, Object> handleTasksResult(Map<String, Object> params) {
         McpTask task = findTask(params);
-        if (task.getStatus() == McpTask.Status.WORKING)
+        // SEP-2663: tasks/result only applies to terminal states.
+        // INPUT_REQUIRED is not terminal → throw.
+        if (task.getStatus() == McpTask.Status.WORKING
+                || task.getStatus() == McpTask.Status.INPUT_REQUIRED)
             throw McpException.taskNotComplete(task.getTaskId());
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("taskId", task.getTaskId());
@@ -1215,7 +1232,9 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
     private Map<String, Object> handleTasksCancel(Map<String, Object> params, String sessionId, Object requestId) {
         McpTask task = findTask(params);
-        if (task.getStatus() != McpTask.Status.WORKING)
+        // Allow cancelling WORKING or INPUT_REQUIRED tasks (both are non-terminal)
+        if (task.getStatus() != McpTask.Status.WORKING
+                && task.getStatus() != McpTask.Status.INPUT_REQUIRED)
             throw McpException.taskAlreadyTerminal(task.getStatus().name());
         registry.cancelRequest(sessionId, requestId == null ? null : requestId.toString());
         Map<String, Object> result = registry.cancelTask(task.getTaskId()).toMap();
@@ -1228,6 +1247,49 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             state.enqueueEvent(mapper.toJson(mapAsRpcNotification(McpMethodNames.NOTIF_CANCELLED, notifyParams)));
         }
         return result;
+    }
+
+    /**
+     * Handles SEP-2663 tasks/update: client provides inputResponses for an INPUT_REQUIRED task.
+     * Returns an empty acknowledgement on success (SEP-2663 §Task Update).
+     *
+     * @param params must contain "taskId" (String) and "inputResponses" (Map)
+     * @param sessionId MCP session id
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> handleTasksUpdate(Map<String, Object> params, String sessionId) {
+        if (params == null)
+            throw McpException.invalidParams("params required");
+        String taskId = params.get("taskId") instanceof String
+                ? (String) params.get("taskId") : null;
+        if (taskId == null || taskId.trim().isEmpty())
+            throw McpException.invalidParams("taskId is required");
+        Map<String, Object> inputResponses = params.get("inputResponses") instanceof Map
+                ? (Map<String, Object>) params.get("inputResponses") : null;
+        // Find task — throws INVALID_PARAMS if unknown
+        McpTask task = registry.getTask(taskId);
+        if (task == null)
+            throw McpException.invalidParams("Unknown task: " + taskId);
+        if (task.getStatus() != McpTask.Status.INPUT_REQUIRED)
+            throw McpException.invalidParams("tasks/update only valid for INPUT_REQUIRED tasks");
+        // Delegate to extension for input-response processing if present.
+        // The extension can choose to transition the task, store responses, etc.
+        if (tasksExtension != null) {
+            McpTaskExtension.RequestResult extResult =
+                    tasksExtension.onRequest(McpMethodNames.TASKS_UPDATE,
+                            params, sessionId);
+            if (extResult != null) {
+                if (extResult.isSuccess()) {
+                    return extResult.result != null ? extResult.result : new LinkedHashMap<>();
+                } else {
+                    throw new McpException(extResult.error.code, extResult.error.message);
+                }
+            }
+        }
+        // Default: acknowledge the update. The application is responsible for
+        // calling registry.transitionToInputRequired() or registry.completeTask()
+        // after processing the inputResponses out-of-band.
+        return new LinkedHashMap<>();
     }
 
     /**
@@ -1747,6 +1809,24 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     @SuppressWarnings("unused, UnusedReturnValue")
     public McpTask failTask(String taskId, String error) {
         return registry.failTask(taskId, error);
+    }
+
+    /**
+     * Transitions a working task to the INPUT_REQUIRED state with SEP-2663 metadata.
+     * Use this when a task needs client input before it can proceed.
+     *
+     * @param taskId task identifier
+     * @param statusMessage human-readable status message
+     * @param ttlMs time-to-live in ms, or null for unlimited
+     * @param pollIntervalMs suggested polling interval in ms, or null
+     * @param inputRequests pending MRTR input requests (SEP-2663 shape), or null
+     * @return updated INPUT_REQUIRED task snapshot
+     */
+    @SuppressWarnings("unused, UnusedReturnValue")
+    public McpTask transitionTaskToInputRequired(String taskId, String statusMessage,
+                                                  Long ttlMs, Integer pollIntervalMs,
+                                                  Map<String, Object> inputRequests) {
+        return registry.transitionToInputRequired(taskId, statusMessage, ttlMs, pollIntervalMs, inputRequests);
     }
 
     /**
