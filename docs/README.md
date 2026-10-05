@@ -10,6 +10,7 @@
 - [User Guide](guides/USER_GUIDE.md)
 - [Grizzly Example](guides/HTTP-TRANSPORT-EXAMPLE.md)
 - [Transport: SSE](guides/TRANSPORT-SSE.md)
+- [Elicitation](guides/ELICITATION.md)
 
 - [Elicitation](guides/ELICITATION.md)
 
