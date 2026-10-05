@@ -56,11 +56,11 @@ class McpTaskExtensionTest {
         return null;
     }
 
-    /** Initialises a 2026-07-28 stateless request, returning the response body. */
+    /** Performs server/discover on a STATELESS handler, returning the response body.
+     *  Per MCP 2026-07-28 the server/discover response carries capabilities
+     *  directly in result.capabilities (no resultType/supportedVersions checks here). */
     private JsonObject initStateless(McpProtocolHandler handler) {
-        String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\","
-                + "\"params\":{\"protocolVersion\":\"2026-07-28\","
-                + "\"capabilities\":{},\"clientInfo\":{\"name\":\"t\",\"version\":\"1\"}}}";
+        String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\",\"params\":{}}";
         return gson.fromJson(handler.handleRequestResponse(body, null).getBody(), JsonObject.class);
     }
 

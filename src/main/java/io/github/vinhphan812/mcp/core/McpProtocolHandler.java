@@ -1095,10 +1095,10 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (config.completions) capabilities.put("completions", new LinkedHashMap<String, Object>());
         if (config.logging) capabilities.put("logging", new LinkedHashMap<String, Object>());
         if (config.tasks) {
-            // For server/discover we don't have a negotiated session version yet;
-            // advertise only when the extension supports the configured default version.
-            if (tasksExtension != null && tasksExtension.supports(config.protocolVersion)) {
-                capabilities.put("tasks", tasksExtension.advertiseCapabilities(config.protocolVersion));
+            // server/discover always operates in 2026-07-28 stateless mode;
+            // advertise tasks when the extension supports that version.
+            if (tasksExtension != null && tasksExtension.supports(McpJsonRpc.PROTOCOL_VERSION_STATELESS)) {
+                capabilities.put("tasks", tasksExtension.advertiseCapabilities(McpJsonRpc.PROTOCOL_VERSION_STATELESS));
             } else if (tasksExtension == null) {
                 capabilities.put("tasks", new LinkedHashMap<String, Object>());
             }

@@ -140,16 +140,19 @@ class McpProtocolHandlerTest {
                 .build();
         McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(), config);
         McpProtocolHandler.McpResponse response = handler.handleRequestResponse(
-                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}", null);
+                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\",\"params\":{}}", null);
 
         assertNotNull(response.getBody());
         // No session should be created in stateless mode
         assertNull(response.getSessionId());
         assertFalse(handler.hasSession(response.getSessionId())); // null check
         JsonObject body = new com.google.gson.Gson().fromJson(response.getBody(), JsonObject.class);
-        assertEquals("2026-07-28", body.getAsJsonObject("result").get("protocolVersion").getAsString());
-        assertEquals("stateless-server", body.getAsJsonObject("result")
-                .getAsJsonObject("serverInfo").get("name").getAsString());
+        // server/discover returns capabilities.serverInfo under _meta, not result.protocolVersion
+        JsonObject caps = body.getAsJsonObject("result").getAsJsonObject("capabilities");
+        assertTrue(caps.has("tools"), "tools capability must be present in stateless server/discover");
+        JsonObject meta = body.getAsJsonObject("result").getAsJsonObject("_meta");
+        assertEquals("stateless-server",
+                meta.getAsJsonObject("io.modelcontextprotocol/serverInfo").get("name").getAsString());
     }
 
     @Test
@@ -207,7 +210,7 @@ class McpProtocolHandlerTest {
     }
 
     @Test
-    void statelessInitializeAdvertisesNoSubscribeCapability() {
+    void statelessServerDiscoverAdvertisesNoSubscribeCapability() {
         McpServerConfig config = McpServerConfig.builder()
                 .protocolMode(McpServerConfig.ProtocolMode.STATELESS)
                 .resources(true)
@@ -215,14 +218,14 @@ class McpProtocolHandlerTest {
                 .build();
         McpProtocolHandler handler = new McpProtocolHandler(new McpRegistry(), config);
         McpProtocolHandler.McpResponse response = handler.handleRequestResponse(
-                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}", null);
+                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\",\"params\":{}}", null);
 
         assertNotNull(response.getBody());
         JsonObject caps = new com.google.gson.Gson().fromJson(response.getBody(), JsonObject.class)
                 .getAsJsonObject("result").getAsJsonObject("capabilities")
                 .getAsJsonObject("resources");
-        // subscribe should be absent in stateless mode
-        assertFalse(caps.has("subscribe"), "subscribe should not be advertised in stateless mode");
+        // subscribe should be absent in stateless mode (server/discover is always stateless)
+        assertFalse(caps.has("subscribe"), "subscribe should not be advertised in stateless server/discover");
     }
 
     @Test
