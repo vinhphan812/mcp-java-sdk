@@ -10,6 +10,8 @@ public final class McpTask {
     public enum Status {
         /** Task is still running. */
         WORKING,
+        /** Task is waiting for client input (SEP-2663 input_required). */
+        INPUT_REQUIRED,
         /** Task completed successfully. */
         COMPLETED,
         /** Task failed with an error. */
@@ -30,6 +32,15 @@ public final class McpTask {
     private final String requestId;
     private final Map<String, Object> input;
     private final Map<String, Object> inputSchema;
+    // --- SEP-2663 fields ---
+    /** Human-readable message about the current status. */
+    private final String statusMessage;
+    /** Task time-to-live in milliseconds, or null for unlimited. */
+    private final Long ttlMs;
+    /** Suggested polling interval in milliseconds. */
+    private final Integer pollIntervalMs;
+    /** Pending server-to-client requests awaiting client input (SEP-2663). */
+    private final Map<String, Object> inputRequests;
 
     /** Creates a validated task snapshot.
      * @param taskId task identifier
@@ -70,13 +81,17 @@ public final class McpTask {
         this.requestId = null;
         this.input = null;
         this.inputSchema = null;
+        this.statusMessage = null;
+        this.ttlMs = null;
+        this.pollIntervalMs = null;
+        this.inputRequests = null;
     }
 
     /**
      * Creates a task snapshot with full task-producing metadata.
      * Used for tasks created via the {@code tasks/create} request.
      * @param taskId task identifier
-     * @param status must be WORKING
+     * @param status must be WORKING or INPUT_REQUIRED
      * @param name task name
      * @param sessionId owning session
      * @param requestId client request id for cancellation
@@ -89,14 +104,41 @@ public final class McpTask {
                    String sessionId, String requestId,
                    Map<String, Object> input, Map<String, Object> inputSchema,
                    long createdAt, long lastUpdatedAt) {
+        this(taskId, status, name, sessionId, requestId, input, inputSchema,
+                createdAt, lastUpdatedAt, null, null, null, null);
+    }
+
+    /**
+     * Creates a task snapshot with full task-producing metadata and SEP-2663 fields.
+     * Used for tasks created via the {@code tasks/create} request.
+     * @param taskId task identifier
+     * @param status must be WORKING or INPUT_REQUIRED
+     * @param name task name
+     * @param sessionId owning session
+     * @param requestId client request id for cancellation
+     * @param input task input arguments
+     * @param inputSchema optional JSON Schema for input
+     * @param createdAt creation timestamp
+     * @param lastUpdatedAt last update timestamp
+     * @param statusMessage human-readable status message (may be null)
+     * @param ttlMs time-to-live in ms, or null for unlimited
+     * @param pollIntervalMs suggested polling interval in ms, or null
+     * @param inputRequests pending input requests map, or null
+     */
+    public McpTask(String taskId, Status status, String name,
+                   String sessionId, String requestId,
+                   Map<String, Object> input, Map<String, Object> inputSchema,
+                   long createdAt, long lastUpdatedAt,
+                   String statusMessage, Long ttlMs, Integer pollIntervalMs,
+                   Map<String, Object> inputRequests) {
         if (taskId == null || taskId.trim().isEmpty())
             throw new IllegalArgumentException("taskId cannot be blank");
         if (status == null)
             throw new IllegalArgumentException("status cannot be null");
         if (createdAt < 0 || lastUpdatedAt < createdAt)
             throw new IllegalArgumentException("Task timestamps are invalid");
-        if (status != Status.WORKING)
-            throw new IllegalArgumentException("Task-producing constructor only valid for WORKING status");
+        if (status != Status.WORKING && status != Status.INPUT_REQUIRED)
+            throw new IllegalArgumentException("Task-producing constructor only valid for WORKING or INPUT_REQUIRED status");
         this.taskId = taskId;
         this.status = status;
         this.createdAt = createdAt;
@@ -108,6 +150,10 @@ public final class McpTask {
         this.requestId = requestId;
         this.input = input;
         this.inputSchema = inputSchema;
+        this.statusMessage = statusMessage;
+        this.ttlMs = ttlMs;
+        this.pollIntervalMs = pollIntervalMs;
+        this.inputRequests = inputRequests;
     }
 
     /** Returns the task identifier.
@@ -152,6 +198,69 @@ public final class McpTask {
         return error;
     }
 
+    /** Returns the task name, if set during creation.
+     * @return name or null
+     */
+    public String getName() {
+        return name;
+    }
+
+    /** Returns the owning session ID, if set during creation.
+     * @return sessionId or null
+     */
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    /** Returns the client request ID, if set during creation.
+     * @return requestId or null
+     */
+    public String getRequestId() {
+        return requestId;
+    }
+
+    /** Returns the task input arguments.
+     * @return input map or null
+     */
+    public Map<String, Object> getInput() {
+        return input;
+    }
+
+    /** Returns the input schema.
+     * @return inputSchema or null
+     */
+    public Map<String, Object> getInputSchema() {
+        return inputSchema;
+    }
+
+    /** Returns the human-readable status message, if set.
+     * @return status message or null
+     */
+    public String getStatusMessage() {
+        return statusMessage;
+    }
+
+    /** Returns the task TTL in milliseconds, or null if unlimited.
+     * @return TTL in ms, or null
+     */
+    public Long getTtlMs() {
+        return ttlMs;
+    }
+
+    /** Returns the suggested polling interval in milliseconds, or null if not set.
+     * @return poll interval in ms, or null
+     */
+    public Integer getPollIntervalMs() {
+        return pollIntervalMs;
+    }
+
+    /** Returns the pending input requests map for INPUT_REQUIRED tasks.
+     * @return input requests map, or null
+     */
+    public Map<String, Object> getInputRequests() {
+        return inputRequests;
+    }
+
     /** Creates a new bounded task in the working state.
      * @return new working task
      */
@@ -160,7 +269,8 @@ public final class McpTask {
         return new McpTask(UUID.randomUUID().toString(), Status.WORKING, now, now, null, null);
     }
 
-    /** Creates a named task for deferred execution.
+    /**
+     * Creates a named task for deferred execution.
      *  @param name task name
      *  @param sessionId owning session
      *  @param requestId client request id
@@ -175,6 +285,50 @@ public final class McpTask {
         return new McpTask(taskId, Status.WORKING, name, sessionId, requestId, input, inputSchema, now, now);
     }
 
+    /**
+     * Creates a named task with SEP-2663 metadata.
+     * @param name task name
+     * @param sessionId owning session
+     * @param requestId client request id
+     * @param input task input arguments
+     * @param inputSchema optional input schema
+     * @param statusMessage human-readable status message (may be null)
+     * @param ttlMs time-to-live in ms, or null for unlimited
+     * @param pollIntervalMs suggested polling interval in ms, or null
+     * @return new working task
+     */
+    public static McpTask create(String name, String sessionId, String requestId,
+                                 Map<String, Object> input, Map<String, Object> inputSchema,
+                                 String statusMessage, Long ttlMs, Integer pollIntervalMs) {
+        long now = System.currentTimeMillis();
+        String taskId = "task-" + UUID.randomUUID();
+        return new McpTask(taskId, Status.WORKING, name, sessionId, requestId,
+                input, inputSchema, now, now, statusMessage, ttlMs, pollIntervalMs, null);
+    }
+
+    /**
+     * Creates an input-required task snapshot.
+     * @param name task name
+     * @param sessionId owning session
+     * @param requestId client request id
+     * @param input task input arguments
+     * @param inputSchema optional input schema
+     * @param statusMessage human-readable status message
+     * @param ttlMs time-to-live in ms, or null for unlimited
+     * @param pollIntervalMs suggested polling interval in ms, or null
+     * @param inputRequests pending input requests (SEP-2663 MRTR shape)
+     * @return new INPUT_REQUIRED task
+     */
+    public static McpTask createInputRequired(String name, String sessionId, String requestId,
+                                             Map<String, Object> input, Map<String, Object> inputSchema,
+                                             String statusMessage, Long ttlMs, Integer pollIntervalMs,
+                                             Map<String, Object> inputRequests) {
+        long now = System.currentTimeMillis();
+        String taskId = "task-" + UUID.randomUUID();
+        return new McpTask(taskId, Status.INPUT_REQUIRED, name, sessionId, requestId,
+                input, inputSchema, now, now, statusMessage, ttlMs, pollIntervalMs, inputRequests);
+    }
+
     /** Returns a snapshot with a terminal lifecycle state.
      * @param nextStatus target terminal status
      * @param nextResult successful result, if applicable
@@ -182,9 +336,9 @@ public final class McpTask {
      * @return transitioned task snapshot
      */
     public McpTask transition(Status nextStatus, Object nextResult, String nextError) {
-        if (nextStatus == null || nextStatus == Status.WORKING)
+        if (nextStatus == null || nextStatus == Status.WORKING || nextStatus == Status.INPUT_REQUIRED)
             throw new IllegalArgumentException("Task transition must be terminal");
-        if (status != Status.WORKING)
+        if (status != Status.WORKING && status != Status.INPUT_REQUIRED)
             throw new IllegalStateException("Task is already terminal: " + status);
         if (nextStatus == Status.COMPLETED && nextError != null)
             throw new IllegalArgumentException("Completed task cannot have an error");
@@ -196,6 +350,7 @@ public final class McpTask {
         if (name != null) {
             return new McpTask(taskId, nextStatus, nextResult, nextError,
                     name, sessionId, requestId, input, inputSchema,
+                    statusMessage, ttlMs, pollIntervalMs, inputRequests,
                     createdAt, System.currentTimeMillis());
         }
         return new McpTask(taskId, nextStatus, createdAt, System.currentTimeMillis(), nextResult, nextError);
@@ -215,10 +370,12 @@ public final class McpTask {
             Object nextResult, String nextError,
             String name, String sessionId, String requestId,
             Map<String, Object> input, Map<String, Object> inputSchema,
+            String statusMessage, Long ttlMs, Integer pollIntervalMs,
+            Map<String, Object> inputRequests,
             long createdAt, long lastUpdatedAt) {
         if (taskId == null || taskId.trim().isEmpty())
             throw new IllegalArgumentException("taskId cannot be blank");
-        if (nextStatus == null || nextStatus == Status.WORKING)
+        if (nextStatus == null || nextStatus == Status.WORKING || nextStatus == Status.INPUT_REQUIRED)
             throw new IllegalArgumentException("Terminal constructor requires a terminal status");
         if (createdAt < 0 || lastUpdatedAt < createdAt)
             throw new IllegalArgumentException("Task timestamps are invalid");
@@ -242,23 +399,40 @@ public final class McpTask {
         this.requestId = requestId;
         this.input = input;
         this.inputSchema = inputSchema;
+        this.statusMessage = statusMessage;
+        this.ttlMs = ttlMs;
+        this.pollIntervalMs = pollIntervalMs;
+        this.inputRequests = inputRequests;
     }
 
-    /** Converts this snapshot to the MCP task metadata object.
+    /**
+     * Converts this snapshot to the MCP task metadata object.
+     * Timestamps are formatted as ISO-8601 strings per SEP-2663.
      * @return JSON-compatible task metadata
      */
     public Map<String, Object> toMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("taskId", taskId);
         map.put("status", status.name().toLowerCase());
-        map.put("createdAt", createdAt);
-        map.put("lastUpdatedAt", lastUpdatedAt);
-        map.put("result", result);  // always present; null if not completed
+        if (statusMessage != null) map.put("statusMessage", statusMessage);
+        map.put("createdAt", iso8601(createdAt));
+        map.put("lastUpdatedAt", iso8601(lastUpdatedAt));
+        if (ttlMs != null) map.put("ttlMs", ttlMs);
+        if (pollIntervalMs != null) map.put("pollIntervalMs", pollIntervalMs);
+        // result is always present (null if not completed)
+        map.put("result", result);
         if (name != null) map.put("name", name);
         if (sessionId != null) map.put("sessionId", sessionId);
         if (input != null) map.put("input", input);
         if (inputSchema != null) map.put("inputSchema", inputSchema);
+        if (inputRequests != null) map.put("inputRequests", inputRequests);
         if (error != null) map.put("error", error);
         return map;
+    }
+
+    /** Formats epoch milliseconds as ISO-8601 UTC string. */
+    private static String iso8601(long epochMs) {
+        java.time.Instant instant = java.time.Instant.ofEpochMilli(epochMs);
+        return java.time.format.DateTimeFormatter.ISO_INSTANT.format(instant);
     }
 }

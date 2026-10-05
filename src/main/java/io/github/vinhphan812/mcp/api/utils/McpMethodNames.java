@@ -63,6 +63,9 @@ public final class McpMethodNames {
     /** {@code tasks/result} — returns the result of a completed task. */
     public static final String TASKS_RESULT = "tasks/result";
 
+    /** {@code tasks/update} — provides input responses for an input_required task. */
+    public static final String TASKS_UPDATE = "tasks/update";
+
     // ── Completion ─────────────────────────────────────────────────────────
 
     /** {@code completion/complete} — returns completion candidates for input. */
