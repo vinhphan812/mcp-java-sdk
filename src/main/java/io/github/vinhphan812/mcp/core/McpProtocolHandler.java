@@ -645,6 +645,23 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             }
             boolean stateless = isStatelessProtocol(requestedProtocolVersion);
 
+            // ── 2026-07-28 wire contract enforcement ──────────────────────────
+            // In per-request 2026 stateless mode, initialize MUST be rejected with -32601
+            // (use server/discover instead). notifications/initialized accepted silently for
+            // forward-compatibility.
+            if (stateless) {
+                if (McpMethodNames.INITIALIZE.equals(method)) {
+                    return new McpResponse(errorResponse(id, McpError.methodNotFound(
+                            "initialize is not valid in " + McpJsonRpc.PROTOCOL_VERSION_STATELESS
+                                    + " mode — use server/discover for capability discovery")),
+                            null);
+                }
+                if (McpMethodNames.NOTIF_INITIALIZED.equals(method)) {
+                    return new McpResponse(null, null);
+                }
+            }
+            // ── End 2026 enforcement ─────────────────────────────────────────
+
             if (method == null) {
                 return new McpResponse(errorResponse(id, McpError.invalidRequestPrefix("missing method")), sessionId);
             }
@@ -715,6 +732,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             switch (method) {
                 case McpMethodNames.SERVER_DISCOVER:
                     result = handleServerDiscover();
+                    responseSessionId = stateless ? null : sessionId;
                     break;
                 case McpMethodNames.INITIALIZE:
                     Map<String, Object> initializeParams = params instanceof Map
@@ -735,6 +753,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 case McpMethodNames.NOTIF_MESSAGE:
                     return new McpResponse(null, sessionId);
                 case McpMethodNames.TOOLS_LIST:
+                    responseSessionId = null;
                     if (!config.tools) {
                         return new McpResponse(capabilityError(id, "tools"), sessionId);
                     }
