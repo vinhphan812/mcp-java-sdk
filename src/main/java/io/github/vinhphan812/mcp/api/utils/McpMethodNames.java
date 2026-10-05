@@ -130,4 +130,18 @@ public final class McpMethodNames {
      * Defined in the MCP spec as a valid request on any transport.
      */
     public static final String PING = "ping";
+
+    // ── 2026 subscriptions / listening ───────────────────────────────────────
+
+    /**
+     * {@code listens/subscribe} — 2026-07-28: opens a long-lived subscription to registry-change
+     * and resource-update events. Does not use Mcp-Session-Id. Cancelled by closing the HTTP
+     * stream or by sending {@code listens/unsubscribe}.
+     */
+    public static final String LISTEN_SUBSCRIBE = "listens/subscribe";
+
+    /**
+     * {@code listens/unsubscribe} — 2026-07-28: cancels an active listen subscription.
+     */
+    public static final String LISTEN_UNSUBSCRIBE = "listens/unsubscribe";
 }

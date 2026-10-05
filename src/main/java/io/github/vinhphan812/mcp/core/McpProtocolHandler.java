@@ -21,6 +21,7 @@ import com.google.gson.reflect.TypeToken;
 import io.github.vinhphan812.mcp.api.config.McpSecurityDefaults;
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.api.config.RateLimits;
+import io.github.vinhphan812.mcp.api.dto.ListenRequest;
 import io.github.vinhphan812.mcp.api.dto.McpBlobContent;
 import io.github.vinhphan812.mcp.api.dto.McpTask;
 import io.github.vinhphan812.mcp.api.dto.Mcp2026RequestContext;
@@ -85,6 +86,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private final McpAuthorization authorization;
     private final QueueOverflowListener overflowListener;
     private final int maxQueuedEvents;
+    private final SubscriptionManager listenerSubscriptions;
 
     // Sliding-window rate limit tracker
     private static final class RateLimitRecord {
@@ -296,6 +298,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (this.tasksExtension != null) {
             this.tasksExtension.register(this.taskRegistry);
         }
+        this.listenerSubscriptions = new SubscriptionManager(config.maxListenerBufferSize);
         registry.setNotificationTarget(this);
         registry.addRegistryChangeListener(this);
         startCleanupThread();
@@ -350,6 +353,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         cleanupRunning = false;
         if (cleanupThread != null) cleanupThread.interrupt();
         cleanupThread = null;
+        listenerSubscriptions.shutdown();
         ipRateLimits.clear();
         sessionRateLimits.clear();
     }
@@ -802,6 +806,16 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 case McpMethodNames.PING:
                     result = new LinkedHashMap<>();
                     break;
+                case McpMethodNames.LISTEN_SUBSCRIBE:
+                    responseSessionId = null;
+                    result = handleListenSubscribe(
+                            params instanceof Map ? (Map<String, Object>) params : null);
+                    break;
+                case McpMethodNames.LISTEN_UNSUBSCRIBE:
+                    responseSessionId = null;
+                    result = handleListenUnsubscribe(
+                            params instanceof Map ? (Map<String, Object>) params : null);
+                    break;
                 default:
                     return new McpResponse(errorResponse(id, McpError.methodNotFound("Method not found: " + method)), sessionId);
             }
@@ -835,7 +849,9 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         return McpMethodNames.SERVER_DISCOVER.equals(method)
                 || McpMethodNames.INITIALIZE.equals(method)
                 || McpMethodNames.NOTIF_INITIALIZED.equals(method)
-                || McpMethodNames.PING.equals(method);
+                || McpMethodNames.PING.equals(method)
+                || McpMethodNames.LISTEN_SUBSCRIBE.equals(method)
+                || McpMethodNames.LISTEN_UNSUBSCRIBE.equals(method);
     }
 
     // Backward-compatible overload
@@ -1367,6 +1383,58 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         }
     }
 
+    // ==================== 2026 subscriptions / listen ====================
+
+    /**
+     * Handles {@code listens/subscribe} (2026-07-28).
+     * Opens a sessionless listener subscription and returns the server-assigned token.
+     *
+     * <p>Response shape:
+     * <pre>{@code
+     * {
+     *   "subscription": { "token": "...", "topics": [...], "bufferSize": 100, "maxCapacity": 100 }
+     * }
+     * }</pre>
+     */
+    private Map<String, Object> handleListenSubscribe(Map<String, Object> params) {
+        ListenRequest req = ListenRequest.fromParams(params);
+        if (req.topics.isEmpty()) {
+            throw McpException.invalidParams("at least one topic is required in the topics array");
+        }
+        SubscriptionManager.ListenerOpenResult open =
+                listenerSubscriptions.subscribe(req.topics, req.subscriptionId, req.bufferSizeHint);
+        Map<String, Object> result = new LinkedHashMap<>();
+        Map<String, Object> subscription = new LinkedHashMap<>();
+        subscription.put("token", open.token());
+        subscription.put("topics", new java.util.ArrayList<>(req.topics));
+        subscription.put("bufferSize", open.bufferSize());
+        subscription.put("maxCapacity", open.maxCapacity());
+        result.put("subscription", subscription);
+        return result;
+    }
+
+    /**
+     * Handles {@code listens/unsubscribe} (2026-07-28).
+     * Closes an active listener subscription and releases its resources.
+     *
+     * <p>Response shape:
+     * <pre>{@code
+     * { "unsubscribed": true }
+     * }</pre>
+     */
+    private Map<String, Object> handleListenUnsubscribe(Map<String, Object> params) {
+        if (params == null) throw McpException.invalidParams("params required");
+        Object tokenObj = params.get("token");
+        if (!(tokenObj instanceof String) || ((String) tokenObj).isEmpty()) {
+            throw McpException.invalidParams("token is required and must be a non-empty string");
+        }
+        String token = (String) tokenObj;
+        listenerSubscriptions.unsubscribe(token);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("unsubscribed", true);
+        return result;
+    }
+
     // ==================== Tools ====================
 
     private Map<String, Object> handleToolsList(Map<String, Object> params) {
@@ -1881,7 +1949,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     }
 
     /**
-     * Queues a list-changed notification for every active session.
+     * Queues a list-changed notification for every active session
+     * AND for every active 2026 listener subscription.
      */
     @Override
     public void onRegistryChanged(String listType) {
@@ -1899,14 +1968,18 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             default:
                 method = McpMethodNames.NOTIF_LIST_CHANGED;
         }
+        // Session-based notifications (legacy 2025 behaviour)
         String body = mapper.toJson(mapAsRpcNotification(method, null));
         for (SessionState state : sessions.values()) {
             state.enqueueEvent(body);
         }
+        // 2026 listener subscriptions
+        listenerSubscriptions.notifyRegistryChanged(listType, method, null, mapper);
     }
 
     /**
-     * Queue a resource update for every session subscribed to the URI.
+     * Queue a resource update for every session subscribed to the URI
+     * AND for every active 2026 listener subscription subscribed to {@code resources/updated}.
      * Uses bounded queue with overflow handling.
      */
     public void notifyResourceUpdated(String uri) {
@@ -1914,11 +1987,14 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("uri", uri);
         String body = mapper.toJson(mapAsRpcNotification(McpMethodNames.NOTIF_RESOURCES_UPDATED, params));
+        // Session-based resource updates (legacy 2025 behaviour)
         for (SessionState state : sessions.values()) {
             if (state.subscriptions.contains(uri)) {
                 enqueue(state, body);
             }
         }
+        // 2026 listener subscriptions
+        listenerSubscriptions.notifyResourceUpdated(uri, mapper);
     }
 
     /**
@@ -2020,6 +2096,45 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                         .append(escapeSseData(event.body))
                         .append("\n\n");
             }
+        }
+        return sb.toString();
+    }
+
+    // ── 2026 listener subscription polling ───────────────────────────────────────
+
+    /**
+     * Polls the next queued notification for a 2026 listener subscription.
+     * Returns the notification body as an SSE-formatted line, or null when the queue is empty.
+     *
+     * <p>This method is used by the transport layer to drain the listener's event queue
+     * and stream notifications over the HTTP response.
+     *
+     * @param subscriptionToken the server-assigned subscription token from {@code listens/subscribe}
+     * @return SSE-formatted notification line, or null
+     */
+    public String pollListenerNotification(String subscriptionToken) {
+        if (subscriptionToken == null) return null;
+        String body = listenerSubscriptions.poll(subscriptionToken);
+        if (body == null) return null;
+        return "event: message\ndata: " + body + "\n\n";
+    }
+
+    /**
+     * Drains and returns all queued notifications for a 2026 listener subscription.
+     * Used for replay when a client reconnects with {@code Last-Event-ID}.
+     *
+     * @param subscriptionToken the server-assigned subscription token
+     * @return concatenated SSE blocks for all queued notifications, or empty string
+     */
+    public String drainListenerNotifications(String subscriptionToken) {
+        if (subscriptionToken == null) return "";
+        java.util.List<String> bodies = listenerSubscriptions.drain(subscriptionToken);
+        if (bodies.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        for (String body : bodies) {
+            sb.append("event: message\ndata: ")
+                    .append(escapeSseData(body))
+                    .append("\n\n");
         }
         return sb.toString();
     }
