@@ -21,7 +21,11 @@ public final class McpJsonRpc {
 
     // ── MCP protocol versions ─────────────────────────────────────────────────
 
-    /** The MCP 2026 stateless protocol version. */
+    /**
+     * The MCP 2026 stateless protocol version.
+     * In this mode: no Mcp-Session-Id, no initialize/initialized handshake,
+     * per-request HTTP cancellation via stream close.
+     */
     public static final String PROTOCOL_VERSION_STATELESS = "2026-07-28";
 
     /** The MCP 2025 protocol version used by the default session-oriented mode. */
@@ -29,6 +33,41 @@ public final class McpJsonRpc {
 
     /** Legacy MCP protocol version accepted for backward compatibility. */
     public static final String PROTOCOL_VERSION_LEGACY = "2025-06-18";
+
+    // ── Version checks ───────────────────────────────────────────────────────
+
+    /**
+     * Returns true when the given version string represents MCP 2026-07-28
+     * (the stateless mode).
+     *
+     * @param version protocol version string, possibly null
+     * @return true when version is 2026-07-28
+     */
+    public static boolean isStatelessVersion(String version) {
+        return PROTOCOL_VERSION_STATELESS.equals(version);
+    }
+
+    /**
+     * Returns true when the given version string represents a 2025-era protocol
+     * (2025-06-18 or 2025-11-25) that uses the session-based wire contract.
+     *
+     * @param version protocol version string, possibly null
+     * @return true when version is a 2025-era version
+     */
+    public static boolean isSessionedVersion(String version) {
+        return PROTOCOL_VERSION.equals(version) || PROTOCOL_VERSION_LEGACY.equals(version);
+    }
+
+    /**
+     * Returns true when the given version string represents the default
+     * session-oriented protocol version (2025-11-25).
+     *
+     * @param version protocol version string, possibly null
+     * @return true when version is the current default
+     */
+    public static boolean isCurrentVersion(String version) {
+        return PROTOCOL_VERSION.equals(version);
+    }
 
     // ── Server info ──────────────────────────────────────────────────────────
 

@@ -23,6 +23,7 @@ import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.api.config.RateLimits;
 import io.github.vinhphan812.mcp.api.dto.McpBlobContent;
 import io.github.vinhphan812.mcp.api.dto.McpTask;
+import io.github.vinhphan812.mcp.api.dto.Mcp2026RequestContext;
 import io.github.vinhphan812.mcp.api.handler.*;
 import io.github.vinhphan812.mcp.api.logging.McpLogger;
 import io.github.vinhphan812.mcp.api.spi.McpAuthorization;
@@ -576,6 +577,23 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             }
             boolean stateless = isStatelessProtocol(requestedProtocolVersion);
 
+            // ── 2026-07-28 wire contract enforcement ──────────────────────────
+            // In per-request 2026 stateless mode, initialize MUST be rejected with methodNotFound
+            // (the spec requires using server/discover instead). notifications/initialized is silently
+            // accepted for forward-compatibility (no session or side-effects).
+            if (stateless) {
+                if (McpMethodNames.INITIALIZE.equals(method)) {
+                    return new McpResponse(errorResponse(id, McpError.methodNotFound(
+                            "initialize is not valid in " + McpJsonRpc.PROTOCOL_VERSION_STATELESS
+                                    + " mode — use server/discover for capability discovery")),
+                            null);
+                }
+                if (McpMethodNames.NOTIF_INITIALIZED.equals(method)) {
+                    return new McpResponse(null, null);
+                }
+            }
+            // ── End 2026 enforcement ─────────────────────────────────────────
+
             if (method == null) {
                 return new McpResponse(errorResponse(id, McpError.invalidRequestPrefix("missing method")), sessionId);
             }
@@ -645,6 +663,9 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             //noinspection DuplicateBranchesInSwitch
             switch (method) {
                 case McpMethodNames.SERVER_DISCOVER:
+                    // In stateless 2026 mode, server/discover MUST NOT create or echo a session.
+                    // Null sessionId honours the wire contract regardless of incoming session value.
+                    responseSessionId = stateless ? null : sessionId;
                     result = handleServerDiscover();
                     break;
                 case McpMethodNames.INITIALIZE:
@@ -666,12 +687,14 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 case McpMethodNames.NOTIF_MESSAGE:
                     return new McpResponse(null, sessionId);
                 case McpMethodNames.TOOLS_LIST:
+                    responseSessionId = null;
                     if (!config.tools) {
                         return new McpResponse(capabilityError(id, "tools"), sessionId);
                     }
                     result = handleToolsList(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
                 case McpMethodNames.TOOLS_CALL:
+                    responseSessionId = null;
                     if (!config.tools) {
                         return new McpResponse(capabilityError(id, "tools"), sessionId);
                     }
@@ -680,12 +703,14 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                             sessionId, id, stateless);
                     break;
                 case McpMethodNames.RESOURCES_LIST:
+                    responseSessionId = null;
                     if (!config.resources) {
                         return new McpResponse(capabilityError(id, "resources"), sessionId);
                     }
                     result = handleResourcesList(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
                 case McpMethodNames.RESOURCES_READ:
+                    responseSessionId = null;
                     if (!config.resources) {
                         return new McpResponse(capabilityError(id, "resources"), sessionId);
                     }
@@ -693,6 +718,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                             ? (Map<String, Object>) params : null);
                     break;
                 case "resources/templates/list":
+                    responseSessionId = null;
                     if (!config.resources) {
                         return new McpResponse(capabilityError(id, "resources"), sessionId);
                     }
@@ -715,12 +741,14 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                             ? (Map<String, Object>) params : null);
                     break;
                 case McpMethodNames.PROMPTS_LIST:
+                    responseSessionId = null;
                     if (!config.prompts) {
                         return new McpResponse(capabilityError(id, "prompts"), sessionId);
                     }
                     result = handlePromptsList(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
                 case McpMethodNames.PROMPTS_GET:
+                    responseSessionId = null;
                     if (!config.prompts) {
                         return new McpResponse(capabilityError(id, "prompts"), sessionId);
                     }
@@ -752,10 +780,12 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                     break;
                 }
                 case McpMethodNames.COMPLETION_COMPLETE:
+                    responseSessionId = null;
                     if (!config.completions) return new McpResponse(capabilityError(id, "completions"), sessionId);
                     result = handleCompletion(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
                 case McpMethodNames.LOGGING_SET_LEVEL:
+                    responseSessionId = null;
                     if (!config.logging) return new McpResponse(capabilityError(id, "logging"), sessionId);
                     result = handleSetLogLevel(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
@@ -1065,10 +1095,10 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (config.completions) capabilities.put("completions", new LinkedHashMap<String, Object>());
         if (config.logging) capabilities.put("logging", new LinkedHashMap<String, Object>());
         if (config.tasks) {
-            // For server/discover we don't have a negotiated session version yet;
-            // advertise only when the extension supports the configured default version.
-            if (tasksExtension != null && tasksExtension.supports(config.protocolVersion)) {
-                capabilities.put("tasks", tasksExtension.advertiseCapabilities(config.protocolVersion));
+            // server/discover always operates in 2026-07-28 stateless mode;
+            // advertise tasks when the extension supports that version.
+            if (tasksExtension != null && tasksExtension.supports(McpJsonRpc.PROTOCOL_VERSION_STATELESS)) {
+                capabilities.put("tasks", tasksExtension.advertiseCapabilities(McpJsonRpc.PROTOCOL_VERSION_STATELESS));
             } else if (tasksExtension == null) {
                 capabilities.put("tasks", new LinkedHashMap<String, Object>());
             }
@@ -1338,14 +1368,15 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> handleToolsCall(Map<String, Object> params, String sessionId, Object requestId,
-                                                boolean stateless) {
+                                               boolean stateless) {
         if (params == null) throw McpException.invalidParams("missing params");
 
         String name = requireName(params, "tool");
         Map<String, Object> arguments = optionalArguments(params);
-        Object progressToken = params.get("_meta") instanceof Map
-                ? ((Map<String, Object>) params.get("_meta")).get("progressToken")
-                : null;
+
+        // Parse 2026 request context from _meta (only progressToken is used today).
+        Mcp2026RequestContext ctx2026 = Mcp2026RequestContext.fromParams(params);
+        Object progressToken = ctx2026.hasProgressToken() ? ctx2026.progressToken : null;
 
         McpToolHandler handler = registry.getToolHandler(name);
         if (handler == null) throw McpException.invalidParams("Unknown tool: " + name);
