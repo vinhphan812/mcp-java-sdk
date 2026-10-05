@@ -1,7 +1,7 @@
 # SSE Last-Event-ID Replay Consistency Guarantees
 
 **Analysis date:** 2026-09-21
-**Source:** `McpProtocolHandler.java` L2018-2031, `McpGrizzlyHandler.java` L322-348
+**Source:** `McpProtocolHandler.java` L2018-2031, `McpHttpHandler.java` (current transport handler; line references in this doc are historical from the rename)
 **Spec reference:** RFC 8890 (Server-Sent Events)
 
 ---

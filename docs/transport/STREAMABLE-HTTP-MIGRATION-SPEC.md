@@ -291,8 +291,8 @@ Standard JSON-RPC error format for both modes:
 
 | Test                   | Coverage              |
 |------------------------|-----------------------|
-| McpGrizzlyLiveTest     | Update for dual-mode  |
-| StreamableHttpModeTest | Modern transport only |
+| `McpGrizzlyLiveTest` [HISTORICAL — never committed; SSE integration covered by `McpIntegrationTest`] | Superseded |
+| `StreamableHttpModeTest` | Modern transport only |
 | LegacyHttpSseModeTest  | Legacy transport only |
 | ReconnectionTest       | Last-Event-ID replay  |
 
@@ -335,6 +335,6 @@ Add Javadoc for new methods:
 
 ### 13.3 Specific Test Classes
 
-- `McpGrizzlyLiveTest` - Extended for dual-mode
+- [HISTORICAL] `McpGrizzlyLiveTest` — never committed; SSE integration covered by `McpIntegrationTest`
 - `McpIntegrationTest` - SSE streaming tests
 - New: `StreamableHttpModeTest`

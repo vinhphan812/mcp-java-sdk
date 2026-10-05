@@ -237,12 +237,17 @@ suite.
 
 ### 4.4 Obsolete Test References
 
+> **[HISTORICAL]** This ADR documents the SSE permit flow verification. Obsolete test class names are preserved
+> verbatim from the original audit record; all were either never committed or superseded by existing tests.
+
 The following test class names are obsolete and no longer exist:
 
 - `McpGrizzlySsePermitFlowTest.java` — never existed; SSE permit flow verified via `McpProtocolHandlerReplayTest`
 - `McpGrizzlyResumabilityTest.java` — deleted during HTTP transport rename; covered by `McpProtocolHandlerReplayTest`
 - `McpGrizzlyLiveTest.java` — renamed to `HttpTransportLiveTest` (not committed); covered by `McpIntegrationTest`
 - `McpGrizzlySecurityMatrixTest.java` — renamed to `HttpTransportSecurityMatrixTest` (not committed)
+
+[HISTORICAL] `McpGrizzlyServer.java` — never existed; no action required.
 
 ---
 
@@ -255,6 +260,8 @@ The following test class names are obsolete and no longer exist:
 | `McpHttpHandler.java`      | SSE permit ordering fix location                   | Medium |
 | (no new test files needed) | Covered by existing `McpProtocolHandlerReplayTest` | —      |
 
+> **[HISTORICAL]** These tables reference test classes that were never committed or were superseded. Preserved verbatim for audit trail.
+
 ### No Changes Required (verified safe)
 
 | File                             | Status                        |
@@ -264,21 +271,12 @@ The following test class names are obsolete and no longer exist:
 | `HttpTransportProvider.java`     | No changes needed             |
 | `McpHttpHandler.java` (post-fix) | SSE permit ordering corrected |
 
-### No Changes Required (verified safe)
-
-| File                              | Status                     |
-|-----------------------------------|----------------------------|
-| `McpProtocolHandler.java`         | No changes needed          |
-| `McpRegistry.java`                | No changes needed          |
-| `McpGrizzlyServer.java`           | No changes needed          |
-| `McpGrizzlyResumabilityTest.java` | Existing tests still valid |
-
-### Existing Test Files
+### Existing Test Files [HISTORICAL]
 
 | File                                | Purpose                                           |
 |-------------------------------------|---------------------------------------------------|
 | `McpGrizzlyResumabilityTest.java`   | Last-Event-ID parsing + formatSseEvent unit tests |
-| `McpGrizzlyLiveTest.java`           | Integration tests (may need additions)            |
+| `McpGrizzlyLiveTest.java`           | Integration tests (may need additions)              |
 | `McpGrizzlySecurityMatrixTest.java` | Security validation tests                         |
 
 ---
