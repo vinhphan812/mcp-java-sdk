@@ -337,8 +337,8 @@ The following features are not implemented or have not been fully demonstrated:
 
 - progress/cancellation notifications (implemented: `notifyToolProgress`, `notifications/cancelled`, `isCancelled` —
   P2);
-- sampling (not implemented);
-- elicitation request/response flow (not implemented);
+- sampling (deprecated — stub-only; returns `{-32601}`; see ADR-0023);
+- elicitation (implemented — HTTP/SSE, async API via `CompletableFuture`; see [ELICITATION.md](ELICITATION.md));
 - async task orchestration and `tasks/create` (implemented — P2);
 - async server API (not implemented);
 - STDIO transport;

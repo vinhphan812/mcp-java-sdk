@@ -27,9 +27,9 @@ specific runtime or deployment configuration.
 | `tasks/result`             | **Implemented**     | `McpMethodNames.TASKS_RESULT`                                                                                                                                                           |
 | `completion/complete`      | **Implemented**     | `McpMethodNames.COMPLETION_COMPLETE`; `McpCompletionProvider`                                                                                                                           |
 | `logging/setLevel`         | **Implemented**     | `McpMethodNames.LOGGING_SET_LEVEL`; `handleSetLogLevel()`                                                                                                                               |
-| `sampling/createMessage`   | **Not implemented** | No handler dispatch in `McpProtocolHandler`; `MCP-COMPATIBILITY-2026.md` P2 item                                                                                                        |
-| `roots/list`               | **Not implemented** | No handler in `McpProtocolHandler`; no `roots` field in `McpServerConfig`                                                                                                               |
-| `elicitation`              | **Not implemented** | `McpClientCapabilities` has elicitation fields but `McpProtocolHandler` has no handler dispatch; `MCP-COMPATIBILITY-2026.md` P2 item                                                    |
+| `sampling/createMessage`   | **Deprecated / stub** | Stub returns `{-32601, "Sampling not implemented"}`; not advertised; see ADR-0023 for rationale                                                                                         |
+| `roots/list`               | **Not implemented** | Not implemented; deliberately excluded; see ADR-0023 for rationale                                                                                                                       |
+| `elicitation/create`       | **Implemented**     | `McpProtocolHandler.elicitConfirmation` / `elicitInput`; `ServerInitiatedRequest` map; `SseServerRequestTransport`; ADR-0022; see [ELICITATION.md](ELICITATION.md)                            |
 
 ---
 
