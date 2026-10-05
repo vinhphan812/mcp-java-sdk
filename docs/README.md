@@ -11,6 +11,9 @@
 - [Grizzly Example](guides/HTTP-TRANSPORT-EXAMPLE.md)
 - [Transport: SSE](guides/TRANSPORT-SSE.md)
 - [Elicitation](guides/ELICITATION.md)
+
+- [Elicitation](guides/ELICITATION.md)
+
 - [Tasks Extension](guides/tasks-extension.md)
 
 
