@@ -869,7 +869,11 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                     result = handleSetLogLevel(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
                 case McpMethodNames.ELICITATION_CREATE:
-                    if (!config.elicitation) return new McpResponse(capabilityError(id, "elicitation"), sessionId);
+                    // Elicitation is a 2026 capability and is only dispatched for
+                    // a request negotiated as the stateless 2026 protocol.
+                    if (!config.elicitation || !stateless) {
+                        return new McpResponse(capabilityError(id, "elicitation"), sessionId);
+                    }
                     result = handleElicitationRequest(id, sessionId, params instanceof Map ? (Map<String, Object>) params : null);
                     break;
                 case McpMethodNames.SAMPLING_CREATE_MESSAGE:
@@ -1135,7 +1139,9 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
         if (config.completions) capabilities.put("completions", new LinkedHashMap<String, Object>());
         if (config.logging) capabilities.put("logging", new LinkedHashMap<String, Object>());
-        if (config.elicitation) capabilities.put("elicitation", new LinkedHashMap<String, Object>());
+        if (config.elicitation && McpJsonRpc.PROTOCOL_VERSION_STATELESS.equals(negotiatedVersion)) {
+            capabilities.put("elicitation", new LinkedHashMap<String, Object>());
+        }
         if (config.tasks) {
             if (tasksExtension != null && tasksExtension.supports(negotiatedVersion)) {
                 capabilities.put("tasks", tasksExtension.advertiseCapabilities(negotiatedVersion));
