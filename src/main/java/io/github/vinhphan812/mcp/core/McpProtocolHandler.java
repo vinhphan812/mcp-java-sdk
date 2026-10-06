@@ -21,6 +21,9 @@ import com.google.gson.reflect.TypeToken;
 import io.github.vinhphan812.mcp.api.config.McpSecurityDefaults;
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.api.config.RateLimits;
+import io.github.vinhphan812.mcp.api.dto.ElicitAction;
+import io.github.vinhphan812.mcp.api.dto.ElicitRequest;
+import io.github.vinhphan812.mcp.api.dto.ElicitationResult;
 import io.github.vinhphan812.mcp.api.dto.ListenRequest;
 import io.github.vinhphan812.mcp.api.dto.McpBlobContent;
 import io.github.vinhphan812.mcp.api.dto.McpTask;
@@ -37,6 +40,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -76,6 +81,59 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
     public McpServerConfig getConfig() {
         return config;
+    }
+
+    // ==================== Server-Initiated Request Infrastructure (ADR-0022) ====================
+    // Tracks in-flight server-initiated requests (e.g. elicitation/create) by their
+    // server-generated UUID token for correlation with client responses.
+
+    private final ConcurrentHashMap<String, ServerInitiatedRequest> serverInitiatedRequests =
+            new ConcurrentHashMap<>();
+
+    /**
+     * Single-threaded daemon executor for scheduling server-initiated request timeouts.
+     * Lazily started on first use; shut down during {@link #shutdown()}.
+     */
+    private ScheduledExecutorService scheduledExecutor;
+
+    private final Object executorLock = new Object();
+
+    private ScheduledExecutorService getScheduledExecutor() {
+        if (scheduledExecutor == null) {
+            synchronized (executorLock) {
+                if (scheduledExecutor == null) {
+                    scheduledExecutor = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                        Thread t = new Thread(r, "mcp-server-request-timeout");
+                        t.setDaemon(true);
+                        return t;
+                    });
+                }
+            }
+        }
+        return scheduledExecutor;
+    }
+
+    // Server-initiated request transport; SSE implementation is the default.
+    private volatile ServerRequestTransport serverRequestTransport;
+
+    /**
+     * Sets the pluggable transport for server-initiated requests.
+     * Defaults to {@link SseServerRequestTransport} on first use.
+     *
+     * @param transport the transport, or null to use the SSE default
+     */
+    public void setServerRequestTransport(ServerRequestTransport transport) {
+        this.serverRequestTransport = transport != null ? transport
+                : new SseServerRequestTransport(this);
+    }
+
+    private ServerRequestTransport getServerRequestTransport() {
+        ServerRequestTransport t = this.serverRequestTransport;
+        if (t == null) {
+            t = new SseServerRequestTransport(this);
+            this.serverRequestTransport = t;
+        }
+        return t;
     }
 
     // ==================== Security (ADR-0011) ====================
@@ -356,6 +414,17 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         listenerSubscriptions.shutdown();
         ipRateLimits.clear();
         sessionRateLimits.clear();
+        // ADR-0022 §4: complete all in-flight server-initiated requests with shutdown error.
+        for (ServerInitiatedRequest req : serverInitiatedRequests.values()) {
+            req.responseFuture.completeExceptionally(
+                    new McpElicitationException(McpErrorCodes.INTERNAL, "Server shutting down"));
+        }
+        serverInitiatedRequests.clear();
+        // Shut down the scheduled executor (reject new tasks, let in-flight run).
+        if (scheduledExecutor != null) {
+            scheduledExecutor.shutdownNow();
+            scheduledExecutor = null;
+        }
     }
 
     // ==================== Public API ====================
@@ -799,6 +868,18 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                     if (!config.logging) return new McpResponse(capabilityError(id, "logging"), sessionId);
                     result = handleSetLogLevel(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
+                case McpMethodNames.ELICITATION_CREATE:
+                    // Elicitation is a 2026 capability and is only dispatched for
+                    // a request negotiated as the stateless 2026 protocol.
+                    if (!config.elicitation || !stateless) {
+                        return new McpResponse(capabilityError(id, "elicitation"), sessionId);
+                    }
+                    result = handleElicitationRequest(id, sessionId, params instanceof Map ? (Map<String, Object>) params : null);
+                    break;
+                case McpMethodNames.SAMPLING_CREATE_MESSAGE:
+                    // ADR-0022 §9a: sampling is stub-only — return method-not-found.
+                    return new McpResponse(errorResponse(id, McpErrorCodes.METHOD_NOT_FOUND,
+                            "Sampling not implemented in this release"), sessionId);
                 case McpMethodNames.NOTIF_CANCELLED:
                     handleNotificationCancelled(sessionId, params instanceof Map
                             ? (Map<String, Object>) params : null);
@@ -1058,6 +1139,9 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
         if (config.completions) capabilities.put("completions", new LinkedHashMap<String, Object>());
         if (config.logging) capabilities.put("logging", new LinkedHashMap<String, Object>());
+        if (config.elicitation && McpJsonRpc.PROTOCOL_VERSION_STATELESS.equals(negotiatedVersion)) {
+            capabilities.put("elicitation", new LinkedHashMap<String, Object>());
+        }
         if (config.tasks) {
             if (tasksExtension != null && tasksExtension.supports(negotiatedVersion)) {
                 capabilities.put("tasks", tasksExtension.advertiseCapabilities(negotiatedVersion));
@@ -1116,6 +1200,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         }
         if (config.completions) capabilities.put("completions", new LinkedHashMap<String, Object>());
         if (config.logging) capabilities.put("logging", new LinkedHashMap<String, Object>());
+        if (config.elicitation) capabilities.put("elicitation", new LinkedHashMap<String, Object>());
         if (config.tasks) {
             // Use the configured protocolVersion for extension capability checks.
             // server/discover reflects the server's configured version, not a hardcoded one.
@@ -1433,6 +1518,266 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("unsubscribed", true);
         return result;
+    }
+
+    // ==================== Server-initiated Requests / Elicitation (ADR-0022) ====================
+
+    /**
+     * Handles an incoming {@code elicitation/create} response from the client.
+     * The client sends this as a JSON-RPC response to a server-initiated elicitation request.
+     *
+     * @param id        JSON-RPC id from the request
+     * @param sessionId target session
+     * @param params    request params
+     * @return empty result map
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> handleElicitationRequest(Object id, String sessionId, Map<String, Object> params) {
+        if (params == null) throw McpException.invalidParams("params required");
+        Object message = params.get("message");
+        if (!(message instanceof String) || ((String) message).isEmpty())
+            throw McpException.invalidParams("message is required");
+        // Extract progressToken for correlation
+        Object meta = params.get("_meta");
+        Object progressToken = null;
+        if (meta instanceof Map) {
+            progressToken = ((Map<?, ?>) meta).get("progressToken");
+        }
+        String token = progressToken instanceof String ? (String) progressToken : null;
+        if (token == null || !token.startsWith("uuid:")) {
+            throw McpException.invalidParams("elicitation request must include _meta.progressToken");
+        }
+        applicationLogger.info("Elicitation request received: " + message + " [token=" + token + "]");
+        // Return empty result; the elicitation is handled by the application asynchronously.
+        return new LinkedHashMap<>();
+    }
+
+    /**
+     * Sends a server-initiated request (e.g. {@code elicitation/create}) and returns a
+     * CompletableFuture that resolves with the client's JSON-RPC response body.
+     *
+     * @param sessionId  target MCP session
+     * @param method     JSON-RPC method name
+     * @param params     request params, or null
+     * @param timeoutMs  per-request timeout in milliseconds; defaults to config value if non-positive
+     * @return CompletableFuture with the JSON-RPC response body; completes exceptionally on timeout/cancel/error
+     */
+    @SuppressWarnings("unchecked")
+    public CompletableFuture<Map<String, Object>> sendServerRequest(
+            String sessionId, String method, Map<String, Object> params, long timeoutMs) {
+
+        if (!getServerRequestTransport().supportsServerRequests()) {
+            return CompletableFuture.failedFuture(
+                    new McpElicitationException(McpErrorCodes.METHOD_NOT_FOUND,
+                            "Server requests not supported by this transport"));
+        }
+
+        if (!hasSession(sessionId)) {
+            return CompletableFuture.failedFuture(
+                    new McpElicitationException(McpErrorCodes.INVALID_PARAMS,
+                            "Unknown session: " + sessionId));
+        }
+
+        long timeout = timeoutMs > 0 ? timeoutMs : config.serverRequestTimeoutMs;
+        long now = System.currentTimeMillis();
+        String requestId = "uuid:" + UUID.randomUUID().toString();
+
+        // Build JSON-RPC request
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("jsonrpc", McpJsonRpc.VERSION);
+        request.put("id", requestId);
+        request.put("method", method);
+        if (params != null) {
+            Map<String, Object> enrichedParams = new LinkedHashMap<>(params);
+            // Add _meta.progressToken
+            Map<String, Object> meta = new LinkedHashMap<>();
+            meta.put("progressToken", requestId);
+            enrichedParams.put("_meta", meta);
+            request.put("params", enrichedParams);
+        }
+        String requestBody = mapper.toJson(request);
+
+        // Create the CompletableFuture to be completed by handleServerInitiatedResponse
+        CompletableFuture<Map<String, Object>> future = new CompletableFuture<>();
+
+        // Schedule timeout
+        ServerInitiatedRequest record = new ServerInitiatedRequest(
+                requestId, method,
+                params != null ? params : new LinkedHashMap<>(),
+                sessionId, now, now + timeout, future);
+
+        serverInitiatedRequests.put(requestId, record);
+
+        try {
+            CompletableFuture<Map<String, Object>> result =
+                    getServerRequestTransport().sendRequest(sessionId, requestBody, timeout, future);
+
+            getScheduledExecutor().schedule(() -> {
+                ServerInitiatedRequest req = serverInitiatedRequests.remove(requestId);
+                if (req != null && !future.isDone()) {
+                    future.completeExceptionally(
+                            new McpElicitationException(McpErrorCodes.SERVER_REQUEST_TIMEOUT,
+                                    "Server request timed out after " + timeout + "ms"));
+                }
+            }, timeout, java.util.concurrent.TimeUnit.MILLISECONDS);
+
+            return result;
+        } catch (Exception e) {
+            serverInitiatedRequests.remove(requestId);
+            return CompletableFuture.failedFuture(e);
+        }
+    }
+
+    /**
+     * Handles a JSON-RPC response from the client for a server-initiated request.
+     * Called by the HTTP handler when a POST arrives with a matching request ID.
+     *
+     * <p>ADR-0022 §5: malformed replies (missing id) and duplicate replies (already-resolved)
+     * are logged and discarded.
+     *
+     * @param requestId  the JSON-RPC id from the client's response
+     * @param response   parsed response body
+     * @param isError    true when the response is a JSON-RPC error
+     */
+    @SuppressWarnings("unchecked")
+    public void handleServerInitiatedResponse(String requestId, Map<String, Object> response, boolean isError) {
+        if (requestId == null) {
+            LOGGER.warning("Received server-initiated response without request id — discarded");
+            return;
+        }
+        ServerInitiatedRequest req = serverInitiatedRequests.remove(requestId);
+        if (req == null) {
+            LOGGER.warning("Duplicate or unknown server-initiated response for id=" + requestId + " — discarded");
+            return;
+        }
+        if (isError) {
+            Object errCode = response.get("code");
+            int code = errCode instanceof Number ? ((Number) errCode).intValue() : McpErrorCodes.INTERNAL_ERROR;
+            Object errMsg = response.get("message");
+            String msg = errMsg instanceof String ? (String) errMsg : "Unknown error";
+            req.responseFuture.completeExceptionally(new McpElicitationException(code, msg));
+        } else {
+            req.responseFuture.complete(response);
+        }
+    }
+
+    /**
+     * Cancels an in-flight server-initiated request (ADR-0022 §3).
+     *
+     * @param requestId the server-generated request token (uuid:...)
+     */
+    public void cancelServerRequest(String requestId) {
+        ServerInitiatedRequest req = serverInitiatedRequests.remove(requestId);
+        if (req != null && !req.responseFuture.isDone()) {
+            req.responseFuture.completeExceptionally(new java.util.concurrent.CancellationException(
+                    "Server-initiated request cancelled: " + requestId));
+            LOGGER.info("Server-initiated request cancelled: " + requestId);
+        }
+    }
+
+    /**
+     * Cancels an in-flight server-initiated request by its token (with or without {@code uuid:} prefix).
+     *
+     * @param token the request token
+     */
+    public void cancelServerRequestByToken(String token) {
+        String id = token.startsWith("uuid:") ? token : ("uuid:" + token);
+        cancelServerRequest(id);
+    }
+
+    /**
+     * Returns the number of in-flight server-initiated requests (for testing/monitoring).
+     */
+    public int getPendingServerRequestCount() {
+        return serverInitiatedRequests.size();
+    }
+
+    /**
+     * Returns true when a server-initiated request has been cancelled or timed out.
+     *
+     * @param requestId the server-generated request token
+     */
+    public boolean isServerRequestCancelled(String requestId) {
+        ServerInitiatedRequest req = serverInitiatedRequests.get(requestId);
+        if (req == null) return true;
+        return req.responseFuture.isDone() && req.responseFuture.isCancelled();
+    }
+
+    /**
+     * Enqueues a server-initiated JSON-RPC request into the session's SSE event queue.
+     * Called by {@link SseServerRequestTransport} to put the request on the wire.
+     *
+     * @param sessionId   target session
+     * @param requestBody serialised JSON-RPC request
+     */
+    void enqueueServerEvent(String sessionId, String requestBody) {
+        SessionState state = sessions.get(sessionId);
+        if (state != null) {
+            state.enqueueEvent(requestBody);
+        }
+    }
+
+    // ==================== Elicitation Convenience API ====================
+
+    /**
+     * Sends a generic elicitation request and returns a CompletableFuture for the response.
+     *
+     * @param sessionId target session
+     * @param request   the elicitation request
+     * @param timeoutMs per-request timeout; defaults to config if non-positive
+     * @return CompletableFuture resolving to the JSON-RPC response body
+     */
+    public CompletableFuture<Map<String, Object>> elicit(
+            String sessionId, ElicitRequest request, long timeoutMs) {
+        Map<String, Object> params = request.toParams(null);
+        return sendServerRequest(sessionId, McpMethodNames.ELICITATION_CREATE, params, timeoutMs);
+    }
+
+    /**
+     * Sends an elicitation confirmation request and returns the selected action label.
+     *
+     * @param sessionId target session
+     * @param message   prompt message
+     * @param actions   labelled actions the client can select
+     * @param timeoutMs per-request timeout; defaults to config if non-positive
+     * @return CompletableFuture resolving to the selected action label
+     */
+    public CompletableFuture<String> elicitConfirmation(
+            String sessionId, String message, List<ElicitAction> actions, long timeoutMs) {
+        ElicitRequest req = ElicitRequest.builder()
+                .message(message)
+                .actions(actions)
+                .build();
+        return elicit(sessionId, req, timeoutMs).thenApply(result -> {
+            ElicitationResult er = ElicitationResult.fromResponse(result);
+            if (er.isDeclined()) {
+                throw new McpElicitationException(McpErrorCodes.ELICITATION_REJECTED, "Elicitation rejected by client");
+            }
+            return er.getAction() != null ? er.getAction() : er.getValue();
+        });
+    }
+
+    /**
+     * Sends an elicitation text-input request and returns the entered value.
+     *
+     * @param sessionId    target session
+     * @param message      prompt message
+     * @param defaultValue optional default value; returned if client declines
+     * @param timeoutMs    per-request timeout; defaults to config if non-positive
+     * @return CompletableFuture resolving to the client's text input
+     */
+    public CompletableFuture<String> elicitInput(
+            String sessionId, String message, String defaultValue, long timeoutMs) {
+        ElicitRequest req = ElicitRequest.builder()
+                .message(message)
+                .defaultValue(defaultValue)
+                .build();
+        return elicit(sessionId, req, timeoutMs).thenApply(result -> {
+            ElicitationResult er = ElicitationResult.fromResponse(result);
+            if (er.isDeclined()) return defaultValue;
+            return er.getValue() != null ? er.getValue()
+                    : (er.getAction() != null ? er.getAction() : defaultValue);
+        });
     }
 
     // ==================== Tools ====================

@@ -304,7 +304,7 @@ Controls MCP protocol version, capabilities, sessions, and rate limits.
 | `tasks(boolean)` | `false` | Advertise tasks capability |
 | `tasksExtension(McpTaskExtension)` | null | Pluggable tasks extension; controls version-gated task method dispatch |
 | `elicitation(boolean)` | `false` | Advertise elicitation capability (requires `protocolMode(STATELESS)` and `protocolVersion("2026-07-28")`) |
-| `elicitationTimeoutMs(long)` | `60000` | Timeout for elicitation requests in milliseconds |
+| `serverRequestTimeoutMs(long)` | `30000` | Timeout for server-initiated requests in milliseconds |
 
 **Sessions and streaming**
 
@@ -583,7 +583,55 @@ McpServerConfig.builder()
         .protocolVersion("2026-07-28")
         .protocolMode(ProtocolMode.STATELESS)
         .elicitation(true)
-        .elicitationTimeoutMs(60_000)  // default: 60 s
+        .serverRequestTimeoutMs(30_000)  // default: 30 s
+        .build();
+```
+
+### API — `McpProtocolHandler`
+
+| Method | Description |
+|--------|-------------|
+| `elicitConfirmation(sessionId, message, actions, timeoutMs)` | Prompt with labelled actions; resolves to selected action label; throws `McpElicitationException` on decline or timeout |
+| `elicitInput(sessionId, message, defaultValue, timeoutMs)` | Prompt for free-form text; returns `defaultValue` on decline; throws on timeout |
+
+### Error codes
+
+| Code | Constant | When |
+|------|----------|------|
+| `-32003` | `SERVER_REQUEST_TIMEOUT` | Client did not respond within timeout |
+| `-32004` | `ELICITATION_REJECTED` | Client declined or dismissed |
+| `-32601` | `METHOD_NOT_FOUND` | Transport does not support elicitation (e.g., STDIO) |
+
+### Key types
+
+| Type | Package | Purpose |
+|------|---------|---------|
+| `ElicitAction` | `api.dto` | Labelled action (label + optional description) |
+| `ElicitRequest` | `api.dto` | Immutable elicitation request (builder API) |
+| `ElicitationResult` | `api.dto` | Parsed client response; distinguishes action, value, and decline |
+| `McpElicitationException` | `api.utils` | Thrown on timeout, decline, or transport error; extends `RuntimeException` |
+
+Transport: **HTTP/SSE only** — not available over STDIO or Streamable HTTP POST responses.
+
+---
+
+## Elicitation
+
+Elicitation enables the server to prompt the client for confirmation or text input during tool execution.
+All methods return `CompletableFuture` — the call is non-blocking.
+
+See [ELICITATION.md](ELICITATION.md) for the full guide, including async pipeline examples.
+
+### Configuration
+
+Enable in `McpServerConfig`:
+
+```java
+McpServerConfig.builder()
+        .protocolVersion("2026-07-28")
+        .protocolMode(ProtocolMode.STATELESS)
+        .elicitation(true)
+        .serverRequestTimeoutMs(30_000)  // default: 30 s
         .build();
 ```
 

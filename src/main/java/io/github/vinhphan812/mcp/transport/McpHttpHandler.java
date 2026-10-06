@@ -1,6 +1,7 @@
 package io.github.vinhphan812.mcp.transport;
 
 import com.google.gson.JsonObject;
+import com.google.gson.reflect.TypeToken;
 import io.github.vinhphan812.mcp.api.utils.McpError;
 import io.github.vinhphan812.mcp.api.utils.McpGson;
 import io.github.vinhphan812.mcp.api.utils.McpHttpHeaders;
@@ -390,6 +391,7 @@ public final class McpHttpHandler extends HttpHandler {
     }
 
     // ── POST ──────────────────────────────────────────────────────────────
+    @SuppressWarnings("unchecked")
     private void handlePost(Request request, Response response) throws IOException {
         String origin = requestOrigin(request);
         if (isInvalidRequest(request, response)) return;
@@ -424,6 +426,32 @@ public final class McpHttpHandler extends HttpHandler {
             req = McpGson.get().fromJson(body, JsonObject.class);
         } catch (RuntimeException e) {
             writeError(response, 400, "Malformed JSON request body");
+            return;
+        }
+
+        if (req == null) {
+            writeError(response, 400, "Invalid JSON request body");
+            return;
+        }
+
+        // A client response to a server-initiated request is a JSON-RPC response, not a request:
+        // it has id plus result or error and deliberately has no method. Correlate it before routing validation.
+        if (!req.has("method") && req.has("id") && (req.has("result") || req.has("error"))) {
+            String responseId = req.get("id").isJsonPrimitive() ? req.get("id").getAsString() : null;
+            boolean isError = req.has("error") && req.get("error").isJsonObject();
+                Map<String, Object> responseBody;
+                if (isError) {
+                    responseBody = McpGson.get().fromJson(req.getAsJsonObject("error"),
+                            new TypeToken<Map<String, Object>>() { }.getType());
+                } else if (req.has("result") && req.get("result").isJsonObject()) {
+                    responseBody = McpGson.get().fromJson(req.getAsJsonObject("result"),
+                            new TypeToken<Map<String, Object>>() { }.getType());
+                } else {
+                    responseBody = Collections.emptyMap();
+                }
+            handler.handleServerInitiatedResponse(responseId, responseBody, isError);
+            writeCorsHeaders(response, origin);
+            response.setStatus(202);
             return;
         }
 

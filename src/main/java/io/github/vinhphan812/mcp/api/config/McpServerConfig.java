@@ -156,6 +156,10 @@ public final class McpServerConfig {
      * Default is 100.
      */
     public final int maxListenerBufferSize;
+    /** Default timeout in ms for server-initiated requests (e.g. elicitation). Default 30000. @since 2026-07-28 */
+    public final long serverRequestTimeoutMs;
+    /** Whether the elicitation capability is enabled. Default false. @since 2026-07-28 */
+    public final boolean elicitation;
 
     /**
      * Returns the configured queue overflow listener.
@@ -198,6 +202,8 @@ public final class McpServerConfig {
         streaming = builder.streaming;
         streamableHttp = builder.streamableHttp;
         maxListenerBufferSize = builder.maxListenerBufferSize;
+        serverRequestTimeoutMs = builder.serverRequestTimeoutMs > 0 ? builder.serverRequestTimeoutMs : 30_000L;
+        elicitation = builder.elicitation;
     }
 
     /** Creates a builder for server configuration.
@@ -254,6 +260,8 @@ public final class McpServerConfig {
         private boolean streaming = true;
         private boolean streamableHttp = true;
         private int maxListenerBufferSize = 100;
+        private long serverRequestTimeoutMs = 30_000L;
+        private boolean elicitation = false;
 
         /** Sets maximum page size for paginated responses.
          * @param value positive maximum item count
@@ -517,6 +525,31 @@ public final class McpServerConfig {
         public Builder maxListenerBufferSize(int value) {
             if (value <= 0) throw new IllegalArgumentException("maxListenerBufferSize must be positive");
             this.maxListenerBufferSize = value;
+            return this;
+        }
+
+        /**
+         * Sets the default timeout for server-initiated requests (e.g. elicitation).
+         * Must be positive. Default is 30000 ms.
+         *
+         * @param timeoutMs timeout in milliseconds
+         * @return this builder
+         */
+        public Builder serverRequestTimeoutMs(long timeoutMs) {
+            if (timeoutMs <= 0) throw new IllegalArgumentException("serverRequestTimeoutMs must be positive");
+            this.serverRequestTimeoutMs = timeoutMs;
+            return this;
+        }
+
+        /**
+         * Enables or disables the elicitation capability.
+         * When enabled, {@code elicitation/create} requests are accepted over SSE.
+         *
+         * @param value whether elicitation is enabled
+         * @return this builder
+         */
+        public Builder elicitation(boolean value) {
+            this.elicitation = value;
             return this;
         }
 
