@@ -48,7 +48,7 @@ McpServer server = McpServer.builder()
                 .protocolVersion("2026-07-28")          // required for elicitation
                 .protocolMode(ProtocolMode.STATELESS)    // required for elicitation
                 .elicitation(true)                       // enable elicitation capability
-                .serverRequestTimeoutMs(30_000)            // optional: default 30 000 ms (30 s)
+                .elicitationTimeoutMs(60_000)            // optional: default 60 000 ms (60 s)
                 .build())
         .host("127.0.0.1")
         .port(3011)
@@ -227,7 +227,7 @@ try {
 The timeout applies **per request**, not per session. Configure globally on `McpServerConfig`:
 
 ```java
-.serverRequestTimeoutMs(30_000)  // 30 seconds (default)
+.elicitationTimeoutMs(60_000)  // 60 seconds (default)
 ```
 
 Or per-call by passing a positive value to the elicitation method:
@@ -312,5 +312,5 @@ See [ADR-0023](../adr/ADR-0023-deprecation-sampling-roots-logging.md) for the fu
 | Timeout error | `-32003` (`SERVER_REQUEST_TIMEOUT`) |
 | Decline error | `-32004` (`ELICITATION_REJECTED`) |
 | Transport unsupported | `-32601` (`METHOD_NOT_FOUND`) |
-| Default timeout | 30 000 ms (configurable via `serverRequestTimeoutMs`) |
+| Default timeout | 60 000 ms (configurable via `elicitationTimeoutMs`) |
 | Correlation token | `uuid:<UUID>` format in JSON-RPC `id` and `_meta.progressToken` |
