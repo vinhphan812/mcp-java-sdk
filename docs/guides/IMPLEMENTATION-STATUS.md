@@ -53,7 +53,7 @@ specific runtime or deployment configuration.
 
 | Transport                          | Status              | Evidence                                                                                                                                               |
 |------------------------------------|---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Streamable HTTP**                | **Implemented**     | `transport/` package; `GrizzlyStreamableServerTransportProvider`; `StreamableHttpModeTest`                                                             |
+| **Streamable HTTP**                | **Implemented**     | `transport/` package; `HttpTransportProvider`; `StreamableHttpModeTest`                                                             |
 | **HTTP POST** (JSON-RPC)           | **Implemented**     | POST handler in `McpHttpHandler`; `McpIntegrationTest`                                                                                                 |
 | **HTTP GET** (SSE event stream)    | **Implemented**     | SSE handler in `McpHttpHandler`; `StreamableHttpModeTest`                                                                                              |
 | **HTTP DELETE** (session teardown) | **Implemented**     | DELETE handler in `McpHttpHandler`                                                                                                                     |
