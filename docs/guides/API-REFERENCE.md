@@ -304,7 +304,7 @@ Controls MCP protocol version, capabilities, sessions, and rate limits.
 | `tasks(boolean)` | `false` | Advertise tasks capability |
 | `tasksExtension(McpTaskExtension)` | null | Pluggable tasks extension; controls version-gated task method dispatch |
 | `elicitation(boolean)` | `false` | Advertise elicitation capability (requires `protocolMode(STATELESS)` and `protocolVersion("2026-07-28")`) |
-| `serverRequestTimeoutMs(long)` | `30000` | Timeout for server-initiated requests in milliseconds |
+| `elicitationTimeoutMs(long)` | `60000` | Timeout for elicitation requests in milliseconds |
 
 **Sessions and streaming**
 
@@ -583,7 +583,7 @@ McpServerConfig.builder()
         .protocolVersion("2026-07-28")
         .protocolMode(ProtocolMode.STATELESS)
         .elicitation(true)
-        .serverRequestTimeoutMs(30_000)  // default: 30 s
+        .elicitationTimeoutMs(60_000)  // default: 60 s
         .build();
 ```
 
@@ -631,7 +631,7 @@ McpServerConfig.builder()
         .protocolVersion("2026-07-28")
         .protocolMode(ProtocolMode.STATELESS)
         .elicitation(true)
-        .serverRequestTimeoutMs(30_000)  // default: 30 s
+        .elicitationTimeoutMs(60_000)  // default: 60 s
         .build();
 ```
 

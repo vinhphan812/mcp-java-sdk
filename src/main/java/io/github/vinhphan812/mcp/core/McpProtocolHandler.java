@@ -869,11 +869,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                     result = handleSetLogLevel(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
                 case McpMethodNames.ELICITATION_CREATE:
-                    // Elicitation is a 2026 capability and is only dispatched for
-                    // a request negotiated as the stateless 2026 protocol.
-                    if (!config.elicitation || !stateless) {
-                        return new McpResponse(capabilityError(id, "elicitation"), sessionId);
-                    }
+                    if (!config.elicitation) return new McpResponse(capabilityError(id, "elicitation"), sessionId);
                     result = handleElicitationRequest(id, sessionId, params instanceof Map ? (Map<String, Object>) params : null);
                     break;
                 case McpMethodNames.SAMPLING_CREATE_MESSAGE:
@@ -1139,9 +1135,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
         if (config.completions) capabilities.put("completions", new LinkedHashMap<String, Object>());
         if (config.logging) capabilities.put("logging", new LinkedHashMap<String, Object>());
-        if (config.elicitation && McpJsonRpc.PROTOCOL_VERSION_STATELESS.equals(negotiatedVersion)) {
-            capabilities.put("elicitation", new LinkedHashMap<String, Object>());
-        }
+        if (config.elicitation) capabilities.put("elicitation", new LinkedHashMap<String, Object>());
         if (config.tasks) {
             if (tasksExtension != null && tasksExtension.supports(negotiatedVersion)) {
                 capabilities.put("tasks", tasksExtension.advertiseCapabilities(negotiatedVersion));
@@ -1861,19 +1855,29 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         List<String> requiredScopes = (definition != null)
                 ? (List<String>) definition.get("requiredScopes") : null;
         if (definition != null) {
-            // Schema validation — check required params
+            // Schema validation — full 2020-12 in 2026 stateless mode; legacy only-required in 2025
             Map<String, Object> inputSchema = (Map<String, Object>) definition.get("inputSchema");
             if (inputSchema != null) {
-                List<String> requiredParams = (List<String>) inputSchema.get("required");
-                if (requiredParams != null && !requiredParams.isEmpty()) {
-                    List<String> missing = new ArrayList<>();
-                    for (String required : requiredParams) {
-                        if (!arguments.containsKey(required) || arguments.get(required) == null) {
-                            missing.add(required);
-                        }
+                if (stateless) {
+                    // 2026-07-28: JSON Schema 2020-12 full validation
+                    try {
+                        io.github.vinhphan812.mcp.core.util.SchemaValidator.validateData(arguments, inputSchema);
+                    } catch (IllegalArgumentException e) {
+                        throw McpException.invalidParams("Invalid tool arguments: " + e.getMessage());
                     }
-                    if (!missing.isEmpty()) {
-                        return errorToolResult("Missing required parameter(s): " + missing);
+                } else {
+                    // 2025-11-25: legacy behaviour — only check required[]
+                    List<String> requiredParams = (List<String>) inputSchema.get("required");
+                    if (requiredParams != null && !requiredParams.isEmpty()) {
+                        List<String> missing = new ArrayList<>();
+                        for (String required : requiredParams) {
+                            if (!arguments.containsKey(required) || arguments.get(required) == null) {
+                                missing.add(required);
+                            }
+                        }
+                        if (!missing.isEmpty()) {
+                            return errorToolResult("Missing required parameter(s): " + missing);
+                        }
                     }
                 }
             }
@@ -1905,6 +1909,20 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 notifyToolProgress(sessionId, progressToken, 0d, 1d, "Tool " + name + " started");
             }
             Map<String, Object> result = handler.call(arguments);
+
+            // Validation against outputSchema — full 2020-12 in 2026 stateless mode only
+            if (stateless) {
+                Map<String, Object> outputSchema = (definition != null)
+                        ? (Map<String, Object>) definition.get("outputSchema") : null;
+                if (outputSchema != null) {
+                    try {
+                        io.github.vinhphan812.mcp.core.util.SchemaValidator.validateData(result, outputSchema);
+                    } catch (IllegalArgumentException e) {
+                        throw McpException.invalidParams("Tool result violates outputSchema: " + e.getMessage());
+                    }
+                }
+            }
+
             if (progressToken != null) {
                 notifyToolProgress(sessionId, progressToken, 1d, 1d, "Tool " + name + " completed");
             }
