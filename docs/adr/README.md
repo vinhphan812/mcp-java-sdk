@@ -69,8 +69,10 @@ flowchart LR
 | [ADR-0018](ADR-0018-transport-contract-http-sse-vs-streamable-http.md) | Transport Contract: Legacy HTTP+SSE vs Modern Streamable HTTP                   | Accepted   | 2026-09-22 |
 | [ADR-0019](ADR-0019-java-runtime-floor.md)                             | Java Runtime Floor: Java 11+ Required for Grizzly Transport                     | Accepted   | 2026-09-29 |
 | [ADR-0021](ADR-0021-cors-loopback-origin-policy.md)                    | CORS Loopback Origin Policy: Preflight, Allowlist, and Response Headers         | Accepted   | 2026-09-30 |
-| [ADR-0022](ADR-0022-server-to-client-mrtr-elicitation-foundation.md) | MRTR Server-to-Client Foundation and Elicitation                               | Accepted   | 2026-10-02 |
-| [ADR-0023](ADR-0023-deprecation-sampling-roots-logging.md)            | Deprecation Strategy: Sampling, Roots, and Logging Capabilities                | Accepted   | 2026-10-05 |
+|| [ADR-0022](ADR-0022-server-to-client-mrtr-elicitation-foundation.md) | MRTR Server-to-Client Foundation and Elicitation                               | Accepted   | 2026-10-02 |
+|| [ADR-0023](ADR-0023-deprecation-sampling-roots-logging.md)            | Deprecation Strategy: Sampling, Roots, and Logging Capabilities                | Accepted   | 2026-10-05 |
+
+> **ADR-0024 was closed as not planned and has been removed.**
 
 ## When to create an ADR
 
