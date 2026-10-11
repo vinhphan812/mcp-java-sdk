@@ -15,7 +15,9 @@
 # Elicitation: Basic MRTR support is wired but not fully conformance tested.
 # Sampling / roots / logging: Deprecated or out-of-scope per ADR-0023.
 #
-# The current pinned runner requires exact scenario identifiers. Keep this baseline
-# empty until an explicit optional-extension invocation is added to CI; this preserves
-# fail-closed behavior for every frozen 2026-07-28 core requirement.
-server: []
+# The current pinned runner requires exact scenario identifiers.
+server:
+  - tasks-extension-advertised
+  - sep-2663-tasks-methods-non-declaring
+  - tasks-sync-tool-call
+  - wire-schema-valid
