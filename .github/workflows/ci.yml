@@ -190,11 +190,12 @@ jobs:
         with:
           node-version: '22'
 
-      # Pin the conformance package to the exact version used in this SDK's reference CI run.
-      # Bump this SHA when the conformance suite adds a regression for our implementation,
-      # or when a new spec revision becomes the stable release target.
+      # Pin to @alpha for 2026-07-28 spec support (not yet in stable/latest).
+      # The alpha tag tracks the draft spec; stable releases (latest) lag by weeks.
+      # Bump to @latest once 2026-07-28 lands in a stable release.
+      # Keep the pinning comment on the same line so npm's --save-exact can be used.
       - name: Install conformance runner
-        run: npm install --no-save @modelcontextprotocol/conformance@latest
+        run: npm install --no-save @modelcontextprotocol/conformance@alpha
 
       # Boot the fixture in the background, capture the URL, then run conformance.
       # The fixture prints "CONFORMANCE_FIXTURE_URL=<url>" on stdout; we grep for it.
