@@ -35,6 +35,7 @@ import io.github.vinhphan812.mcp.annotations.Prompts;
 import io.github.vinhphan812.mcp.annotations.Resources;
 import io.github.vinhphan812.mcp.annotations.Tools;
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
+import io.github.vinhphan812.mcp.api.config.RateLimits;
 import io.github.vinhphan812.mcp.core.McpRegistry;
 import io.github.vinhphan812.mcp.core.McpServer;
 
@@ -177,6 +178,19 @@ public final class ConformanceFixture {
         // Suppress Grizzly access log chatter to keep stdout clean for CI parsing.
         System.setProperty("org.glassfish.grizzly.http.server.HttpHandler.log", "false");
 
+        // The official runner drives all scenarios through one loopback client in
+        // rapid succession. Keep production defaults intact, but give this disposable
+        // CI-only fixture a generous deterministic budget so one failed scenario does
+        // not poison later cases with a 60-second shared-IP throttle.
+        RateLimits conformanceRateLimits = RateLimits.builder()
+                .maxRequestsPerIpPerMinute(10_000)
+                .maxRequestsPerSessionPerMinute(10_000)
+                .read(10_000, 10_000, 256)
+                .write(10_000, 10_000, 256)
+                .admin(10_000, 10_000, 256)
+                .rateLimitWindows(60_000L, 300_000L)
+                .build();
+
         McpServerConfig config = McpServerConfig.builder()
                 .serverName("conformance-fixture")
                 .serverVersion("1.0.0")
@@ -185,6 +199,7 @@ public final class ConformanceFixture {
                 .resources(true)
                 .prompts(true)
                 .logging(false)
+                .rateLimits(conformanceRateLimits)
                 .build();
 
         McpServer.Builder builder = McpServer.builder()
