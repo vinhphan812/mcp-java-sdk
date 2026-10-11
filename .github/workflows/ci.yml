@@ -133,8 +133,8 @@ jobs:
   #   1. Download the runtime JAR produced by the `build` job so we do not re-build.
   #   2. Compile only the ConformanceFixture test class against that JAR.
   #   3. Boot the fixture on ephemeral port 0; capture its base URL from stdout.
-  #   4. Run `npx @modelcontextprotocol/conformance server --url <url> --spec-version 2026-07-28`.
-  #   5. Exit code 0 only when every *required* scenario passes.
+  #   4. Run the pinned official runner against the frozen 2026-07-28 requirement set.
+  #   5. Exit code 0 only when every required server scenario passes.
   #
   # Extension handling (MCP 2026-07-28 § SEP-1730):
   #   Tasks, elicitation, sampling, roots, logging are OPTIONAL — known gaps are listed
@@ -190,12 +190,10 @@ jobs:
         with:
           node-version: '22'
 
-      # Pin to @alpha for 2026-07-28 spec support (not yet in stable/latest).
-      # The alpha tag tracks the draft spec; stable releases (latest) lag by weeks.
-      # Bump to @latest once 2026-07-28 lands in a stable release.
-      # Keep the pinning comment on the same line so npm's --save-exact can be used.
+      # Pin to the exact prerelease that exposes the 2026-07-28 frozen requirements.
+      # Node/npm are CI-only runner tooling and are not added to the Java SDK runtime.
       - name: Install conformance runner
-        run: npm install --no-save @modelcontextprotocol/conformance@alpha
+        run: npm install --no-save @modelcontextprotocol/conformance@0.2.0-alpha.12
 
       # Boot the fixture in the background, capture the URL, then run conformance.
       # The fixture prints "CONFORMANCE_FIXTURE_URL=<url>" on stdout; we grep for it.
@@ -238,14 +236,15 @@ jobs:
             exit 1
           fi
 
-          # Run the conformance suite.
-          # --spec-version 2026-07-28 targets the stateless-lifecycle wire for this spec.
-          # --expected-failures uses the per-scenario baseline: known gaps exit 0,
-          #   unexpected failures exit 1, and stale entries (passing but baselined) exit 1.
-          npx @modelcontextprotocol/conformance server \
+          # `--requirements` selects the official frozen server requirements for the
+          # released 2026-07-28 wire, rather than the moving active suite. Expected
+          # failures only waive optional extension cases in conformance-baseline.yml.
+          mkdir -p results
+          npx conformance server \
             --url "$FIXTURE_URL" \
-            --spec-version 2026-07-28 \
+            --requirements 2026-07-28 \
             --expected-failures conformance-baseline.yml \
+            --output-dir results \
             --verbose
           CONF_RC=$?
 
