@@ -1,0 +1,21 @@
+# MCP 2026-07-28 conformance baseline for mcp-java-sdk
+#
+# Per https://github.com/modelcontextprotocol/conformance#expected-failures:
+#   Exit 0 = expected failure (in baseline, actually fails)
+#   Exit 1 = unexpected regression (not in baseline, actually fails)
+#   Exit 1 = stale entry (in baseline, but passes — remove it)
+#   Exit 0 = normal pass
+#
+# Extension handling: MCP 2026-07-28 requirements intentionally exclude extension
+# scenarios from the release score. This file is retained for optional extension
+# runs only; it must never waive a required/core server scenario.
+#
+# Tasks: io.modelcontextprotocol/tasks negotiation is not implemented yet
+# (t_39d575c0 — Re-audit and fix final Tasks extension semantics — is pending).
+# Elicitation: Basic MRTR support is wired but not fully conformance tested.
+# Sampling / roots / logging: Deprecated or out-of-scope per ADR-0023.
+#
+# The current pinned runner requires exact scenario identifiers. Keep this baseline
+# empty until an explicit optional-extension invocation is added to CI; this preserves
+# fail-closed behavior for every frozen 2026-07-28 core requirement.
+server: []
