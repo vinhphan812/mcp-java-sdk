@@ -26,6 +26,15 @@ This is an implementation capability, not a claim of full MCP certification or e
 The server must accept a client protocol version only when it is supported. Unsupported versions must return an
 initialize error rather than silently advertising a different version.
 
+## Compatibility Matrix
+
+| Feature | <=2025-11-25 (Legacy) | 2026-07-28 (Modern) |
+| - | - | - |
+| Initialize | Sessioned (Mandatory) | Stateless (Optional) |
+| Capabilities | Session-bound | Request-specific (SEP-2243) |
+| Routing | No MCP-Method header | MCP-Method header required |
+| Tasks | Built-in store | Extension-negotiated |
+
 ## P0 compatibility work
 
 - Validate JSON-RPC 2.0 envelope.

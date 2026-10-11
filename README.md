@@ -1,14 +1,14 @@
-# MCP Java SDK
+# MCP Java SDK (v1.0.1)
 
-Portable Java 11+ library for hosting an [MCP](https://modelcontextprotocol.io) server inside any Java application —
-including desktop services and backend servers. The core packages (`annotations/`, `api/`, `core/`) are architecturally
-compatible with Android API 22+ with desugaring but have **not been verified on Android devices**. The full SDK with
-Grizzly transport requires JVM 11+ and is not compatible with standard Android runtime environments.
+Portable Java 11+ library for hosting an [MCP](https://modelcontextprotocol.io) server inside any Java application.
+
+**Note:** This is the `v1.0.1` release, supporting sessioned MCP `2025-11-25`. Development on `master` is actively preparing for 2026-07-28 stateless MCP support, which is not yet part of the v1.0.1 release.
 
 [![CI](https://github.com/vinhphan812/mcp-java-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/vinhphan812/mcp-java-sdk/actions)
 [![Release](https://img.shields.io/github/v/release/vinhphan812/mcp-java-sdk?label=latest)](https://github.com/vinhphan812/mcp-java-sdk/releases/latest)
 [![Java](https://img.shields.io/badge/Java-11+-orange)](https://adoptium.net/)
 [![License](https://img.shields.io/github/license/vinhphan812/mcp-java-sdk)](LICENSE)
+
 [![GitHub Repo stars](https://img.shields.io/github/stars/vinhphan812/mcp-java-sdk?style=flat)](https://github.com/vinhphan812/mcp-java-sdk)
 [![Code size](https://img.shields.io/github/languages/code-size/vinhphan812/mcp-java-sdk)](https://github.com/vinhphan812/mcp-java-sdk)
 [![Repository size](https://img.shields.io/github/repo-size/vinhphan812/mcp-java-sdk)](https://github.com/vinhphan812/mcp-java-sdk)
