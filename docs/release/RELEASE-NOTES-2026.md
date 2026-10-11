@@ -177,14 +177,14 @@ Returning `false` from `supports()` causes all task requests to return `{-32601}
 Reference: `McpProtocolHandler.java` — `dispatchToExtension()` short-circuit;
 `DefaultExtensionRegistry.java` — extension registry implementation.
 
-### 2.4 New Protocol Methods: `listens/subscribe` and `listens/unsubscribe`
+### 2.4 New Protocol Methods: `subscriptions/listen` and `subscriptions/unsubscribe`
 
 **File changed:** `src/main/java/io/github/vinhphan812/mcp/transport/McpHttpHandler.java`, `McpProtocolHandler.java`
 
 Two new methods for server-initiated push subscriptions over the SSE stream:
 
-- `listens/subscribe` — registers interest in a named event stream
-- `listens/unsubscribe` — deregisters a previously registered subscription
+- `subscriptions/listen` — registers interest in a named event stream
+- `subscriptions/unsubscribe` — deregisters a previously registered subscription
 
 These methods support the MRTR (Machine-to-Machine Request-Response) / elicitation foundation
 (ADR-0022). They are gated behind the `2026-07-28` wire contract and return `{-32601}` in `SESSIONED` mode.
@@ -253,7 +253,7 @@ Regression tests: `Mcp2026WireContractTest.java` (822 lines), `Mcp2026WireContra
 | 6 | Dual protocol modes: `SESSIONED` (2025-11-25) and `STATELESS` (2026-07-28) | HEAD | `McpServerConfig.java` | No |
 | 7 | New method: `server/discover` (sessionless capability discovery) | HEAD | `McpMethodNames.java`, `McpProtocolHandler.java` | No |
 | 8 | New SPI: `McpTaskExtension` for pluggable task lifecycle | HEAD | `McpTaskExtension.java`, `DefaultExtensionRegistry.java` | No |
-| 9 | New methods: `listens/subscribe` and `listens/unsubscribe` | HEAD | `McpHttpHandler.java`, `McpProtocolHandler.java` | No |
+| 9 | New methods: `subscriptions/listen` and `subscriptions/unsubscribe` | HEAD | `McpHttpHandler.java`, `McpProtocolHandler.java` | No |
 | 10 | New: `Mcp2026RequestContext` typed `_meta` context | HEAD | `Mcp2026RequestContext.java` | No |
 | 11 | New: `ExtensionRegistry` SPI for multiple extensions | HEAD | `ExtensionRegistry.java`, `DefaultExtensionRegistry.java` | No |
 | 12 | Strict `2026-07-28` wire contract enforcement (PR #20) | HEAD | `McpProtocolHandler.java` | No — additive behaviour |

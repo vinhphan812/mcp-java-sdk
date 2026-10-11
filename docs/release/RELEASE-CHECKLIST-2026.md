@@ -102,7 +102,7 @@ Release notes distinguishing 2025 sessioned vs 2026 final behaviour are drafted 
 Content covers:
 - 5 inherited 2025 sections (transport rename, session cleanup, TlsConfig deprecation, Java 11 floor)
 - 7 new 2026 sections (dual protocol modes SESSIONED/STATELESS, server/discover, McpTaskExtension SPI,
-  listens/subscribe+unsubscribe, Mcp2026RequestContext, ExtensionRegistry, strict wire contract enforcement)
+  subscriptions/listen+unsubscribe, Mcp2026RequestContext, ExtensionRegistry, strict wire contract enforcement)
 - 3 concrete behavioural differences with file/line references
 - CI evidence: `gradle_test: BUILD SUCCESSFUL in 38s`, `validate_docs: passed`, `doc_hygiene: passed`
 

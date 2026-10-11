@@ -39,7 +39,7 @@ import java.util.Set;
  *
  * @see io.github.vinhphan812.mcp.core.McpProtocolHandler
  */
-public final class ListenRequest {
+public final class SubscriptionListenRequest {
 
     /**
      * Immutable set of requested topic names.
@@ -73,7 +73,7 @@ public final class ListenRequest {
      */
     public final Map<String, Object> extras;
 
-    private ListenRequest(Set<String> topics, String subscriptionId,
+    private SubscriptionListenRequest(Set<String> topics, String subscriptionId,
                           Object progressToken, int bufferSizeHint,
                           Map<String, Object> extras) {
         this.topics = topics;
@@ -108,7 +108,7 @@ public final class ListenRequest {
     }
 
     /**
-     * Parses a {@code listens/subscribe} params map into a {@link ListenRequest}.
+     * Parses a {@code listens/subscribe} params map into a {@link SubscriptionListenRequest}.
      *
      * <p>Canonical topics that are always valid:
      * {@value io.github.vinhphan812.mcp.api.spi.McpRegistryChangeListener#TOPIC_TOOLS},
@@ -121,7 +121,7 @@ public final class ListenRequest {
      * @return parsed request, never null
      */
     @SuppressWarnings("unchecked")
-    public static ListenRequest fromParams(Map<String, Object> params) {
+    public static SubscriptionListenRequest fromParams(Map<String, Object> params) {
         if (params == null) {
             return EMPTY;
         }
@@ -176,7 +176,7 @@ public final class ListenRequest {
             return EMPTY;
         }
 
-        return new ListenRequest(
+        return new SubscriptionListenRequest(
                 topics,
                 subId,
                 pt,
@@ -188,13 +188,13 @@ public final class ListenRequest {
     /**
      * Empty request used when no params are present.
      */
-    public static final ListenRequest EMPTY = new ListenRequest(
+    public static final SubscriptionListenRequest EMPTY = new SubscriptionListenRequest(
             Collections.emptySet(), null, null, 0, Collections.emptyMap()
     );
 
     @Override
     public String toString() {
-        return "ListenRequest{topics=" + topics
+        return "SubscriptionListenRequest{topics=" + topics
                 + ", subscriptionId=" + subscriptionId
                 + ", progressToken=" + progressToken
                 + ", bufferSizeHint=" + bufferSizeHint
@@ -205,7 +205,7 @@ public final class ListenRequest {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ListenRequest that = (ListenRequest) o;
+        SubscriptionListenRequest that = (SubscriptionListenRequest) o;
         return bufferSizeHint == that.bufferSizeHint
                 && Objects.equals(topics, that.topics)
                 && Objects.equals(subscriptionId, that.subscriptionId)

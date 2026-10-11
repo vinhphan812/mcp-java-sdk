@@ -149,14 +149,14 @@ public final class McpMethodNames {
     // ── 2026 subscriptions / listening ───────────────────────────────────────
 
     /**
-     * {@code listens/subscribe} — 2026-07-28: opens a long-lived subscription to registry-change
+     * {@code subscriptions/listen} — 2026-07-28: opens a long-lived subscription to registry-change
      * and resource-update events. Does not use Mcp-Session-Id. Cancelled by closing the HTTP
-     * stream or by sending {@code listens/unsubscribe}.
+     * stream or by sending {@code subscriptions/unsubscribe}.
      */
-    public static final String LISTEN_SUBSCRIBE = "listens/subscribe";
+    public static final String SUBSCRIPTIONS_LISTEN = "subscriptions/listen";
 
     /**
-     * {@code listens/unsubscribe} — 2026-07-28: cancels an active listen subscription.
+     * {@code subscriptions/unsubscribe} — 2026-07-28: cancels an active listen subscription.
      */
-    public static final String LISTEN_UNSUBSCRIBE = "listens/unsubscribe";
+    public static final String SUBSCRIPTIONS_UNSUBSCRIBE = "subscriptions/unsubscribe";
 }

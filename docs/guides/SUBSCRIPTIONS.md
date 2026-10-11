@@ -1,7 +1,7 @@
 # MCP 2026-07-28 Subscriptions / Listen
 
 `examples/src/main/java/io/github/vinhphan812/mcp/examples/ListenExample.java` demonstrates
-the MCP 2026-07-28 `listens/subscribe` and `listens/unsubscribe` protocol.
+the MCP 2026-07-28 `subscriptions/listen` and `subscriptions/unsubscribe` protocol.
 
 > **STDIO is not supported.** These APIs are available only over HTTP/Streamable HTTP/SSE.
 
@@ -26,7 +26,7 @@ Mcp-Protocol-Version: 2026-07-28
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "listens/subscribe",
+  "method": "subscriptions/listen",
   "params": {
     "topics": ["tools", "resources/updated"],
     "_meta": {
@@ -98,7 +98,7 @@ data: {"jsonrpc":"2.0","method":"notifications/resources/updated","params":{"uri
 {
   "jsonrpc": "2.0",
   "id": 3,
-  "method": "listens/unsubscribe",
+  "method": "subscriptions/unsubscribe",
   "params": {
     "token": "3"
   }

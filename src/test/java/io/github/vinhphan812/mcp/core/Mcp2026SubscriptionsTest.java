@@ -33,7 +33,7 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests for the MCP 2026-07-28 listens/subscribe and listens/unsubscribe protocol
+ * Unit tests for the MCP 2026-07-28 subscriptions/listen and subscriptions/unsubscribe protocol
  * via {@link McpProtocolHandler}.
  *
  * <p>Test categories:
@@ -72,7 +72,7 @@ class Mcp2026SubscriptionsTest {
 
     private String subscribe(String... topics) {
         StringBuilder sb = new StringBuilder();
-        sb.append("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"listens/subscribe\",\"params\":{\"topics\":[");
+        sb.append("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"subscriptions/listen\",\"params\":{\"topics\":[");
         for (int i = 0; i < topics.length; i++) {
             if (i > 0) sb.append(",");
             sb.append("\"").append(topics[i]).append("\"");
@@ -87,7 +87,7 @@ class Mcp2026SubscriptionsTest {
 
     private String subscribeOnHandler(McpProtocolHandler h, String... topics) {
         StringBuilder sb = new StringBuilder();
-        sb.append("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"listens/subscribe\",\"params\":{\"topics\":[");
+        sb.append("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"subscriptions/listen\",\"params\":{\"topics\":[");
         for (int i = 0; i < topics.length; i++) {
             if (i > 0) sb.append(",");
             sb.append("\"").append(topics[i]).append("\"");
@@ -106,7 +106,7 @@ class Mcp2026SubscriptionsTest {
     }
 
     private String unsubscribe(String token) {
-        String body = "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"listens/unsubscribe\","
+        String body = "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"subscriptions/unsubscribe\","
                 + "\"params\":{\"token\":\"" + token + "\"}}";
         return handler.handleRequest(body);
     }
@@ -136,11 +136,11 @@ class Mcp2026SubscriptionsTest {
 
     @Test
     void listenSubscribeNoSessionRequired() {
-        // listens/subscribe must NOT set Mcp-Session-Id — response session is null
+        // subscriptions/listen must NOT set Mcp-Session-Id — response session is null
         McpProtocolHandler.McpResponse r = handler.handleRequestResponse(
-                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"listens/subscribe\","
+                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"subscriptions/listen\","
                         + "\"params\":{\"topics\":[\"tools\"]}}", null);
-        assertNull(r.getSessionId(), "listens/subscribe must not return a session ID");
+        assertNull(r.getSessionId(), "subscriptions/listen must not return a session ID");
     }
 
     @Test
@@ -148,9 +148,9 @@ class Mcp2026SubscriptionsTest {
         String resp = subscribe("tools");
         String token = parseToken(resp);
         McpProtocolHandler.McpResponse r = handler.handleRequestResponse(
-                "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"listens/unsubscribe\","
+                "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"subscriptions/unsubscribe\","
                         + "\"params\":{\"token\":\"" + token + "\"}}", null);
-        assertNull(r.getSessionId(), "listens/unsubscribe must not return a session ID");
+        assertNull(r.getSessionId(), "subscriptions/unsubscribe must not return a session ID");
     }
 
     @Test
@@ -177,7 +177,7 @@ class Mcp2026SubscriptionsTest {
     @Test
     void listenSubscribeBufferSizeClampedToMax() {
         // Server maxListenerBufferSize = 5
-        String resp = subscribeRaw("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"listens/subscribe\","
+        String resp = subscribeRaw("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"subscriptions/listen\","
                 + "\"params\":{\"topics\":[\"tools\"],\"_meta\":{\"bufferSize\":999}}}");
         assertTrue(resp.contains("\"result\""), "must succeed: " + resp);
         // bufferSize must be clamped to maxCapacity
@@ -188,7 +188,7 @@ class Mcp2026SubscriptionsTest {
     @Test
     void listenSubscribeHonorsClientBufferSizeHint() {
         // Client requests buffer size of 3, server max is 5 — should get 3
-        String resp = subscribeRaw("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"listens/subscribe\","
+        String resp = subscribeRaw("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"subscriptions/listen\","
                 + "\"params\":{\"topics\":[\"tools\"],\"_meta\":{\"bufferSize\":3}}}");
         assertTrue(resp.contains("\"result\""), "must succeed: " + resp);
         assertTrue(resp.contains("\"bufferSize\":3") || resp.contains("\"bufferSize\": 3"),
@@ -350,7 +350,7 @@ class Mcp2026SubscriptionsTest {
     @Test
     void unsubscribeRequiresToken() {
         String resp = handler.handleRequest(
-                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"listens/unsubscribe\","
+                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"subscriptions/unsubscribe\","
                         + "\"params\":{}}");
         assertTrue(resp.contains("\"error\""), "missing token must return error: " + resp);
     }
@@ -389,7 +389,7 @@ class Mcp2026SubscriptionsTest {
         handler.handleRequest("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\","
                 + "\"params\":{\"protocolVersion\":\"2025-11-25\"}}");
 
-        // listens/subscribe must work independently of sessions
+        // subscriptions/listen must work independently of sessions
         String resp = subscribe("tools");
         assertTrue(resp.contains("\"result\""), "listen must work independently of sessions");
     }
@@ -627,14 +627,14 @@ class Mcp2026SubscriptionsTest {
     @Test
     void listenUnsubscribeRequiresParams() {
         String resp = handler.handleRequest(
-                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"listens/unsubscribe\"}");
+                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"subscriptions/unsubscribe\"}");
         assertTrue(resp.contains("\"error\""), "missing params must return error: " + resp);
     }
 
     @Test
     void listenUnsubscribeRequiresNonEmptyToken() {
         String resp = handler.handleRequest(
-                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"listens/unsubscribe\","
+                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"subscriptions/unsubscribe\","
                         + "\"params\":{\"token\":\"\"}}");
         assertTrue(resp.contains("\"error\""), "empty token must return error: " + resp);
     }
@@ -666,12 +666,12 @@ class Mcp2026SubscriptionsTest {
 
     @Test
     void listenSubscribeDoesNotAdvertiseInServerDiscover() {
-        // listens/subscribe is not in server/discover — it's a 2026 extension
+        // subscriptions/listen is not in server/discover — it's a 2026 extension
         String resp = handler.handleRequest(
                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\","
                         + "\"protocolVersion\":\"2026-07-28\"}");
         assertTrue(resp.contains("\"result\""), "server/discover must succeed: " + resp);
-        // listens/subscribe is NOT part of server capabilities — it's always available
+        // subscriptions/listen is NOT part of server capabilities — it's always available
         assertFalse(resp.contains("listens"), "server/discover must not advertise listen capability");
     }
 }

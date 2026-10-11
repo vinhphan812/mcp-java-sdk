@@ -117,11 +117,10 @@ class SubscriptionManager {
      */
     void notifyRegistryChanged(String topic, String method,
                               Map<String, Object> params, com.google.gson.Gson mapper) {
-        Map<String, Object> rpc = buildRpcNotification(method, params);
-        String body = mapper.toJson(rpc);
         for (ListenerSubscription sub : subscriptions.values()) {
             if (sub.topics.contains(topic)) {
-                sub.enqueue(body);
+                Map<String, Object> rpc = buildRpcNotification(method, params, sub.subscriptionId);
+                sub.enqueue(mapper.toJson(rpc));
             }
         }
     }
@@ -134,12 +133,11 @@ class SubscriptionManager {
      */
     void notifyResourceUpdated(String uri, com.google.gson.Gson mapper) {
         Map<String, Object> params = Collections.singletonMap("uri", uri);
-        Map<String, Object> rpc = buildRpcNotification(
-                "notifications/resources/updated", params);
-        String body = mapper.toJson(rpc);
         for (ListenerSubscription sub : subscriptions.values()) {
             if (sub.topics.contains(McpRegistryChangeListener.TOPIC_RESOURCES_UPDATED)) {
-                sub.enqueue(body);
+                Map<String, Object> rpc = buildRpcNotification(
+                        "notifications/resources/updated", params, sub.subscriptionId);
+                sub.enqueue(mapper.toJson(rpc));
             }
         }
     }
@@ -175,10 +173,21 @@ class SubscriptionManager {
 
     private static Map<String, Object> buildRpcNotification(String method,
                                                             Map<String, Object> params) {
+        return buildRpcNotification(method, params, null);
+    }
+
+    private static Map<String, Object> buildRpcNotification(String method,
+                                                            Map<String, Object> params,
+                                                            String subscriptionId) {
         Map<String, Object> rpc = new java.util.LinkedHashMap<>();
         rpc.put("jsonrpc", "2.0");
         rpc.put("method", method);
         if (params != null) rpc.put("params", params);
+        if (subscriptionId != null) {
+            Map<String, Object> meta = new java.util.LinkedHashMap<>();
+            meta.put("io.modelcontextprotocol/subscriptionId", subscriptionId);
+            rpc.put("_meta", meta);
+        }
         return rpc;
     }
 

@@ -24,7 +24,7 @@ import io.github.vinhphan812.mcp.api.config.RateLimits;
 import io.github.vinhphan812.mcp.api.dto.ElicitAction;
 import io.github.vinhphan812.mcp.api.dto.ElicitRequest;
 import io.github.vinhphan812.mcp.api.dto.ElicitationResult;
-import io.github.vinhphan812.mcp.api.dto.ListenRequest;
+import io.github.vinhphan812.mcp.api.dto.SubscriptionListenRequest;
 import io.github.vinhphan812.mcp.api.dto.McpBlobContent;
 import io.github.vinhphan812.mcp.api.dto.McpTask;
 import io.github.vinhphan812.mcp.api.dto.Mcp2026RequestContext;
@@ -883,12 +883,12 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 case McpMethodNames.PING:
                     result = new LinkedHashMap<>();
                     break;
-                case McpMethodNames.LISTEN_SUBSCRIBE:
+                case McpMethodNames.SUBSCRIPTIONS_LISTEN:
                     responseSessionId = null;
                     result = handleListenSubscribe(
                             params instanceof Map ? (Map<String, Object>) params : null);
                     break;
-                case McpMethodNames.LISTEN_UNSUBSCRIBE:
+                case McpMethodNames.SUBSCRIPTIONS_UNSUBSCRIBE:
                     responseSessionId = null;
                     result = handleListenUnsubscribe(
                             params instanceof Map ? (Map<String, Object>) params : null);
@@ -927,8 +927,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 || McpMethodNames.INITIALIZE.equals(method)
                 || McpMethodNames.NOTIF_INITIALIZED.equals(method)
                 || McpMethodNames.PING.equals(method)
-                || McpMethodNames.LISTEN_SUBSCRIBE.equals(method)
-                || McpMethodNames.LISTEN_UNSUBSCRIBE.equals(method);
+                || McpMethodNames.SUBSCRIPTIONS_LISTEN.equals(method)
+                || McpMethodNames.SUBSCRIPTIONS_UNSUBSCRIBE.equals(method);
     }
 
     // Backward-compatible overload
@@ -1465,7 +1465,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     // ==================== 2026 subscriptions / listen ====================
 
     /**
-     * Handles {@code listens/subscribe} (2026-07-28).
+     * Handles {@code subscriptions/listen} (2026-07-28).
      * Opens a sessionless listener subscription and returns the server-assigned token.
      *
      * <p>Response shape:
@@ -1476,7 +1476,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
      * }</pre>
      */
     private Map<String, Object> handleListenSubscribe(Map<String, Object> params) {
-        ListenRequest req = ListenRequest.fromParams(params);
+        SubscriptionListenRequest req = SubscriptionListenRequest.fromParams(params);
         if (req.topics.isEmpty()) {
             throw McpException.invalidParams("at least one topic is required in the topics array");
         }
@@ -1493,7 +1493,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     }
 
     /**
-     * Handles {@code listens/unsubscribe} (2026-07-28).
+     * Handles {@code subscriptions/unsubscribe} (2026-07-28).
      * Closes an active listener subscription and releases its resources.
      *
      * <p>Response shape:
@@ -2472,7 +2472,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
      * <p>This method is used by the transport layer to drain the listener's event queue
      * and stream notifications over the HTTP response.
      *
-     * @param subscriptionToken the server-assigned subscription token from {@code listens/subscribe}
+     * @param subscriptionToken the server-assigned subscription token from {@code subscriptions/listen}
      * @return SSE-formatted notification line, or null
      */
     public String pollListenerNotification(String subscriptionToken) {
