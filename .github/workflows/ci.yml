@@ -183,11 +183,12 @@ jobs:
           ./gradlew --no-daemon -p examples compileJava conformanceClasspath --console=plain
 
       # Set up Node (required by the conformance runner only — CI-only tooling).
+      # No npm cache because this repo has no package-lock.json; the package is
+      # installed with --no-save and has no persistent dependencies to restore.
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
 
       # Pin the conformance package to the exact version used in this SDK's reference CI run.
       # Bump this SHA when the conformance suite adds a regression for our implementation,
