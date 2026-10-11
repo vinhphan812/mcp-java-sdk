@@ -2,6 +2,7 @@ package io.github.vinhphan812.mcp.transport;
 
 import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
+import io.github.vinhphan812.mcp.api.security.AuthenticationVerifier;
 import io.github.vinhphan812.mcp.api.utils.McpError;
 import io.github.vinhphan812.mcp.api.utils.McpGson;
 import io.github.vinhphan812.mcp.api.utils.McpHttpHeaders;
@@ -59,6 +60,7 @@ public final class McpHttpHandler extends HttpHandler {
     private final McpProtocolHandler handler;
     private final String endpoint;
     private final Supplier<String> apiKeySupplier;
+    private final AuthenticationVerifier verifier;
     private final CorsOriginPolicy corsPolicy;
     private final int maxRequestBodyBytes;
     private final Semaphore sseConnections;
@@ -72,6 +74,7 @@ public final class McpHttpHandler extends HttpHandler {
         private final McpProtocolHandler handler;
         private String endpoint = "/mcp";
         private Supplier<String> apiKeySupplier;
+        private AuthenticationVerifier verifier;
         private CorsOriginPolicy corsPolicy = CorsOriginPolicy.DEFAULT;
         private int maxRequestBodyBytes = 1024 * 1024;
         private int maxSseConnections = DEFAULT_MAX_SSE;
@@ -92,6 +95,11 @@ public final class McpHttpHandler extends HttpHandler {
 
         public Builder apiKeySupplier(Supplier<String> s) {
             this.apiKeySupplier = s;
+            return this;
+        }
+
+        public Builder verifier(AuthenticationVerifier v) {
+            this.verifier = v;
             return this;
         }
 
@@ -153,6 +161,7 @@ public final class McpHttpHandler extends HttpHandler {
         this.handler = b.handler;
         this.endpoint = b.endpoint;
         this.apiKeySupplier = b.apiKeySupplier;
+        this.verifier = b.verifier;
         this.corsPolicy = b.corsPolicy;
         this.maxRequestBodyBytes = b.maxRequestBodyBytes;
         this.sseConnections = new Semaphore(b.maxSseConnections);
@@ -224,12 +233,17 @@ public final class McpHttpHandler extends HttpHandler {
         this.sseConnections = new Semaphore(maxSse);
         this.trustXForwardedFor = trustFwd;
         this.transportMode = mode != null ? mode : TransportMode.AUTO;
+        this.verifier = null;
     }
 
     // ── routing ────────────────────────────────────────────────────────────
     @Override
     public void service(Request request, Response response) throws Exception {
         String uri = request.getRequestURI();
+        if ((endpoint + "/protected-resource-metadata").equals(uri)) {
+            handleMetadata(request, response);
+            return;
+        }
         if (!endpoint.equals(uri)) {
             writeError(response, 404, "Unknown MCP endpoint");
             return;
@@ -251,6 +265,15 @@ public final class McpHttpHandler extends HttpHandler {
                 writeError(response, 405, "Method not allowed");
                 break;
         }
+    }
+
+    // ── Metadata ─────────────────────────────────────────────────────────────
+    private void handleMetadata(Request request, Response response) throws IOException {
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+        response.setStatus(200);
+        String json = "{\"authorization_server\": \"/auth\", \"resource\": \"mcp\", \"scopes\": [\"mcp:read\", \"mcp:write\"]}";
+        response.getWriter().write(json);
     }
 
     // ── CORS ────────────────────────────────────────────────────────────────
@@ -306,7 +329,10 @@ public final class McpHttpHandler extends HttpHandler {
             return true;
         }
         if (isUnauthorized(request)) {
-            writeError(response, 401, "Unauthorized");
+            Map<String, String> headers = new HashMap<>();
+            String metadataUrl = endpoint + "/protected-resource-metadata";
+            headers.put("WWW-Authenticate", "Bearer realm=\"mcp\", resource_metadata=\"" + metadataUrl + "\"");
+            writeError(response, 401, "Unauthorized", headers);
             return true;
         }
         return false;
@@ -333,6 +359,10 @@ public final class McpHttpHandler extends HttpHandler {
     }
 
     private boolean isUnauthorized(Request request) {
+        if (verifier != null) {
+            RequestContext ctx = new RequestContext(request);
+            if (verifier.verify(ctx).isPresent()) return false;
+        }
         String key = apiKeySupplier == null ? null : apiKeySupplier.get();
         if (key == null || key.trim().isEmpty()) return false;
         String hdr = request.getHeader(McpHttpHeaders.AUTH);
@@ -733,6 +763,22 @@ public final class McpHttpHandler extends HttpHandler {
     }
 
     // ── error helpers ────────────────────────────────────────────────────
+    private static void writeError(Response r, int status, String msg, Map<String, String> headers) throws IOException {
+        r.setContentType("application/json");
+        r.setCharacterEncoding("UTF-8");
+        r.setStatus(status);
+        if (headers != null) {
+            for (Map.Entry<String, String> entry : headers.entrySet()) {
+                r.setHeader(entry.getKey(), entry.getValue());
+            }
+        }
+        Map<String, Object> error = new LinkedHashMap<>();
+        error.put("code", status);
+        error.put("message", msg);
+        Map<String, Object> payload = McpError.jsonRpcEnvelope(null, error);
+        r.getWriter().write(McpGson.get().toJson(payload));
+    }
+
     private static void writeError(Response r, int status, String msg) throws IOException {
         writeError(r, status, msg, null, null, null);
     }
