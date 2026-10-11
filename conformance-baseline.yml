@@ -1,0 +1,45 @@
+# MCP 2026-07-28 conformance baseline for mcp-java-sdk
+#
+# Per https://github.com/modelcontextprotocol/conformance#expected-failures:
+#   Exit 0 = expected failure (in baseline, actually fails)
+#   Exit 1 = unexpected regression (not in baseline, actually fails)
+#   Exit 1 = stale entry (in baseline, but passes — remove it)
+#   Exit 0 = normal pass
+#
+# Extension handling: MCP 2026-07-28 § SEP-1730 § Optionality
+#   "Experimental features and protocol extensions (such as Tasks and MCP Apps)
+#    are not required for any tier."
+#   All extensions listed below are optional; they run for visibility but are
+#   not scored against the 2026-07-28 release requirements.
+#
+# ── Extension / optional scenarios ───────────────────────────────────────────────
+# Tasks: io.modelcontextprotocol/tasks extension negotiation not yet implemented
+#   (t_39d575c0 — Re-audit and fix final Tasks extension semantics — is pending).
+# Elicitation: Basic MRTR support wired but not full conformance (t_258a6d13 is
+#   the parent card adding this CI gate; elicitation gaps will be surfaced here).
+# Sampling / roots / logging: Deprecated / out-of-scope per ADR-0023; not implemented.
+# ────────────────────────────────────────────────────────────────────────────────
+
+server:
+  # Tasks (extension — optional per SEP-1730)
+  - tasks-complete
+  - tasks-cancel
+  - tasks-lifecycle
+  - tasks-notify-aborted
+  - tasks-notify-progress
+
+  # Elicitation / MRTR (extension — optional per SEP-1730)
+  - elicitation-simple
+  - elicitation-composite
+
+  # Sampling (deprecated / out-of-scope per ADR-0023)
+  - sampling-create-message
+
+  # Roots (optional protocol feature; not implemented)
+  - roots-list
+
+  # Logging (optional protocol feature; not implemented)
+  - logging-set-level
+
+  # Pending / draft-spec scenarios not yet scored
+  - sep-835-resource-templates

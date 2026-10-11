@@ -25,3 +25,33 @@ java {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
 }
+
+// ── Conformance fixture classpath ───────────────────────────────────────────────
+//
+// The ConformanceFixture class (examples/src/main/java/) is compiled as part of this
+// module's normal build and lives in build/classes/java/main alongside the examples.
+//
+// This task writes the full runtime classpath to a file so CI can run the fixture
+// with `java -cp "$(cat .../conformance-classpath.txt)" io.github.vinhphan812.mcp.ConformanceFixture`
+// without needing Gradle at runtime.
+//
+// The classpath includes:
+//   - build/classes/java/main      (ConformanceFixture + examples)
+//   - the SDK JAR
+//   - Grizzly HTTP server (transitive)
+//   - Gson, Jackson, Guava (all transitive)
+//
+tasks.register('conformanceClasspath') {
+    description = 'Writes the full runtime classpath for the conformance fixture to a text file.'
+    doLast {
+        // Classes dir + SDK JAR + transitive deps from runtimeClasspath.
+        def classesDirs = sourceSets.main.output.classesDirs.files
+        def classesDir = classesDirs.find { it.name == 'main' }
+        def cpFiles = [classesDir.absolutePath] +
+                sourceSets.main.runtimeClasspath.files.collect { it.absolutePath }
+        def outFile = file("${buildDir}/conformance-classpath.txt")
+        outFile.parentFile.mkdirs()
+        outFile.write(cpFiles.join(java.io.File.pathSeparator), 'utf-8')
+        println "Wrote classpath to ${outFile.absolutePath}"
+    }
+}
