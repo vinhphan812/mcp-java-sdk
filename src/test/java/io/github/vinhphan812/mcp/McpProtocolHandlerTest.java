@@ -49,7 +49,8 @@ class McpProtocolHandlerTest {
 
         assertTrue(capabilities.has("logging"));
         assertTrue(capabilities.has("completions"));
-        assertTrue(capabilities.has("tasks"));
+        assertTrue(capabilities.has("extensions"));
+        assertTrue(capabilities.getAsJsonObject("extensions").has("io.modelcontextprotocol/tasks"));
         assertTrue(capabilities.getAsJsonObject("experimental")
                 .getAsJsonObject("demo").get("enabled").getAsBoolean());
         assertFalse(capabilities.has("tools"));

@@ -119,8 +119,10 @@ class McpTaskExtensionTest {
                         .tools(false).resources(false).prompts(false).tasks(true)
                         .build());
         JsonObject resp = initSessionResp(handler, "2025-11-25");
-        assertTrue(resp.getAsJsonObject("result").getAsJsonObject("capabilities").has("tasks"),
-                "tasks capability must be present in 2025 when tasks=true");
+        JsonObject capabilities = resp.getAsJsonObject("result").getAsJsonObject("capabilities");
+        assertTrue(capabilities.has("extensions"), "extensions capability map must be present");
+        assertTrue(capabilities.getAsJsonObject("extensions").has("io.modelcontextprotocol/tasks"),
+                "tasks capability must be present in extensions in 2025 when tasks=true");
     }
 
     @Test
@@ -130,8 +132,11 @@ class McpTaskExtensionTest {
                         .serverName("test").serverVersion("1.0")
                         .tasks(false).build());
         JsonObject resp = initSessionResp(handler, "2025-11-25");
-        assertFalse(resp.getAsJsonObject("result").getAsJsonObject("capabilities").has("tasks"),
-                "tasks capability must be absent when tasks=false");
+        JsonObject capabilities = resp.getAsJsonObject("result").getAsJsonObject("capabilities");
+        if (capabilities.has("extensions")) {
+            assertFalse(capabilities.getAsJsonObject("extensions").has("io.modelcontextprotocol/tasks"),
+                    "tasks capability must be absent when tasks=false");
+        }
     }
 
     // ── Extension: capability advertisement ───────────────────────────────────
@@ -151,7 +156,9 @@ class McpTaskExtensionTest {
                         .tasks(true).tasksExtension(ext)
                         .build());
         JsonObject resp = initStateless(handler);
-        assertTrue(resp.getAsJsonObject("result").getAsJsonObject("capabilities").has("tasks"),
+        JsonObject capabilities = resp.getAsJsonObject("result").getAsJsonObject("capabilities");
+        assertTrue(capabilities.has("extensions"), "extensions capability map must be present");
+        assertTrue(capabilities.getAsJsonObject("extensions").has("io.modelcontextprotocol/tasks"),
                 "tasks capability must be advertised when extension supports 2026");
     }
 
@@ -170,8 +177,11 @@ class McpTaskExtensionTest {
                         .build());
         JsonObject resp = initSessionResp(handler, "2025-11-25");
         // Extension does not support 2025, so tasks must NOT be advertised
-        assertFalse(resp.getAsJsonObject("result").getAsJsonObject("capabilities").has("tasks"),
-                "tasks capability must be absent in 2025 when extension only supports 2026");
+        JsonObject capabilities = resp.getAsJsonObject("result").getAsJsonObject("capabilities");
+        if (capabilities.has("extensions")) {
+            assertFalse(capabilities.getAsJsonObject("extensions").has("io.modelcontextprotocol/tasks"),
+                    "tasks capability must be absent in 2025 when extension only supports 2026");
+        }
     }
 
     // ── server/discover: tasks advertised through sessionless discover ───────────────
@@ -198,8 +208,10 @@ class McpTaskExtensionTest {
         String respBody = handler.handleRequest(raw, null);
         JsonObject resp = gson.fromJson(respBody, JsonObject.class);
         assertEquals(-1, errorCode(resp), "server/discover must succeed: " + respBody);
-        assertTrue(resp.getAsJsonObject("result").getAsJsonObject("capabilities").has("tasks"),
-                "tasks capability must appear in server/discover when extension supports configured version");
+        JsonObject capabilities = resp.getAsJsonObject("result").getAsJsonObject("capabilities");
+        assertTrue(capabilities.has("extensions"), "extensions capability map must be present");
+        assertTrue(capabilities.getAsJsonObject("extensions").has("io.modelcontextprotocol/tasks"),
+                "tasks capability must appear in server/discover extensions when extension supports configured version");
     }
 
     @Test
@@ -221,8 +233,11 @@ class McpTaskExtensionTest {
         String respBody = handler.handleRequest(raw, null);
         JsonObject resp = gson.fromJson(respBody, JsonObject.class);
         assertEquals(-1, errorCode(resp));
-        assertFalse(resp.getAsJsonObject("result").getAsJsonObject("capabilities").has("tasks"),
-                "tasks capability must be absent when extension does not support configured version");
+        JsonObject capabilities = resp.getAsJsonObject("result").getAsJsonObject("capabilities");
+        if (capabilities.has("extensions")) {
+            assertFalse(capabilities.getAsJsonObject("extensions").has("io.modelcontextprotocol/tasks"),
+                    "tasks capability must be absent when extension does not support configured version");
+        }
     }
 
     @Test
@@ -238,8 +253,10 @@ class McpTaskExtensionTest {
         String respBody = handler.handleRequest(raw, null);
         JsonObject resp = gson.fromJson(respBody, JsonObject.class);
         assertEquals(-1, errorCode(resp), "server/discover must succeed: " + respBody);
-        assertTrue(resp.getAsJsonObject("result").getAsJsonObject("capabilities").has("tasks"),
-                "tasks capability must appear in server/discover when tasks=true and no extension");
+        JsonObject capabilities = resp.getAsJsonObject("result").getAsJsonObject("capabilities");
+        assertTrue(capabilities.has("extensions"), "extensions capability map must appear in server/discover");
+        assertTrue(capabilities.getAsJsonObject("extensions").has("io.modelcontextprotocol/tasks"),
+                "tasks capability must appear in server/discover extensions when tasks=true and no extension");
     }
 
     @Test
@@ -296,15 +313,19 @@ class McpTaskExtensionTest {
         McpProtocolHandler sessioned = new McpProtocolHandler(new McpRegistry(),
                 McpServerConfig.builder().serverName("test").serverVersion("1.0")
                         .tasks(true).tasksExtension(ext).build());
-        assertTrue(initSessionResp(sessioned, "2025-11-25")
-                        .getAsJsonObject("result").getAsJsonObject("capabilities").has("tasks"));
+        JsonObject sessionedCapabilities = initSessionResp(sessioned, "2025-11-25")
+                        .getAsJsonObject("result").getAsJsonObject("capabilities");
+        assertTrue(sessionedCapabilities.has("extensions"));
+        assertTrue(sessionedCapabilities.getAsJsonObject("extensions").has("io.modelcontextprotocol/tasks"));
 
         McpProtocolHandler stateless = new McpProtocolHandler(new McpRegistry(),
                 McpServerConfig.builder().serverName("test").serverVersion("1.0")
                         .protocolMode(McpServerConfig.ProtocolMode.STATELESS)
                         .tasks(true).tasksExtension(ext).build());
-        assertTrue(initStateless(stateless)
-                        .getAsJsonObject("result").getAsJsonObject("capabilities").has("tasks"));
+        JsonObject statelessCapabilities = initStateless(stateless)
+                        .getAsJsonObject("result").getAsJsonObject("capabilities");
+        assertTrue(statelessCapabilities.has("extensions"));
+        assertTrue(statelessCapabilities.getAsJsonObject("extensions").has("io.modelcontextprotocol/tasks"));
     }
 
     // ── tasks=false suppresses capability even with extension ──────────────────

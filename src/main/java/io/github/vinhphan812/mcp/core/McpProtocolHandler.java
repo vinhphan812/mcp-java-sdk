@@ -33,6 +33,8 @@ import io.github.vinhphan812.mcp.api.logging.McpLogger;
 import io.github.vinhphan812.mcp.api.spi.McpAuthorization;
 import io.github.vinhphan812.mcp.api.spi.McpRegistrar;
 import io.github.vinhphan812.mcp.api.spi.McpRegistryChangeListener;
+import io.github.vinhphan812.mcp.api.spi.ExtensionRegistry;
+import io.github.vinhphan812.mcp.api.spi.McpExtension;
 import io.github.vinhphan812.mcp.api.spi.McpTaskExtension;
 import io.github.vinhphan812.mcp.api.utils.*;
 
@@ -77,7 +79,19 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private final RateLimits rateLimits;
     private final CategoryRateLimitController categoryRateLimitController;
     private final McpTaskExtension tasksExtension;
+    private final ExtensionRegistry extensionRegistry;
     private final McpTaskExtension.TaskRegistry taskRegistry;
+
+    private static class BuiltinTaskExtension implements McpTaskExtension {
+        @Override
+        public boolean supports(String protocolVersion) {
+            return true;
+        }
+        @Override
+        public RequestResult onRequest(String method, Map<String, Object> params, String session) {
+            return null;
+        }
+    }
 
     public McpServerConfig getConfig() {
         return config;
@@ -353,8 +367,12 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         this.authorization = authorization;
         this.tasksExtension = config.tasksExtension;
         this.taskRegistry = new TaskRegistryImpl(registry);
+        this.extensionRegistry = new DefaultExtensionRegistry(this.taskRegistry);
         if (this.tasksExtension != null) {
+            this.extensionRegistry.register(McpTaskExtension.NAMESPACE, this.tasksExtension);
             this.tasksExtension.register(this.taskRegistry);
+        } else if (config.tasks) {
+            this.extensionRegistry.register(McpTaskExtension.NAMESPACE, new BuiltinTaskExtension());
         }
         this.listenerSubscriptions = new SubscriptionManager(config.maxListenerBufferSize);
         registry.setNotificationTarget(this);
@@ -1136,13 +1154,18 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (config.completions) capabilities.put("completions", new LinkedHashMap<String, Object>());
         if (config.logging) capabilities.put("logging", new LinkedHashMap<String, Object>());
         if (config.elicitation) capabilities.put("elicitation", new LinkedHashMap<String, Object>());
-        if (config.tasks) {
-            if (tasksExtension != null && tasksExtension.supports(negotiatedVersion)) {
-                capabilities.put("tasks", tasksExtension.advertiseCapabilities(negotiatedVersion));
-            } else if (tasksExtension == null) {
-                capabilities.put("tasks", new LinkedHashMap<String, Object>());
+        Map<String, Object> extensions = new LinkedHashMap<>();
+        for (String namespace : extensionRegistry.getSupportedNamespaces()) {
+            McpExtension ext = extensionRegistry.getExtension(namespace);
+            if (ext.supports(negotiatedVersion)) {
+                if (ext instanceof McpTaskExtension) {
+                    extensions.put(namespace, ((McpTaskExtension) ext).advertiseCapabilities(negotiatedVersion));
+                } else {
+                    extensions.put(namespace, new LinkedHashMap<String, Object>());
+                }
             }
         }
+        capabilities.put("extensions", extensions);
         if (!config.experimental.isEmpty()) capabilities.put("experimental", config.experimental);
 
         result.put("capabilities", capabilities);
@@ -1195,15 +1218,18 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (config.completions) capabilities.put("completions", new LinkedHashMap<String, Object>());
         if (config.logging) capabilities.put("logging", new LinkedHashMap<String, Object>());
         if (config.elicitation) capabilities.put("elicitation", new LinkedHashMap<String, Object>());
-        if (config.tasks) {
-            // Use the configured protocolVersion for extension capability checks.
-            // server/discover reflects the server's configured version, not a hardcoded one.
-            if (tasksExtension != null && tasksExtension.supports(config.protocolVersion)) {
-                capabilities.put("tasks", tasksExtension.advertiseCapabilities(config.protocolVersion));
-            } else if (tasksExtension == null) {
-                capabilities.put("tasks", new LinkedHashMap<String, Object>());
+        Map<String, Object> extensions = new LinkedHashMap<>();
+        for (String namespace : extensionRegistry.getSupportedNamespaces()) {
+            McpExtension ext = extensionRegistry.getExtension(namespace);
+            if (ext.supports(config.protocolVersion)) {
+                if (ext instanceof McpTaskExtension) {
+                    extensions.put(namespace, ((McpTaskExtension) ext).advertiseCapabilities(config.protocolVersion));
+                } else {
+                    extensions.put(namespace, new LinkedHashMap<String, Object>());
+                }
             }
         }
+        capabilities.put("extensions", extensions);
         result.put("capabilities", capabilities);
 
         Map<String, Object> meta = new LinkedHashMap<>();
@@ -1248,7 +1274,9 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             java.util.function.Function<Map<String, Object>, Map<String, Object>> builtIn,
             Map<String, Object> rawParams) {
 
-        if (!config.tasks) {
+        McpTaskExtension taskExt = (McpTaskExtension) extensionRegistry.getExtension(McpTaskExtension.NAMESPACE);
+        
+        if (taskExt == null && !config.tasks) {
             throw McpException.methodNotFound("MCP capability is disabled: tasks");
         }
 
@@ -1258,14 +1286,14 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
         // Extension version gating: if extension exists but doesn't support this version,
         // treat as unknown method (safe unknown extension behaviour).
-        if (tasksExtension != null && !tasksExtension.supports(version)) {
+        if (taskExt != null && !taskExt.supports(version)) {
             throw McpException.methodNotFound("Method not found: " + method);
         }
 
         // Delegate to extension first if present
-        if (tasksExtension != null) {
+        if (taskExt != null) {
             McpTaskExtension.RequestResult extResult =
-                    tasksExtension.onRequest(method, rawParams, sessionId);
+                    taskExt.onRequest(method, rawParams, sessionId);
             if (extResult != null) {
                 if (extResult.isSuccess()) {
                     return extResult.result;
@@ -1280,9 +1308,9 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             return builtIn.apply(rawParams);
         } catch (McpException e) {
             // Extension error hook: let extension transform or suppress the error
-            if (tasksExtension != null) {
+            if (taskExt != null) {
                 McpTaskExtension.RequestResult extResult =
-                        tasksExtension.onError(method, rawParams, sessionId, e.getCode(), e.getMessage());
+                        taskExt.onError(method, rawParams, sessionId, e.getCode(), e.getMessage());
                 if (extResult != null) {
                     if (extResult.isSuccess()) {
                         return extResult.result;
@@ -1369,9 +1397,10 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             throw McpException.invalidParams("tasks/update only valid for INPUT_REQUIRED tasks");
         // Delegate to extension for input-response processing if present.
         // The extension can choose to transition the task, store responses, etc.
-        if (tasksExtension != null) {
+        McpTaskExtension taskExt = (McpTaskExtension) extensionRegistry.getExtension(McpTaskExtension.NAMESPACE);
+        if (taskExt != null) {
             McpTaskExtension.RequestResult extResult =
-                    tasksExtension.onRequest(McpMethodNames.TASKS_UPDATE,
+                    taskExt.onRequest(McpMethodNames.TASKS_UPDATE,
                             params, sessionId);
             if (extResult != null) {
                 if (extResult.isSuccess()) {

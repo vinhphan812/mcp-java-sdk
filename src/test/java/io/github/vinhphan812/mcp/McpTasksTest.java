@@ -79,7 +79,9 @@ class McpTasksTest {
         McpProtocolHandler handler = handler();
         JsonObject body = gson.fromJson(handler.handleRequestResponse(
                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}", null).getBody(), JsonObject.class);
-        assertTrue(body.getAsJsonObject("result").getAsJsonObject("capabilities").has("tasks"));
+        JsonObject capabilities = body.getAsJsonObject("result").getAsJsonObject("capabilities");
+        assertTrue(capabilities.has("extensions"));
+        assertTrue(capabilities.getAsJsonObject("extensions").has("io.modelcontextprotocol/tasks"));
     }
 
     @Test
