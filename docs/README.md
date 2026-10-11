@@ -11,10 +11,8 @@
 - [Grizzly Example](guides/HTTP-TRANSPORT-EXAMPLE.md)
 - [Transport: SSE](guides/TRANSPORT-SSE.md)
 - [Elicitation](guides/ELICITATION.md)
-
-- [Elicitation](guides/ELICITATION.md)
-
 - [Tasks Extension](guides/tasks-extension.md)
+- [MCP 2026 Conformance Gate](guides/MCP-2026-CONFORMANCE.md)
 
 
 ### Architecture
