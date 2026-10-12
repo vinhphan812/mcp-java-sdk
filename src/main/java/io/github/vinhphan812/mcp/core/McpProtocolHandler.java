@@ -1928,6 +1928,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (offset > total) offset = total;
         int pageEnd = Math.min(offset + config.pageSize, total);
         Map<String, Object> result = new LinkedHashMap<>();
+        // MCP 2026-07-28 requires resultType on all complete responses
+        result.put("resultType", "complete");
         result.put(key, new ArrayList<>(definitions.subList(offset, pageEnd)));
         if (pageEnd < total) result.put("nextCursor", encodeCursor(pageEnd));
         // Attach version-gated cache metadata for 2026-07-28+ sessions
@@ -2325,7 +2327,11 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (handler == null) return errorPromptResult("Unknown prompt: " + name);
 
         try {
-            return handler.get(arguments);
+            Map<String, Object> result = handler.get(arguments);
+            // MCP 2026-07-28 requires resultType on complete responses
+            if (result == null) result = new LinkedHashMap<>();
+            result.put("resultType", "complete");
+            return result;
         } catch (Throwable t) {
             LOGGER.log(Level.SEVERE, "Prompt get error: " + name, t);
             if (t instanceof Error) throw (Error) t;
