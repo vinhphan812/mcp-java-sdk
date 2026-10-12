@@ -15,13 +15,12 @@
 
 ## Key Documents
 
-|| Document | Description |
-||-------------------------------------------|--------------------------------------------------|
-|| [ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md](./ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md) | ADR-to-source contract audit (
-18 ADRs, all VERIFIED/resolved) — **current authoritative audit** |
-|| [LOC-AUDIT.md](./LOC-AUDIT.md)            | Lines of code analysis |
-|| [AUDIT_STATUS.md](./AUDIT_STATUS.md)      | Superseded — kept for historical reference only |
-|| [historical/](./historical/)              | 45 archived triage/evidence files (superseded)   |
+| Document | Description |
+|---|---|
+| [ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md](./ADR-SOURCE-CONTRACT-AUDIT-2026-09-23.md) | ADR-to-source contract audit (18 ADRs, all VERIFIED/resolved) — **current authoritative audit** |
+| [LOC-AUDIT.md](./LOC-AUDIT.md) | Lines of code analysis |
+| [AUDIT_STATUS.md](./AUDIT_STATUS.md) | Superseded — kept for historical reference only |
+| [historical/](./historical/) | 47 archived triage/evidence files (superseded) |
 
 ### Additional resources
 
@@ -36,7 +35,9 @@
 
 ## Historical archive — classification log (2026-09-28)
 
-### `docs/audits/historical/` — 45 files
+### `docs/audits/historical/` — 47 files
+
+- [Spike #17 MCP conformance-suite feasibility memo (2026-10-05)](./historical/2026-10-05-spike-17-conformance-feasibility.md) — historical decision memo; the conformance gate is now implemented in CI.
 
 #### Deleted duplicates (5)
 

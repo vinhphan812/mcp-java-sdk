@@ -45,28 +45,28 @@ ACTIVE_FILES = [
 def check_file(filepath):
     """Check a single file for stale class references."""
     errors = []
-    
+
     if not os.path.exists(filepath):
         return errors
-    
+
     with open(filepath, 'r', encoding='utf-8') as f:
         content = f.read()
-    
+
     is_historical = any(filepath.startswith(h) for h in HISTORICAL_FILES)
-    
+
     for pattern, requires_historical in STALE_PATTERNS:
         matches = re.finditer(pattern, content)
         for match in matches:
             # Find line number
             line_num = content[:match.start()].count('\n') + 1
-            
+
             if requires_historical and not is_historical:
                 errors.append(f"{filepath}:{line_num}: Stale class '{match.group()}' found in active doc (use [HISTORICAL] marker or update to current class name)")
             if requires_historical and is_historical:
                 # Check if file contains any [HISTORICAL] marker (whole-file context for historical files)
                 if '[HISTORICAL' not in content:
                     errors.append(f"{filepath}:{line_num}: Stale class '{match.group()}' in historical doc should have [HISTORICAL] marker")
-    
+
     return errors
 
 def main():
@@ -75,15 +75,15 @@ def main():
     for filepath in ACTIVE_FILES:
         if os.path.exists(filepath):
             active_errors.extend(check_file(filepath))
-    
+
     # Check historical docs (should have [HISTORICAL] markers)
     historical_errors = []
     for filepath in HISTORICAL_FILES:
         if os.path.exists(filepath):
             historical_errors.extend(check_file(filepath))
-    
+
     all_errors = active_errors + historical_errors
-    
+
     if all_errors:
         print("❌ Doc hygiene check failed:")
         for error in all_errors:
