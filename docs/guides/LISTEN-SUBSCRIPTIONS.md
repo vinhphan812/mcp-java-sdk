@@ -1,156 +1,55 @@
-# MCP 2026-07-28 Subscriptions / Listen
+# MCP SEP-2575 Subscriptions / Listen
 
-`examples/src/main/java/io/github/vinhphan812/mcp/examples/ListenExample.java` demonstrates
-the MCP 2026-07-28 `listens/subscribe` and `listens/unsubscribe` protocol.
+This document describes the high-throughput subscription mechanism introduced in SEP-2575, replacing legacy resource subscription methods for 2026-07-28 and later protocol versions.
 
-> **STDIO is not supported.** These APIs are available only over HTTP/Streamable HTTP/SSE.
+> **STDIO is not supported.** These APIs are available only over HTTP-based transports.
 
-## Topics
+## Listen Subscriptions (`subscriptions/listen`)
 
-The server publishes notifications on the following topics:
+Subscription is handled via a single, long-lived POST streaming request.
 
-| Topic               | When emitted                                    |
-|---------------------|-----------------------------------------------|
-| `tools`             | A tool is registered or removed                |
-| `resources`         | A resource or resource template is registered  |
-| `prompts`           | A prompt is registered or removed             |
-| `resources/updated` | A resource's content changes (via `notifyResourceUpdated`) |
+### Opening the subscription
 
-## Opening a subscription
+The client initiates a request to `subscriptions/listen`. This initiates a streaming response where the server pushes notifications.
 
 ```json
-POST /mcp
+POST /mcp/subscriptions/listen
 Content-Type: application/json
 Mcp-Protocol-Version: 2026-07-28
 
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "listens/subscribe",
+  "method": "subscriptions/listen",
   "params": {
     "topics": ["tools", "resources/updated"],
     "_meta": {
-      "subscriptionId": "my-sub-1",
-      "bufferSize": 50
+      "io.modelcontextprotocol/subscriptionId": "my-sub-1"
     }
   }
 }
 ```
 
-**Response:**
+### Protocol flow
 
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "result": {
-    "subscription": {
-      "token": "3",
-      "topics": ["tools", "resources/updated"],
-      "bufferSize": 50,
-      "maxCapacity": 100
-    }
-  }
-}
-```
+1. **Request:** The client sends the POST request above.
+2. **First Frame:** The server immediately sends an acknowledged notification frame:
+   ```json
+   {"jsonrpc":"2.0","method":"notifications/subscriptions/acknowledged"}
+   ```
+3. **Streaming:** The server pushes subsequent notifications as they occur over the same HTTP stream.
+4. **Correlation:** Notifications include `_meta["io.modelcontextprotocol/subscriptionId"]` matching the client request to allow multi-subscription multiplexing.
 
-The server assigns a `token` used for unsubscribing. The `bufferSize` is the
-effective queue size (clamped to `maxCapacity`).
+### Cancellation and Shutdown
 
-## Receiving notifications
+- **Cancellation:** The client closes the HTTP request stream to cancel the subscription.
+- **Shutdown:** When the client terminates the connection, the server finalizes pending operations and sends a `resultType` notification confirming stop if required by the transport.
 
-Notifications are streamed to the client over the HTTP response using SSE.
-After subscribing, the client opens a second POST request with `Accept: text/event-stream`
-to receive events:
+## Legacy Compatibility
 
-```json
-POST /mcp
-Content-Type: application/json
-Accept: application/json, text/event-stream
-Mcp-Protocol-Version: 2026-07-28
+This mechanism is isolated from legacy `resources/subscribe` (2025-era). Servers may implement both, but notifications are strictly segregated:
 
-{
-  "jsonrpc": "2.0",
-  "id": 2,
-  "method": "listens/poll",
-  "params": {
-    "token": "3"
-  }
-}
-```
+- **SEP-2575 (`subscriptions/listen`):** Managed via HTTP streaming.
+- **Legacy (`resources/subscribe`):** Managed via session-based JSON-RPC POST request/response.
 
-**Response (SSE stream):**
-
-```
-event: message
-data: {"jsonrpc":"2.0","method":"notifications/tools/list_changed"}
-
-event: message
-data: {"jsonrpc":"2.0","method":"notifications/resources/updated","params":{"uri":"demo://catalog"}}
-```
-
-> **Note:** The `listens/poll` endpoint is transport-specific. The SDK's HTTP transport
-> handler drains the subscription's event queue and streams them as SSE frames to the client.
-
-## Closing a subscription
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 3,
-  "method": "listens/unsubscribe",
-  "params": {
-    "token": "3"
-  }
-}
-```
-
-**Response:**
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 3,
-  "result": {
-    "unsubscribed": true
-  }
-}
-```
-
-## Programmatic resource update
-
-Applications push resource-change events through the protocol handler:
-
-```java
-McpServer server = McpServer.builder()
-    .register(new MyToolProvider())
-    .register(new MyResourceProvider())
-    .build();
-
-server.start();
-
-// When the resource content changes:
-server.getProtocolHandler().notifyResourceUpdated("demo://catalog");
-```
-
-All active listener subscriptions subscribed to `resources/updated` receive the notification.
-
-## Bounded buffer semantics
-
-Each listener subscription has its own bounded notification queue. When the queue is full,
-the oldest event is silently dropped. Configure the maximum with:
-
-```java
-McpServerConfig config = McpServerConfig.builder()
-    .maxListenerBufferSize(200)  // default: 100
-    .build();
-```
-
-Clients can request a smaller buffer via `_meta.bufferSize` in the subscribe request; the
-server clamps it to `maxListenerBufferSize`.
-
-## Mixed-era isolation
-
-Listener subscriptions are **sessionless** — they do not use `Mcp-Session-Id` and operate
-independently of the legacy 2025 `resources/subscribe` session-based mechanism.
-Both can coexist; they maintain separate notification channels.
+Server implementations **must not** leak events between these legacy and 2026-07-28 subscription channels.
