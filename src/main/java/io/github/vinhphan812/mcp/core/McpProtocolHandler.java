@@ -920,7 +920,12 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                     result = handleResourceTemplatesList(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
                 case "resources/templates/get":
-                    return new McpResponse(errorResponse(id, McpError.methodNotFound("Method not found: resources/templates/get — use resources/read with resolved URI")), sessionId);
+                    responseSessionId = null;
+                    if (!config.resources) {
+                        return new McpResponse(capabilityError(id, "resources"), sessionId);
+                    }
+                    result = handleResourceTemplatesGet(params instanceof Map ? (Map<String, Object>) params : null);
+                    break;
                 case McpMethodNames.RESOURCES_SUBSCRIBE:
                     if (!config.resources || !config.resourceSubscriptions) {
                         return new McpResponse(capabilityError(id, "resource subscriptions"), sessionId);
@@ -1563,10 +1568,13 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         Object type = ref.get("type");
         McpCompletionProvider provider = registry.getCompletionProvider(type instanceof String ? (String) type : null);
         if (provider == null) throw McpException.invalidParams("No completion provider for reference type: " + type);
-        Map<String, Object> result = provider.complete(ref, argument);
-        if (result == null) result = new LinkedHashMap<>();
-        // MCP 2026-07-28: completion/-complete result MUST have resultType
-        result.put("resultType", "complete");
+        Map<String, Object> completion = provider.complete(ref, argument);
+        if (completion == null) completion = new LinkedHashMap<>();
+        // MCP 2026-07-28: completion/-complete result MUST have resultType inside the completion object
+        completion.put("resultType", "complete");
+        // Wrap in a completion envelope for the JSON-RPC response
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("completion", completion);
         return result;
     }
 

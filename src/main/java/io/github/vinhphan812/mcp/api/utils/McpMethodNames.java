@@ -41,6 +41,12 @@ public final class McpMethodNames {
     /** {@code resources/unsubscribe} — cancels a resource subscription. */
     public static final String RESOURCES_UNSUBSCRIBE = "resources/unsubscribe";
 
+    /** {@code resources/templates/list} — returns the registry's resource template list. */
+    public static final String RESOURCES_TEMPLATES_LIST = "resources/templates/list";
+
+    /** {@code resources/templates/get} — returns content for a resolved resource template URI. */
+    public static final String RESOURCES_TEMPLATES_GET = "resources/templates/get";
+
     // ── Prompts ──────────────────────────────────────────────────────────────
 
     /** {@code prompts/list} — returns the registry's prompt list. */

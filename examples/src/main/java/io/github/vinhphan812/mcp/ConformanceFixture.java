@@ -374,6 +374,7 @@ public final class ConformanceFixture {
         List<Map<String, Object>> contents = new ArrayList<>();
         contents.add(content);
         result.put("content", contents);
+        result.put("resultType", "complete");
         return result;
     }
 

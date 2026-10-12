@@ -99,7 +99,7 @@ class McpProtocolHandlerTest {
                 "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"completion/complete\",\"params\":{\"ref\":{\"type\":\"ref\"},\"argument\":{\"name\":\"x\",\"value\":\"abc\"}}}",
                 initialized.getSessionId());
         JsonObject body = new com.google.gson.Gson().fromJson(response, JsonObject.class);
-        assertEquals("abc-done", body.getAsJsonObject("result").getAsJsonArray("values").get(0).getAsString());
+        assertEquals("abc-done", body.getAsJsonObject("result").getAsJsonObject("completion").getAsJsonArray("values").get(0).getAsString());
     }
 
     @Test
