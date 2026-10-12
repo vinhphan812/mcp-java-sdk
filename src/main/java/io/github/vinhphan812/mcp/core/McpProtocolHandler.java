@@ -1564,7 +1564,10 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         McpCompletionProvider provider = registry.getCompletionProvider(type instanceof String ? (String) type : null);
         if (provider == null) throw McpException.invalidParams("No completion provider for reference type: " + type);
         Map<String, Object> result = provider.complete(ref, argument);
-        return result == null ? new LinkedHashMap<>() : result;
+        if (result == null) result = new LinkedHashMap<>();
+        // MCP 2026-07-28: completion/-complete result MUST have resultType
+        result.put("resultType", "complete");
+        return result;
     }
 
     private Map<String, Object> stringObjectMap(Map<?, ?> source, String field) {
@@ -2154,9 +2157,13 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         return wrapContents(blob);
     }
 
-    /** Wraps a single content item as the MCP {@code contents} envelope. */
+    /**
+     * Wraps a single content item as the MCP {@code contents} envelope.
+     * MCP 2026-07-28 requires {@code resultType: "complete"} for read responses.
+     */
     private static Map<String, Object> wrapContents(Map<String, Object> contentItem) {
         Map<String, Object> result = new LinkedHashMap<>();
+        result.put("resultType", "complete");
         List<Map<String, Object>> contents = new ArrayList<>();
         contents.add(contentItem);
         result.put("contents", contents);
