@@ -1,5 +1,7 @@
 package io.github.vinhphan812.mcp.transport;
 
+import io.github.vinhphan812.mcp.api.security.ProtectedResourceMetadata;
+import io.github.vinhphan812.mcp.api.security.TokenVerifier;
 import io.github.vinhphan812.mcp.core.McpProtocolHandler;
 import org.glassfish.grizzly.http.server.HttpServer;
 import org.glassfish.grizzly.http.server.NetworkListener;
@@ -17,6 +19,9 @@ public final class HttpTransportProvider implements AutoCloseable {
     private String endpoint = "/mcp";
     private String urlScheme = "http";
     private Supplier<String> apiKeySupplier;
+    private TokenVerifier tokenVerifier;
+    private ProtectedResourceMetadata protectedResourceMetadata;
+    private java.util.Set<String> requiredBearerScopes = java.util.Collections.emptySet();
     private CorsOriginPolicy corsPolicy = CorsOriginPolicy.DEFAULT;
     private int maxRequestBodyBytes = 1024 * 1024;
     private TransportMode transportMode = TransportMode.AUTO;
@@ -149,6 +154,25 @@ public final class HttpTransportProvider implements AutoCloseable {
         return this;
     }
 
+    /** Uses a provider-neutral verifier for OAuth bearer tokens. */
+    public HttpTransportProvider tokenVerifier(TokenVerifier value) {
+        tokenVerifier = value;
+        return this;
+    }
+
+    /** Publishes RFC 9728 metadata at the path associated with this MCP endpoint. */
+    public HttpTransportProvider protectedResourceMetadata(ProtectedResourceMetadata value) {
+        protectedResourceMetadata = value;
+        return this;
+    }
+
+    /** Requires every verified bearer token to contain these scopes. */
+    public HttpTransportProvider requiredBearerScopes(java.util.Set<String> value) {
+        requiredBearerScopes = value == null ? java.util.Collections.<String>emptySet()
+                : new java.util.LinkedHashSet<String>(value);
+        return this;
+    }
+
     /**
      * Sets the transport mode for HTTP handling.
      * Default is {@link TransportMode#AUTO}.
@@ -171,10 +195,14 @@ public final class HttpTransportProvider implements AutoCloseable {
     public synchronized void start() throws IOExceptionUnchecked {
         if (isRunning()) return;
         try {
-            McpHttpHandler httpHandler = new McpHttpHandler(handler, endpoint, apiKeySupplier, corsPolicy, maxRequestBodyBytes, 4, handler.getConfig().trustXForwardedFor, transportMode);
+            McpHttpHandler httpHandler = new McpHttpHandler.Builder(handler)
+                    .endpoint(endpoint).apiKeySupplier(apiKeySupplier).tokenVerifier(tokenVerifier)
+                    .protectedResourceMetadata(protectedResourceMetadata).requiredBearerScopes(requiredBearerScopes)
+                    .allowedOrigins(corsPolicy.explicitOrigins()).maxRequestBodyBytes(maxRequestBodyBytes)
+                    .trustXForwardedFor(handler.getConfig().trustXForwardedFor).transportMode(transportMode).build();
             server = new HttpServer();
             server.addListener(new NetworkListener(LISTENER_NAME, host, port));
-            server.getServerConfiguration().addHttpHandler(httpHandler, endpoint);
+            server.getServerConfiguration().addHttpHandler(httpHandler, "/");
             server.start();
         } catch (Exception e) {
             server = null;
