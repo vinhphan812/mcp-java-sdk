@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * Represents a single 2025-era {@code resources/subscribe} subscription.
  *
  * <p>Each subscription maintains its own isolated SSE event channel: a bounded
- * {@link #pendingEvents} queue and a monotonically-increasing {@link #nextEventId}.
+ * {@code pendingEvents} queue and a monotonically-increasing {@code nextEventId}.
  * This state is <strong>entirely separate</strong> from the 2026-era listener state
  * machine in {@code McpProtocolHandler.SessionState} — the two eras never share
  * event queues or SSE channels.
@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  *
  * <ul>
  *   <li>2025-era: client calls {@code resources/subscribe} → events land in
- *       {@link #pendingEvents} → delivered via {@link #pollSseEvent()}</li>
+ *       {@code pendingEvents} → delivered via {@link #pollSseEvent()}</li>
  *   <li>2026-era: client registers a listener via the listener SPI → events land
  *       in {@code McpProtocolHandler.SessionState.pendingNotifications} →
  *       delivered via {@code pollResourceNotification()}</li>

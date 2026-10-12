@@ -25,7 +25,7 @@ import java.util.Map;
  *
  * <h2>Dispatch integration</h2>
  *
- * When {@link #onRequest(String, Map)} returns a non-{@code null} result the
+ * When {@link #onRequest} returns a non-{@code null} result the
  * protocol handler short-circuits its own built-in handler and returns that
  * result immediately.  Returning {@code null} passes the request to the
  * built-in logic.
@@ -33,7 +33,6 @@ import java.util.Map;
  * <h2>Thread safety</h2>
  *
  * Implementations must be thread-safe.  The registry may invoke
- * {@link #registerTask(String, Object)}, {@link #onRequest}, and {@link #onError}
  * concurrently.
  */
 public interface McpTaskExtension extends McpExtension {
@@ -41,7 +40,7 @@ public interface McpTaskExtension extends McpExtension {
     /**
      * Canonical namespace for the MCP Tasks capability.
      *
-     * @see #advertiseCapabilities()
+     * @see #advertiseCapabilities(String)
      */
     String NAMESPACE = "io.modelcontextprotocol/tasks";
 
