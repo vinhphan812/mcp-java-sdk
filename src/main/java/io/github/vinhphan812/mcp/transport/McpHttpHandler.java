@@ -2,6 +2,10 @@ package io.github.vinhphan812.mcp.transport;
 
 import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
+import io.github.vinhphan812.mcp.api.security.ProtectedResourceMetadata;
+import io.github.vinhphan812.mcp.api.security.SecurityContext;
+import io.github.vinhphan812.mcp.api.security.TokenVerificationContext;
+import io.github.vinhphan812.mcp.api.security.TokenVerifier;
 import io.github.vinhphan812.mcp.api.utils.McpError;
 import io.github.vinhphan812.mcp.api.utils.McpGson;
 import io.github.vinhphan812.mcp.api.utils.McpHttpHeaders;
@@ -59,6 +63,9 @@ public final class McpHttpHandler extends HttpHandler {
     private final McpProtocolHandler handler;
     private final String endpoint;
     private final Supplier<String> apiKeySupplier;
+    private final TokenVerifier tokenVerifier;
+    private final ProtectedResourceMetadata protectedResourceMetadata;
+    private final Set<String> requiredBearerScopes;
     private final CorsOriginPolicy corsPolicy;
     private final int maxRequestBodyBytes;
     private final Semaphore sseConnections;
@@ -72,6 +79,9 @@ public final class McpHttpHandler extends HttpHandler {
         private final McpProtocolHandler handler;
         private String endpoint = "/mcp";
         private Supplier<String> apiKeySupplier;
+        private TokenVerifier tokenVerifier;
+        private ProtectedResourceMetadata protectedResourceMetadata;
+        private Set<String> requiredBearerScopes = Collections.emptySet();
         private CorsOriginPolicy corsPolicy = CorsOriginPolicy.DEFAULT;
         private int maxRequestBodyBytes = 1024 * 1024;
         private int maxSseConnections = DEFAULT_MAX_SSE;
@@ -92,6 +102,24 @@ public final class McpHttpHandler extends HttpHandler {
 
         public Builder apiKeySupplier(Supplier<String> s) {
             this.apiKeySupplier = s;
+            return this;
+        }
+
+        /** Configures provider-neutral bearer-token verification. */
+        public Builder tokenVerifier(TokenVerifier value) {
+            this.tokenVerifier = value;
+            return this;
+        }
+
+        /** Configures the RFC 9728 metadata that this handler publishes. */
+        public Builder protectedResourceMetadata(ProtectedResourceMetadata value) {
+            this.protectedResourceMetadata = value;
+            return this;
+        }
+
+        /** Scopes required from each verified bearer token. */
+        public Builder requiredBearerScopes(Set<String> value) {
+            this.requiredBearerScopes = value == null ? Collections.<String>emptySet() : new LinkedHashSet<String>(value);
             return this;
         }
 
@@ -153,6 +181,9 @@ public final class McpHttpHandler extends HttpHandler {
         this.handler = b.handler;
         this.endpoint = b.endpoint;
         this.apiKeySupplier = b.apiKeySupplier;
+        this.tokenVerifier = b.tokenVerifier;
+        this.protectedResourceMetadata = b.protectedResourceMetadata;
+        this.requiredBearerScopes = Collections.unmodifiableSet(new LinkedHashSet<String>(b.requiredBearerScopes));
         this.corsPolicy = b.corsPolicy;
         this.maxRequestBodyBytes = b.maxRequestBodyBytes;
         this.sseConnections = new Semaphore(b.maxSseConnections);
@@ -219,6 +250,9 @@ public final class McpHttpHandler extends HttpHandler {
         this.handler = h;
         this.endpoint = e.trim().startsWith("/") ? e.trim() : "/" + e.trim();
         this.apiKeySupplier = s;
+        this.tokenVerifier = null;
+        this.protectedResourceMetadata = null;
+        this.requiredBearerScopes = Collections.emptySet();
         this.corsPolicy = cors != null ? cors : CorsOriginPolicy.DEFAULT;
         this.maxRequestBodyBytes = maxBody;
         this.sseConnections = new Semaphore(maxSse);
@@ -230,6 +264,10 @@ public final class McpHttpHandler extends HttpHandler {
     @Override
     public void service(Request request, Response response) throws Exception {
         String uri = request.getRequestURI();
+        if (isProtectedResourceMetadataPath(uri)) {
+            handleProtectedResourceMetadata(request, response);
+            return;
+        }
         if (!endpoint.equals(uri)) {
             writeError(response, 404, "Unknown MCP endpoint");
             return;
@@ -251,6 +289,22 @@ public final class McpHttpHandler extends HttpHandler {
                 writeError(response, 405, "Method not allowed");
                 break;
         }
+    }
+
+    private boolean isProtectedResourceMetadataPath(String uri) {
+        return protectedResourceMetadata != null
+                && ("/.well-known/oauth-protected-resource" + endpoint).equals(uri);
+    }
+
+    private void handleProtectedResourceMetadata(Request request, Response response) throws IOException {
+        if (!"GET".equalsIgnoreCase(request.getMethod().toString())) {
+            writeError(response, 405, "Method not allowed");
+            return;
+        }
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+        response.setStatus(200);
+        response.getWriter().write(McpGson.get().toJson(protectedResourceMetadata.toMap()));
     }
 
     // ── CORS ────────────────────────────────────────────────────────────────
@@ -305,8 +359,12 @@ public final class McpHttpHandler extends HttpHandler {
             writeError(response, 403, "Forbidden Origin");
             return true;
         }
-        if (isUnauthorized(request)) {
-            writeError(response, 401, "Unauthorized");
+        AuthenticationFailure failure = authenticationFailure(request);
+        if (failure != AuthenticationFailure.NONE) {
+            Map<String, String> headers = new LinkedHashMap<String, String>();
+            headers.put("WWW-Authenticate", bearerChallenge(failure));
+            writeError(response, failure == AuthenticationFailure.INSUFFICIENT_SCOPE ? 403 : 401,
+                    failure == AuthenticationFailure.INSUFFICIENT_SCOPE ? "Insufficient scope" : "Unauthorized", headers);
             return true;
         }
         return false;
@@ -332,14 +390,49 @@ public final class McpHttpHandler extends HttpHandler {
         }
     }
 
-    private boolean isUnauthorized(Request request) {
+    private enum AuthenticationFailure { NONE, INVALID_TOKEN, INSUFFICIENT_SCOPE }
+
+    private AuthenticationFailure authenticationFailure(Request request) {
+        if (tokenVerifier != null) {
+            String token = bearerToken(request);
+            if (token == null) return AuthenticationFailure.INVALID_TOKEN;
+            Map<String, String[]> headers = new LinkedHashMap<String, String[]>();
+            for (String name : request.getHeaderNames()) {
+                List<String> values = new ArrayList<String>();
+                for (String value : request.getHeaders(name)) values.add(value);
+                headers.put(name, values.toArray(new String[0]));
+            }
+            Optional<SecurityContext> context = tokenVerifier.verify(token,
+                    new TokenVerificationContext(protectedResourceMetadata == null ? endpoint : protectedResourceMetadata.getResource(),
+                            request.getRequestURI(), headers));
+            if (!context.isPresent()) return AuthenticationFailure.INVALID_TOKEN;
+            if (!context.get().getScopes().containsAll(requiredBearerScopes)) return AuthenticationFailure.INSUFFICIENT_SCOPE;
+            return AuthenticationFailure.NONE;
+        }
         String key = apiKeySupplier == null ? null : apiKeySupplier.get();
-        if (key == null || key.trim().isEmpty()) return false;
-        String hdr = request.getHeader(McpHttpHeaders.AUTH);
-        if (hdr == null || !hdr.regionMatches(true, 0, "Bearer ", 0, 7)) return true;
-        byte[] exp = key.trim().getBytes(StandardCharsets.UTF_8);
-        byte[] act = hdr.substring(7).trim().getBytes(StandardCharsets.UTF_8);
-        return !MessageDigest.isEqual(exp, act);
+        if (key == null || key.trim().isEmpty()) return AuthenticationFailure.NONE;
+        String token = bearerToken(request);
+        return token != null && MessageDigest.isEqual(key.trim().getBytes(StandardCharsets.UTF_8), token.getBytes(StandardCharsets.UTF_8))
+                ? AuthenticationFailure.NONE : AuthenticationFailure.INVALID_TOKEN;
+    }
+
+    private static String bearerToken(Request request) {
+        String header = request.getHeader(McpHttpHeaders.AUTH);
+        if (header == null || !header.regionMatches(true, 0, "Bearer ", 0, 7)) return null;
+        String token = header.substring(7).trim();
+        return token.isEmpty() ? null : token;
+    }
+
+    private String bearerChallenge(AuthenticationFailure failure) {
+        StringBuilder value = new StringBuilder("Bearer");
+        if (failure == AuthenticationFailure.INVALID_TOKEN) value.append(" error=\"invalid_token\"");
+        if (failure == AuthenticationFailure.INSUFFICIENT_SCOPE) {
+            value.append(" error=\"insufficient_scope\"");
+            if (!requiredBearerScopes.isEmpty()) value.append(", scope=\"").append(String.join(" ", requiredBearerScopes)).append("\"");
+        }
+        if (protectedResourceMetadata != null) value.append(", resource_metadata=\"")
+                .append("/.well-known/oauth-protected-resource").append(endpoint).append("\"");
+        return value.toString();
     }
 
     private boolean requiresSession(String method) {
@@ -805,6 +898,17 @@ public final class McpHttpHandler extends HttpHandler {
     }
 
     // ── error helpers ────────────────────────────────────────────────────
+    private static void writeError(Response r, int status, String msg, Map<String, String> headers) throws IOException {
+        r.setContentType("application/json");
+        r.setCharacterEncoding("UTF-8");
+        r.setStatus(status);
+        for (Map.Entry<String, String> header : headers.entrySet()) r.setHeader(header.getKey(), header.getValue());
+        Map<String, Object> error = new LinkedHashMap<String, Object>();
+        error.put("code", status);
+        error.put("message", msg);
+        r.getWriter().write(McpGson.get().toJson(McpError.jsonRpcEnvelope(null, error)));
+    }
+
     private static void writeError(Response r, int status, String msg) throws IOException {
         writeError(r, status, msg, null, null, null);
     }
