@@ -65,9 +65,9 @@ public final class ConformanceFixture {
 
         @McpTool(name = "test_simple_text", description = "Echo back the input text as a simple text result")
         public Map<String, Object> testSimpleText(
-                @McpParam(name = "text", description = "Text to echo", required = false)
-                String text) {
-            return textResult(text != null ? text : "");
+                @McpParam(name = "input", description = "Text to echo", required = false)
+                String input) {
+            return textResult(input != null ? input : "Conformance fixture text");
         }
 
         @McpTool(name = "test_image_content", description = "Return an image content result")
@@ -152,8 +152,17 @@ public final class ConformanceFixture {
             img.put("data", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==");
             img.put("mimeType", "image/png");
             contents.add(img);
+            Map<String, Object> resource = new LinkedHashMap<>();
+            resource.put("uri", "test://static-text");
+            resource.put("mimeType", "text/plain");
+            resource.put("text", "Mixed content resource");
+            Map<String, Object> embedded = new LinkedHashMap<>();
+            embedded.put("type", "resource");
+            embedded.put("resource", resource);
+            contents.add(embedded);
 
             result.put("content", contents);
+            result.put("resultType", "complete");
             return result;
         }
 
@@ -234,12 +243,10 @@ public final class ConformanceFixture {
         }
 
         @McpResourceTemplate(uriTemplate = "test://template/{id}/data", name = "Template Resource",
-                description = "A templated resource for conformance testing", mimeType = "text/plain")
+                description = "A templated resource for conformance testing", mimeType = "application/json")
         public String templateResource(String resolvedUri) {
-            // Extract the id from the URI path
-            String id = resolvedUri != null && resolvedUri.contains("/")
-                    ? resolvedUri.substring(resolvedUri.lastIndexOf('/') + 1)
-                    : "unknown";
+            String[] segments = resolvedUri != null ? resolvedUri.split("/") : new String[0];
+            String id = segments.length >= 2 ? segments[segments.length - 2] : "unknown";
             return "Template resource content for id: " + id;
         }
     }
@@ -422,7 +429,10 @@ public final class ConformanceFixture {
                 .register(new DemoResources())
                 .register(new DemoPrompts());
 
-            // Register completion provider (SEP-2299)
+            // Register completion provider (SEP-2299).
+            // Register under "ref/prompt" to match the MCP 2026 ref.type "ref/prompt".
+            server.getRegistry().registerCompletionProvider("ref/prompt", new DemoCompletions());
+            // Also register under "prompt" for backward compatibility.
             server.getRegistry().registerCompletionProvider("prompt", new DemoCompletions());
 
             // Register the binary resource — needs McpBlobResourceHandler (not via annotation)

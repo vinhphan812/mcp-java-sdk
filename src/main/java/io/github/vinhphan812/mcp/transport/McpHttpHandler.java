@@ -516,9 +516,18 @@ public final class McpHttpHandler extends HttpHandler {
             return;
         }
 
-        // Server-driven SSE streaming on POST
-        if (isModernClient(request) && sessionId != null && handler.hasPendingNotifications(sessionId)) {
-            handlePostStreaming(response, result, origin);
+        // Extract request-local stateless progress events before selecting the
+        // response transport. The JSON envelope is returned without the internal key.
+        String responseBody = result.getBody();
+        Pair<String, String> progressResult = flushProgressNotifications(responseBody);
+        if (progressResult != null) responseBody = progressResult.getValue();
+
+        // Server-driven SSE streaming on POST. A stateless tools/call can carry
+        // request-local progress events, so it also uses this framing even though
+        // it deliberately has no Mcp-Session-Id.
+        if (isModernClient(request) && (sessionId != null && handler.hasPendingNotifications(sessionId)
+                || progressResult != null)) {
+            handlePostStreaming(response, result, origin, progressResult);
             return;
         }
 
@@ -528,7 +537,53 @@ public final class McpHttpHandler extends HttpHandler {
         writeCorsHeaders(response, origin);
         if (result.getSessionId() != null) response.setHeader(McpHttpHeaders.SESSION, result.getSessionId());
         response.setStatus(200);
-        response.getWriter().write(result.getBody());
+        response.getWriter().write(responseBody);
+    }
+
+    /**
+     * Extracts {@code _progressNotifications} from a JSON-RPC response body and returns
+     * SSE-formatted frames for each notification, plus the modified response body with
+     * the key removed. Returns null if no notifications are present.
+     *
+     * @return Pair of (SSE frames, modified response body) or null if no progress
+     */
+    private static Pair<String, String> flushProgressNotifications(String responseBody) {
+        if (responseBody == null || !responseBody.contains("_progressNotifications")) {
+            return null;
+        }
+        try {
+            com.google.gson.JsonObject rpc = com.google.gson.JsonParser.parseString(responseBody).getAsJsonObject();
+            com.google.gson.JsonObject resultObj = rpc.getAsJsonObject("result");
+            if (resultObj == null) return null;
+            com.google.gson.JsonArray notifications = resultObj.getAsJsonArray("_progressNotifications");
+            if (notifications == null || notifications.size() == 0) return null;
+
+            // Build SSE frames for each progress notification
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < notifications.size(); i++) {
+                com.google.gson.JsonObject notif = notifications.get(i).getAsJsonObject();
+                String eventBody = new com.google.gson.Gson().toJson(notif);
+                sb.append("event: message\ndata: ").append(eventBody).append("\n\n");
+            }
+
+            // Remove the key from the result and return modified body
+            resultObj.remove("_progressNotifications");
+            String modifiedBody = new com.google.gson.Gson().toJson(rpc);
+
+            return new Pair<>(sb.toString(), modifiedBody);
+        } catch (Exception e) {
+            // Malformed JSON or unexpected structure — send response without progress frames
+            return null;
+        }
+    }
+
+    /** Simple two-element pair to avoid extra allocations. */
+    private static class Pair<A, B> {
+        private final A first;
+        private final B second;
+        Pair(A first, B second) { this.first = first; this.second = second; }
+        A getKey() { return first; }
+        B getValue() { return second; }
     }
 
     // ── SEP-2575 subscriptions/listen streaming ─────────────────────────────────
@@ -667,22 +722,25 @@ public final class McpHttpHandler extends HttpHandler {
 
     /** POST response as SSE: initial JSON then live notification polling. */
     private void handlePostStreaming(Response response, McpProtocolHandler.McpResponse result,
-                                    String origin) throws IOException {
+                                    String origin, Pair<String, String> progressResult) throws IOException {
         if (!sseConnections.tryAcquire()) {
             writeError(response, McpError.httpTooManyRequests("Too many active SSE connections"));
             return;
         }
         String sessionId = result.getSessionId();
         try {
-            setSseHeaders(response, true);
+            setSseHeaders(response, sessionId != null);
             writeCorsHeaders(response, origin);
             response.setStatus(200);
             if (sessionId != null) response.setHeader(McpHttpHeaders.SESSION, sessionId);
-            // First event: the JSON-RPC response
-            response.getWriter().write(sseMessage(result.getBody()));
+            if (progressResult != null) response.getWriter().write(progressResult.getKey());
+            // Final event: the JSON-RPC response without transport-private data.
+            response.getWriter().write(sseMessage(progressResult != null
+                    ? progressResult.getValue() : result.getBody()));
             response.getWriter().flush();
-            // Live polling loop
-            runSsePollingLoop(response, sessionId);
+            // Stateless request-local progress completes with this response; only
+            // session-backed streams remain open for queued notifications.
+            if (sessionId != null) runSsePollingLoop(response, sessionId);
         } catch (IOException e) { /* client disconnected */ }
         finally { sseConnections.release(); }
     }

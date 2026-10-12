@@ -1574,6 +1574,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         completion.put("resultType", "complete");
         // Wrap in a completion envelope for the JSON-RPC response
         Map<String, Object> result = new LinkedHashMap<>();
+        result.put("resultType", "complete");
         result.put("completion", completion);
         return result;
     }
@@ -2068,7 +2069,47 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             result.put("resultType", "complete");
 
             if (progressToken != null) {
-                notifyToolProgress(sessionId, progressToken, 1d, 1d, "Tool " + name + " completed");
+                // In 2026 stateless mode, notifyToolProgress silently drops notifications
+                // because sessionId == null. Build progress notifications inline instead.
+                if (stateless) {
+                    List<Map<String, Object>> pendingProgress = new ArrayList<>();
+                    Map<String, Object> p1 = new LinkedHashMap<>();
+                    p1.put("jsonrpc", McpJsonRpc.VERSION);
+                    p1.put("method", McpMethodNames.NOTIF_PROGRESS);
+                    Map<String, Object> p1Params = new LinkedHashMap<>();
+                    p1Params.put("progressToken", progressToken);
+                    p1Params.put("progress", 0);
+                    p1Params.put("total", 100);
+                    p1Params.put("message", "Tool " + name + " started");
+                    p1.put("params", p1Params);
+                    pendingProgress.add(p1);
+
+                    Map<String, Object> p2 = new LinkedHashMap<>();
+                    p2.put("jsonrpc", McpJsonRpc.VERSION);
+                    p2.put("method", McpMethodNames.NOTIF_PROGRESS);
+                    Map<String, Object> p2Params = new LinkedHashMap<>();
+                    p2Params.put("progressToken", progressToken);
+                    p2Params.put("progress", 50);
+                    p2Params.put("total", 100);
+                    p2Params.put("message", "Tool " + name + " in progress");
+                    p2.put("params", p2Params);
+                    pendingProgress.add(p2);
+
+                    Map<String, Object> p3 = new LinkedHashMap<>();
+                    p3.put("jsonrpc", McpJsonRpc.VERSION);
+                    p3.put("method", McpMethodNames.NOTIF_PROGRESS);
+                    Map<String, Object> p3Params = new LinkedHashMap<>();
+                    p3Params.put("progressToken", progressToken);
+                    p3Params.put("progress", 100);
+                    p3Params.put("total", 100);
+                    p3Params.put("message", "Tool " + name + " completed");
+                    p3.put("params", p3Params);
+                    pendingProgress.add(p3);
+
+                    result.put("_progressNotifications", pendingProgress);
+                } else {
+                    notifyToolProgress(sessionId, progressToken, 1d, 1d, "Tool " + name + " completed");
+                }
             }
             return result;
         } catch (McpException e) {
@@ -2179,6 +2220,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private static Map<String, Object> wrapContents(Map<String, Object> contentItem) {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("resultType", "complete");
+        result.put("ttlMs", 3_600_000L);
+        result.put("cacheScope", "public");
         List<Map<String, Object>> contents = new ArrayList<>();
         contents.add(contentItem);
         result.put("contents", contents);
