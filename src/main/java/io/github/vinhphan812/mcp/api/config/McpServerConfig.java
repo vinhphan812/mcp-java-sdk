@@ -35,7 +35,7 @@ import java.util.Map;
  * has <strong>no runtime effect in this release</strong>. The transport layer
  * selects between modern Streamable HTTP and legacy HTTP+SSE exclusively through
  * {@link io.github.vinhphan812.mcp.transport.TransportMode} on
- * {@link io.github.vinhphan812.mcp.api.McpServer.Builder#transportMode(TransportMode)},
+ * {@link McpServerConfig},
  * not through this flag. This flag is reserved for a future release that wires
  * it end-to-end. Until then, callers who need a specific transport mode must use
  * {@code McpServer.builder().transportMode(TransportMode.STREAMABLE_HTTP)} directly.
@@ -62,7 +62,7 @@ import java.util.Map;
  * <p>See {@link RateLimits} for the full tunable surface. The builder initialises
  * all rate-limit fields to the values declared in {@link McpSecurityDefaults}.
  *
- * @see McpServer
+ * @see io.github.vinhphan812.mcp.core.McpServer
  * @see RateLimits
  * @see McpSecurityDefaults
  */
@@ -522,7 +522,7 @@ public final class McpServerConfig {
         /**
          * Stores the Streamable HTTP preference but has <strong>no runtime effect</strong>
          * in this release. The transport layer selects the transport mode exclusively via
-         * {@link io.github.vinhphan812.mcp.api.McpServer.Builder#transportMode(TransportMode)}.
+         * {@link McpServerConfig}.
          * This flag is reserved for a future release that wires it end-to-end.
          * Default is true.
          * @param value whether Streamable HTTP mode is preferred

@@ -26,7 +26,7 @@ import java.util.Map;
  * }
  * }</pre>
  *
- * @see io.github.vinhphan812.mcp.core.McpProtocolHandler#elicit(String, ElicitRequest)
+ * @see io.github.vinhphan812.mcp.core.McpProtocolHandler
  * @since 2026-07-28
  */
 public final class ElicitRequest {
