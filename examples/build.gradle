@@ -25,3 +25,24 @@ java {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
 }
+
+// Produces a file at examples/build/conformance-classpath.txt containing the full
+// classpath needed to run the ConformanceFixture (SDK JAR + examples classes).
+// The conformance CI job reads this file and passes it to `java -cp`.
+tasks.register('conformanceClasspath') {
+    description = 'Compile examples and emit the fixture classpath to examples/build/conformance-classpath.txt'
+    group = 'build'
+    dependsOn classes
+
+    doLast {
+        def sdkPath = project.findProperty('sdkJar') != null
+                ? project.property('sdkJar')
+                : new File(rootProject.layout.buildDirectory.asFile.get(), 'libs/mcp-java-sdk-' + rootProject.version + '.jar').absolutePath
+        def classesDir = sourceSets.main.output.classesDirs.asPath
+        def classpath = classesDir + File.pathSeparator + sdkPath
+        def outFile = new File(project.buildDir, 'conformance-classpath.txt')
+        outFile.parentFile.mkdirs()
+        outFile.text = classpath
+        println "Wrote conformance classpath (${outFile.length()} bytes)"
+    }
+}
