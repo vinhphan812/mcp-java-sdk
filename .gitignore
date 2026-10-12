@@ -59,3 +59,12 @@ Thumbs.db
 nul
 *.tmp
 *.log
+
+node_modules/
+npm-debug.log
+package-lock.json
+
+# CI artifacts
+artifacts/
+build/
+*.jar
