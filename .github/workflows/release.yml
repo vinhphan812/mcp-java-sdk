@@ -40,13 +40,7 @@ jobs:
           sbom: build/reports/bom.json
           fail-build: true
           severity-cutoff: high
-          output-format: sarif
-          output-file: grype-results.sarif
-      - name: Upload dependency scan SARIF
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: grype-results.sarif
+          output-format: table
 
       - name: Publish to GitHub Packages
         run: ./gradlew publish --console=plain
