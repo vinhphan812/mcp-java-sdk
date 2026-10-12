@@ -35,6 +35,7 @@ import io.github.vinhphan812.mcp.api.spi.McpAuthorization;
 import io.github.vinhphan812.mcp.api.spi.McpRegistrar;
 import io.github.vinhphan812.mcp.api.spi.McpRegistryChangeListener;
 import io.github.vinhphan812.mcp.api.spi.McpTaskExtension;
+import io.github.vinhphan812.mcp.api.spi.McpSkillsExtension;
 import io.github.vinhphan812.mcp.api.utils.*;
 
 import java.nio.charset.StandardCharsets;
@@ -78,6 +79,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private final RateLimits rateLimits;
     private final CategoryRateLimitController categoryRateLimitController;
     private final McpTaskExtension tasksExtension;
+    private final McpSkillsExtension skillsExtension;
     private final McpTaskExtension.TaskRegistry taskRegistry;
 
     public McpServerConfig getConfig() {
@@ -466,6 +468,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         SessionState.setMaxQueuedEvents(config.maxQueuedEvents);
         this.authorization = authorization;
         this.tasksExtension = config.tasksExtension;
+        this.skillsExtension = config.skillsExtension;
         this.taskRegistry = new TaskRegistryImpl(registry);
         if (this.tasksExtension != null) {
             this.tasksExtension.register(this.taskRegistry);

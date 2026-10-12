@@ -3,6 +3,7 @@ package io.github.vinhphan812.mcp.api.config;
 import io.github.vinhphan812.mcp.api.logging.JulMcpLogger;
 import io.github.vinhphan812.mcp.api.logging.McpLogger;
 import io.github.vinhphan812.mcp.api.spi.McpAuthorization;
+import io.github.vinhphan812.mcp.api.spi.McpSkillsExtension;
 import io.github.vinhphan812.mcp.api.spi.McpTaskExtension;
 import io.github.vinhphan812.mcp.core.McpProtocolHandler;
 
@@ -103,6 +104,11 @@ public final class McpServerConfig {
      */
     public final McpTaskExtension tasksExtension;
     /**
+     * Pluggable extension for the Skills capability, or {@code null} to use the
+     * built-in skill store.
+     */
+    public final McpSkillsExtension skillsExtension;
+    /**
      * Experimental capability metadata advertised by server initialize responses.
      */
     public final Map<String, Object> experimental;
@@ -191,6 +197,7 @@ public final class McpServerConfig {
         completions = builder.completions;
         tasks = builder.tasks;
         tasksExtension = builder.tasksExtension;
+        skillsExtension = builder.skillsExtension;
         experimental = Collections.unmodifiableMap(new LinkedHashMap<>(builder.experimental));
         pageSize = builder.pageSize;
         overflowListener = builder.overflowListener;
@@ -237,6 +244,7 @@ public final class McpServerConfig {
         private boolean tools = true, resources = true, resourceSubscriptions = true, prompts = true;
         private boolean logging, completions, tasks;
         private McpTaskExtension tasksExtension;
+        private McpSkillsExtension skillsExtension;
         private McpLogger logger = new JulMcpLogger("mcp-server");
         private Map<String, Object> experimental = new LinkedHashMap<>();
 
@@ -416,6 +424,17 @@ public final class McpServerConfig {
          */
         public Builder tasksExtension(McpTaskExtension extension) {
             this.tasksExtension = extension;
+            return this;
+        }
+
+        /**
+         * Sets the pluggable Skills extension.
+         *
+         * @param extension the extension, or {@code null} to use the built-in skill store
+         * @return this builder
+         */
+        public Builder skillsExtension(McpSkillsExtension extension) {
+            this.skillsExtension = extension;
             return this;
         }
 
