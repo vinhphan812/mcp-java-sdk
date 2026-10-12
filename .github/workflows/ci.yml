@@ -44,7 +44,7 @@ jobs:
       - name: Upload JAR artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mcp-java-sdk-artifacts
+          name: mcp-java-sdk-artifacts-${{ matrix.java-version }}
           path: build/libs/mcp-java-sdk-*.jar
           if-no-files-found: error
 
@@ -152,11 +152,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Download the JAR from the build job artifact (Java 17 build).
+      # Download the JAR from the Java 17 build job artifact.
       - name: Download runtime JAR
         uses: actions/download-artifact@v4
         with:
-          name: mcp-java-sdk-artifacts
+          name: mcp-java-sdk-artifacts-17
           path: build/libs
 
       - name: Verify JAR downloaded
