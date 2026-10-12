@@ -2092,6 +2092,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
      */
     public void notifyToolProgress(String sessionId, Object progressToken,
                                    double current, double total, String message) {
+        if (sessionId == null) return;
         SessionState state = sessions.get(sessionId);
         if (state == null) return;
         Map<String, Object> params = new LinkedHashMap<>();
