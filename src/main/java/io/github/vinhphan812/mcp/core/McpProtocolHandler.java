@@ -2041,6 +2041,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 notifyToolProgress(sessionId, progressToken, 0d, 1d, "Tool " + name + " started");
             }
             Map<String, Object> result = handler.call(arguments);
+            if (result == null) result = new LinkedHashMap<>();
 
             // Validation against outputSchema — full 2020-12 in 2026 stateless mode only
             if (stateless) {
@@ -2054,6 +2055,9 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                     }
                 }
             }
+
+            // MCP 2026-07-28: tools/call result MUST have resultType
+            result.put("resultType", "complete");
 
             if (progressToken != null) {
                 notifyToolProgress(sessionId, progressToken, 1d, 1d, "Tool " + name + " completed");
@@ -2764,6 +2768,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
     private Map<String, Object> errorToolResult(String message) {
         Map<String, Object> result = new LinkedHashMap<>();
+        result.put("resultType", "complete");
         List<Map<String, String>> content = new ArrayList<>();
         Map<String, String> textContent = new LinkedHashMap<>();
         textContent.put("type", "text");
