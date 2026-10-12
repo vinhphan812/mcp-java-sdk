@@ -508,6 +508,8 @@ Releases: https://github.com/vinhphan812/mcp-java-sdk/releases
 - Protocol core (`McpProtocolHandler`, `McpRegistry`)
 - Grizzly Streamable HTTP transport
 - SSE notifications, progress/cancellation, `tasks/create`
+- SEP-2575 subscriptions/listen streaming
+- Skills extension negotiation
 - JSON-RPC 2.0, protocol versioning, Origin/CORS security
 
 ### Android and robot hosting (conditional, unverified)
