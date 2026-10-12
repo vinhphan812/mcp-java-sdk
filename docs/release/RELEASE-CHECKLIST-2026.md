@@ -1,6 +1,6 @@
 # Release Checklist: MCP 2026 post-v1.0.1 Gate
 
-Issue: GitHub #18  
+Issue: GitHub #18
 Status: **Draft — synthesized from parent tasks t_9ed29d27 (SemVer), t_4fb0aff6 (artifact audit),
 t_0eb81ec5 (release notes draft), t_86fd85b6 (README updates). Blocking PRs #22 (FAILED CI), #23 (passing spike), #29 (passing notes) still OPEN — see §2a.**
 
@@ -317,8 +317,8 @@ grep -rn "1.0.1" README.md docs/
 ### 6d. Doc-hygiene CI gate
 
 ```bash
-python validate_docs.py
-python docs_check_stale_classes.py
+python scripts/docs/validate_docs.py
+python scripts/docs/check_stale_classes.py
 ```
 Both must pass. The stale-classes checker catches stale class references (e.g. `McpGrizzlyHandler`,
 fixed in #19).
@@ -361,8 +361,8 @@ Complete this checklist before pushing the release tag:
 | **B01** | `./gradlew clean test` fails | Run locally; CI must pass on PR | **PASSED** (BUILD SUCCESSFUL 57s, 4 tasks, 316+ tests, 0 failures) |
 | **B02** | `./gradlew --no-daemon -p examples compileJava` fails | Gate in `ci.yml:40` | Open |
 | **B03** | Grype HIGH/CRITICAL vulnerabilities in SBOM | `grype build/reports/bom.json --fail-on=high` → exit 1 | Open — Grype v0.97.1 in CI |
-| **B04** | `python validate_docs.py` fails | Gate in `ci.yml:18` | Open |
-| **B05** | `python docs_check_stale_classes.py` fails | Gate in `ci.yml:20` | Open |
+| **B04** | `python scripts/docs/validate_docs.py` fails | Gate in `ci.yml:18` | Open |
+| **B05** | `python scripts/docs/check_stale_classes.py` fails | Gate in `ci.yml:20` | Open |
 | **B06** | GitHub Packages publish fails | Check workflow `publish` step exit code; GPR API returned 404 in prior audit (`t_4fb0aff6`) | **Verify after release** |
 | **B07** | `bom.json` not attached to GitHub Release | `gh release view v1.1.0 --json assets` must include `bom.json` | **Was absent in v1.0.1 — must verify in v1.1.0** |
 | **B08** | #3 (Tasks extension) is OPEN at tag time | `gh issue view 3 --json state` — closed or documented gap in notes | **OPEN** — `feat/tasks-extension-final` CI passed |
