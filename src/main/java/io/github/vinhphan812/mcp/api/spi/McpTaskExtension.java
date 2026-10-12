@@ -36,7 +36,7 @@ import java.util.Map;
  * {@link #registerTask(String, Object)}, {@link #onRequest}, and {@link #onError}
  * concurrently.
  */
-public interface McpTaskExtension {
+public interface McpTaskExtension extends McpExtension {
 
     /**
      * Canonical namespace for the MCP Tasks capability.
@@ -45,17 +45,15 @@ public interface McpTaskExtension {
      */
     String NAMESPACE = "io.modelcontextprotocol/tasks";
 
-    /**
-     * Returns whether this extension handles task methods for the given protocol version.
-     *
-     * <p>The server calls this before advertising the {@code tasks} capability
-     * and before dispatching any task request.
-     *
-     * @param protocolVersion protocol version from the {@code initialize} request
-     *                       (never {@code null})
-     * @return {@code true} when this extension claims the version
-     */
-    boolean supports(String protocolVersion);
+    @Override
+    default String namespace() {
+        return NAMESPACE;
+    }
+
+    @Override
+    default boolean supports(String protocolVersion) {
+        return false;
+    }
 
     /**
      * Returns the capability metadata advertised in the {@code initialize} response.
