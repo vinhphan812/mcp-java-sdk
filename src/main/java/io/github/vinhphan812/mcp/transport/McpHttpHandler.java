@@ -8,8 +8,6 @@ import io.github.vinhphan812.mcp.api.utils.McpHttpHeaders;
 import io.github.vinhphan812.mcp.api.utils.McpJsonRpc;
 import io.github.vinhphan812.mcp.api.utils.McpMethodNames;
 import io.github.vinhphan812.mcp.core.McpProtocolHandler;
-import io.github.vinhphan812.mcp.api.spi.AuthenticationVerifier;
-import io.github.vinhphan812.mcp.api.security.SecurityContext;
 import org.glassfish.grizzly.http.server.HttpHandler;
 import org.glassfish.grizzly.http.server.Request;
 import org.glassfish.grizzly.http.server.Response;
@@ -61,7 +59,6 @@ public final class McpHttpHandler extends HttpHandler {
     private final McpProtocolHandler handler;
     private final String endpoint;
     private final Supplier<String> apiKeySupplier;
-    private final AuthenticationVerifier authVerifier;
     private final CorsOriginPolicy corsPolicy;
     private final int maxRequestBodyBytes;
     private final Semaphore sseConnections;
@@ -75,7 +72,6 @@ public final class McpHttpHandler extends HttpHandler {
         private final McpProtocolHandler handler;
         private String endpoint = "/mcp";
         private Supplier<String> apiKeySupplier;
-        private AuthenticationVerifier authVerifier;
         private CorsOriginPolicy corsPolicy = CorsOriginPolicy.DEFAULT;
         private int maxRequestBodyBytes = 1024 * 1024;
         private int maxSseConnections = DEFAULT_MAX_SSE;
@@ -101,11 +97,6 @@ public final class McpHttpHandler extends HttpHandler {
 
         public Builder apiKey(String v) {
             this.apiKeySupplier = v == null ? null : () -> v;
-            return this;
-        }
-
-        public Builder authenticationVerifier(AuthenticationVerifier v) {
-            this.authVerifier = v;
             return this;
         }
 
@@ -162,7 +153,6 @@ public final class McpHttpHandler extends HttpHandler {
         this.handler = b.handler;
         this.endpoint = b.endpoint;
         this.apiKeySupplier = b.apiKeySupplier;
-        this.authVerifier = b.authVerifier;
         this.corsPolicy = b.corsPolicy;
         this.maxRequestBodyBytes = b.maxRequestBodyBytes;
         this.sseConnections = new Semaphore(b.maxSseConnections);
@@ -229,7 +219,6 @@ public final class McpHttpHandler extends HttpHandler {
         this.handler = h;
         this.endpoint = e.trim().startsWith("/") ? e.trim() : "/" + e.trim();
         this.apiKeySupplier = s;
-        this.authVerifier = null;
         this.corsPolicy = cors != null ? cors : CorsOriginPolicy.DEFAULT;
         this.maxRequestBodyBytes = maxBody;
         this.sseConnections = new Semaphore(maxSse);
@@ -316,14 +305,10 @@ public final class McpHttpHandler extends HttpHandler {
             writeError(response, 403, "Forbidden Origin");
             return true;
         }
-        
-        Optional<SecurityContext> securityContext = checkAuthorization(request);
-        if (securityContext.isEmpty()) {
-             writeError(response, 401, "Unauthorized");
-             return true;
+        if (isUnauthorized(request)) {
+            writeError(response, 401, "Unauthorized");
+            return true;
         }
-        request.setAttribute("McpSecurityContext", securityContext.get());
-        
         return false;
     }
 
@@ -347,43 +332,14 @@ public final class McpHttpHandler extends HttpHandler {
         }
     }
 
-    private Optional<SecurityContext> checkAuthorization(Request request) {
-        String authHeader = request.getHeader(McpHttpHeaders.AUTH);
-        String apiKey = null;
-        if (authHeader != null && authHeader.regionMatches(true, 0, "Bearer ", 0, 7)) {
-            apiKey = authHeader.substring(7).trim();
-        }
-
-        Map<String, String[]> headers = new HashMap<>();
-        for (String name : request.getHeaderNames()) {
-            List<String> values = new ArrayList<>();
-            request.getHeaders(name).forEach(values::add);
-            headers.put(name, values.toArray(new String[0]));
-        }
-
-        // 1. Try verifier (new way)
-        if (authVerifier != null) {
-            return authVerifier.verify(apiKey, headers);
-        }
-
-        // 2. Try legacy API key supplier (backward compatibility)
-        String configuredKey = apiKeySupplier == null ? null : apiKeySupplier.get();
-        if (configuredKey == null || configuredKey.trim().isEmpty()) return Optional.of(new SecurityContext() {
-            @Override public String getSubject() { return "anonymous"; }
-            @Override public Set<String> getScopes() { return Collections.emptySet(); }
-            @Override public Map<String, Object> getClaims() { return Collections.emptyMap(); }
-        });
-
-        if (apiKey != null && MessageDigest.isEqual(configuredKey.getBytes(StandardCharsets.UTF_8),
-                apiKey.getBytes(StandardCharsets.UTF_8))) {
-            return Optional.of(new SecurityContext() {
-                @Override public String getSubject() { return "apiKeyUser"; }
-                @Override public Set<String> getScopes() { return Collections.emptySet(); }
-                @Override public Map<String, Object> getClaims() { return Collections.emptyMap(); }
-            });
-        }
-        
-        return Optional.empty();
+    private boolean isUnauthorized(Request request) {
+        String key = apiKeySupplier == null ? null : apiKeySupplier.get();
+        if (key == null || key.trim().isEmpty()) return false;
+        String hdr = request.getHeader(McpHttpHeaders.AUTH);
+        if (hdr == null || !hdr.regionMatches(true, 0, "Bearer ", 0, 7)) return true;
+        byte[] exp = key.trim().getBytes(StandardCharsets.UTF_8);
+        byte[] act = hdr.substring(7).trim().getBytes(StandardCharsets.UTF_8);
+        return !MessageDigest.isEqual(exp, act);
     }
 
     private boolean requiresSession(String method) {
@@ -549,6 +505,12 @@ public final class McpHttpHandler extends HttpHandler {
         McpProtocolHandler.McpResponse result = handler.handleRequestResponse(body, sessionId, clientIp);
 
         if (result.getBody() == null) {
+            // Check for SEP-2575 streaming signal
+            String streamingSubsId = result.getStreamingSubscriptionId();
+            if (streamingSubsId != null) {
+                handleSep2575Streaming(response, streamingSubsId, origin);
+                return;
+            }
             writeCorsHeaders(response, origin);
             response.setStatus(202);
             return;
@@ -567,6 +529,72 @@ public final class McpHttpHandler extends HttpHandler {
         if (result.getSessionId() != null) response.setHeader(McpHttpHeaders.SESSION, result.getSessionId());
         response.setStatus(200);
         response.getWriter().write(result.getBody());
+    }
+
+    // ── SEP-2575 subscriptions/listen streaming ─────────────────────────────────
+
+    /**
+     * Handles a SEP-2575 {@code subscriptions/listen} streaming response.
+     *
+     * <p>Protocol:
+     * <ol>
+     *   <li>First frame: JSON-RPC response with acknowledgment notification</li>
+     *   <li>Subsequent frames: queued events for the subscription</li>
+     *   <li>Final frame (on close): {@code resultType: "complete"} notification</li>
+     * </ol>
+     */
+    private void handleSep2575Streaming(Response response, String subscriptionId,
+                                        String origin) throws IOException {
+        if (!sseConnections.tryAcquire()) {
+            writeError(response, McpError.httpTooManyRequests("Too many active SSE connections"));
+            return;
+        }
+        try {
+            setSseHeaders(response, true);
+            writeCorsHeaders(response, origin);
+            response.setStatus(200);
+            // First frame: acknowledgment notification with the subscription id
+            String ackBody = buildSep2575Ack(subscriptionId);
+            response.getWriter().write(sseMessage(ackBody));
+            response.getWriter().flush();
+            // Polling loop for SEP-2575 subscription events
+            runSep2575PollingLoop(response, subscriptionId);
+        } catch (IOException e) {
+            // Client disconnected
+        } finally {
+            handler.cancelStreamingSubscription(subscriptionId);
+            sseConnections.release();
+        }
+    }
+
+    private String buildSep2575Ack(String subscriptionId) {
+        com.google.gson.Gson gson = new com.google.gson.Gson();
+        java.util.Map<String, Object> ack = new java.util.LinkedHashMap<>();
+        ack.put("jsonrpc", "2.0");
+        ack.put("method", "notifications/subscriptions/acknowledged");
+        java.util.Map<String, Object> params = new java.util.LinkedHashMap<>();
+        params.put("subscriptionId", subscriptionId);
+        ack.put("params", params);
+        return gson.toJson(ack);
+    }
+
+    private void runSep2575PollingLoop(Response response, String subscriptionId) throws IOException {
+        long start = System.currentTimeMillis();
+        long timeout = 300_000L; // 5 minutes
+        while (!Thread.currentThread().isInterrupted()
+                && System.currentTimeMillis() - start < timeout) {
+            try { Thread.sleep(1000); } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); break;
+            }
+            String line;
+            boolean sent = false;
+            while ((line = handler.pollSep2575Notification(subscriptionId)) != null) {
+                response.getWriter().write(line);
+                sent = true;
+            }
+            if (!sent) response.getWriter().write(ssePing());
+            response.getWriter().flush();
+        }
     }
 
     private boolean requiresModernRoutingHeaders(Request request) {
