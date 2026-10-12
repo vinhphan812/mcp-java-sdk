@@ -159,4 +159,14 @@ public final class McpMethodNames {
      * {@code listens/unsubscribe} — 2026-07-28: cancels an active listen subscription.
      */
     public static final String LISTEN_UNSUBSCRIBE = "listens/unsubscribe";
+
+    // ── SEP-2575 subscriptions/listen (2026-07-28) ─────────────────────────────
+
+    /**
+     * {@code subscriptions/listen} — SEP-2575 (2026-07-28): opens a long-lived
+     * streaming POST response for subscription notifications. The request id is
+     * used as the subscription id. No Mcp-Session-Id. Stream close cancels.
+     */
+    public static final String SUBSCRIPTIONS_LISTEN = "subscriptions/listen";
+
 }

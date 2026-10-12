@@ -28,6 +28,7 @@ import io.github.vinhphan812.mcp.api.dto.ListenRequest;
 import io.github.vinhphan812.mcp.api.dto.McpBlobContent;
 import io.github.vinhphan812.mcp.api.dto.McpTask;
 import io.github.vinhphan812.mcp.api.dto.Mcp2026RequestContext;
+import io.github.vinhphan812.mcp.api.dto.SubscriptionListenRequest;
 import io.github.vinhphan812.mcp.api.handler.*;
 import io.github.vinhphan812.mcp.api.logging.McpLogger;
 import io.github.vinhphan812.mcp.api.spi.McpAuthorization;
@@ -145,6 +146,101 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private final QueueOverflowListener overflowListener;
     private final int maxQueuedEvents;
     private final SubscriptionManager listenerSubscriptions;
+    private final java.util.concurrent.ConcurrentHashMap<String, StreamingSubscription> streamingSubscriptions =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    // ==================== SEP-2575 subscriptions/listen ====================
+
+    /**
+     * Handles {@code subscriptions/listen} (SEP-2575, 2026-07-28).
+     *
+     * <p>Opens a long-lived streaming subscription. The request id serves as the
+     * subscription id. The HTTP transport switches to SSE streaming mode.
+     *
+     * <p>Protocol:
+     * <ol>
+     *   <li>First frame: acknowledgment notification with the subscription id</li>
+     *   <li>Subsequent frames: notifications with
+     *       {@code _meta["io.modelcontextprotocol/subscriptionId": "<request-id>"]}</li>
+     *   <li>HTTP stream close cancels the subscription (no explicit unsubscribe RPC)</li>
+     *   <li>Shutdown sends {@code resultType: "complete"}</li>
+     * </ol>
+     */
+    String handleSubscriptionsListen(Object requestId, Map<String, Object> params) {
+        String subsId = requestId == null ? null : requestId.toString();
+        if (subsId == null || subsId.isEmpty()) {
+            throw McpException.invalidParams("request id is required for subscriptions/listen");
+        }
+        if (streamingSubscriptions.containsKey(subsId)) {
+            throw McpException.invalidParams("subscription already exists for this request id");
+        }
+        SubscriptionListenRequest req = SubscriptionListenRequest.fromParams(params);
+        StreamingSubscription sub = new StreamingSubscription(
+                subsId,
+                req.notifications.toolsListChanged,
+                req.notifications.promptsListChanged,
+                req.notifications.resourcesListChanged,
+                req.notifications.resourceSubscriptions);
+        streamingSubscriptions.put(subsId, sub);
+        return subsId;
+    }
+
+    /** Called by the HTTP transport when the streaming connection is closed. */
+    public void cancelStreamingSubscription(String subscriptionId) {
+        streamingSubscriptions.remove(subscriptionId);
+    }
+
+    void completeAllStreamingSubscriptions() {
+        for (StreamingSubscription sub : streamingSubscriptions.values()) {
+            Map<String, Object> complete = new java.util.LinkedHashMap<>();
+            complete.put("jsonrpc", "2.0");
+            complete.put("method", "notifications/subscriptions/complete");
+            Map<String, Object> params = new java.util.LinkedHashMap<>();
+            params.put("subscriptionId", sub.subscriptionId);
+            params.put("resultType", "complete");
+            complete.put("params", params);
+            sub.enqueue(mapper.toJson(complete));
+        }
+        streamingSubscriptions.clear();
+    }
+
+    /**
+     * Polls the next event for a SEP-2575 streaming subscription.
+     * Used by the HTTP transport to drain events.
+     */
+    public String pollSep2575Notification(String subscriptionId) {
+        StreamingSubscription sub = streamingSubscriptions.get(subscriptionId);
+        if (sub == null) return null;
+        String body = sub.poll();
+        if (body == null) return null;
+        return "event: message\ndata: " + escapeSseData(body) + "\n\n";
+    }
+
+    /**
+     * SEP-2575 streaming subscription descriptor.
+     */
+    private static final class StreamingSubscription {
+        final String subscriptionId;
+        final boolean toolsListChanged;
+        final boolean promptsListChanged;
+        final boolean resourcesListChanged;
+        final java.util.Set<String> resourceSubscriptions;
+        private final java.util.concurrent.ConcurrentLinkedQueue<String> pending =
+                new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+        StreamingSubscription(String subscriptionId, boolean tools, boolean prompts, boolean resources,
+                           java.util.Set<String> subResources) {
+            this.subscriptionId = subscriptionId;
+            this.toolsListChanged = tools;
+            this.promptsListChanged = prompts;
+            this.resourcesListChanged = resources;
+            this.resourceSubscriptions = java.util.Collections.unmodifiableSet(subResources);
+        }
+
+        void enqueue(String eventBody) { pending.offer(eventBody); }
+        String poll() { return pending.poll(); }
+        void clear() { pending.clear(); }
+    }
 
     // Sliding-window rate limit tracker
     private static final class RateLimitRecord {
@@ -268,6 +364,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     public static final class McpResponse {
         private final String body;
         private final String sessionId;
+        private final String streamingSubscriptionId;
 
         /**
          * Creates response metadata.
@@ -277,6 +374,23 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         public McpResponse(String body, String sessionId) {
             this.body = body;
             this.sessionId = sessionId;
+            this.streamingSubscriptionId = null;
+        }
+
+        private McpResponse(String body, String sessionId, String streamingSubscriptionId) {
+            this.body = body;
+            this.sessionId = sessionId;
+            this.streamingSubscriptionId = streamingSubscriptionId;
+        }
+
+        /** Creates a response that signals the HTTP transport to begin SEP-2575 SSE streaming. */
+        public static McpResponse streamingResponse(String streamingSubscriptionId) {
+            return new McpResponse(null, null, streamingSubscriptionId);
+        }
+
+        /** Returns the SEP-2575 streaming subscription id, or null. */
+        public String getStreamingSubscriptionId() {
+            return streamingSubscriptionId;
         }
 
         /**
@@ -360,6 +474,9 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         registry.setNotificationTarget(this);
         registry.addRegistryChangeListener(this);
         startCleanupThread();
+        registry.setNotificationTarget(this);
+        registry.addRegistryChangeListener(this);
+        startCleanupThread();
     }
 
     private static McpServerConfig defaultConfig() {
@@ -414,6 +531,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         listenerSubscriptions.shutdown();
         ipRateLimits.clear();
         sessionRateLimits.clear();
+        // SEP-2575: complete all streaming subscriptions
+        completeAllStreamingSubscriptions();
         // ADR-0022 §4: complete all in-flight server-initiated requests with shutdown error.
         for (ServerInitiatedRequest req : serverInitiatedRequests.values()) {
             req.responseFuture.completeExceptionally(
@@ -893,6 +1012,11 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                     result = handleListenUnsubscribe(
                             params instanceof Map ? (Map<String, Object>) params : null);
                     break;
+                case McpMethodNames.SUBSCRIPTIONS_LISTEN: {
+                    responseSessionId = null;
+                    String subsId = handleSubscriptionsListen(id, params instanceof Map ? (Map<String, Object>) params : null);
+                    return McpResponse.streamingResponse(subsId);
+                }
                 default:
                     return new McpResponse(errorResponse(id, McpError.methodNotFound("Method not found: " + method)), sessionId);
             }
@@ -2338,6 +2462,36 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         }
         // 2026 listener subscriptions
         listenerSubscriptions.notifyRegistryChanged(listType, method, null, mapper);
+        // SEP-2575 streaming subscriptions
+        deliverToSep2575(listType, method, null);
+    }
+
+    /**
+     * Delivers a registry-change notification to all active SEP-2575 streaming subscriptions
+     * that have registered interest in this topic.
+     */
+    private void deliverToSep2575(String listType, String method, Map<String, Object> params) {
+        if (streamingSubscriptions.isEmpty()) return;
+        Map<String, Object> rpc = new java.util.LinkedHashMap<>();
+        rpc.put("jsonrpc", "2.0");
+        rpc.put("method", method);
+        if (params != null) rpc.put("params", params);
+        Map<String, Object> meta = new java.util.LinkedHashMap<>();
+        meta.put("io.modelcontextprotocol/subscriptionId", new java.util.ArrayList<>(streamingSubscriptions.keySet()));
+        rpc.put("_meta", meta);
+        String body = mapper.toJson(rpc);
+        for (StreamingSubscription sub : streamingSubscriptions.values()) {
+            if (isInterested(sub, listType)) {
+                sub.enqueue(body);
+            }
+        }
+    }
+
+    private boolean isInterested(StreamingSubscription sub, String listType) {
+        if ("tools".equals(listType)) return sub.toolsListChanged;
+        if ("prompts".equals(listType)) return sub.promptsListChanged;
+        if ("resources".equals(listType)) return sub.resourcesListChanged;
+        return false;
     }
 
     /**
@@ -2358,12 +2512,34 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         }
         // 2026 listener subscriptions
         listenerSubscriptions.notifyResourceUpdated(uri, mapper);
+        // SEP-2575 streaming subscriptions
+        deliverResourceUpdateToSep2575(uri);
     }
 
     /**
      * Enqueue notification with bounded capacity.
      * Synchronized to prevent race between size check and offer.
      */
+
+    private void deliverResourceUpdateToSep2575(String uri) {
+        if (streamingSubscriptions.isEmpty()) return;
+        Map<String, Object> rpcParams = new java.util.LinkedHashMap<>();
+        rpcParams.put("uri", uri);
+        Map<String, Object> rpc = new java.util.LinkedHashMap<>();
+        rpc.put("jsonrpc", "2.0");
+        rpc.put("method", McpMethodNames.NOTIF_RESOURCES_UPDATED);
+        rpc.put("params", rpcParams);
+        Map<String, Object> meta = new java.util.LinkedHashMap<>();
+        meta.put("io.modelcontextprotocol/subscriptionId", new java.util.ArrayList<>(streamingSubscriptions.keySet()));
+        rpc.put("_meta", meta);
+        String body = mapper.toJson(rpc);
+        for (StreamingSubscription sub : streamingSubscriptions.values()) {
+            if (sub.resourcesListChanged || sub.resourceSubscriptions.contains(uri)) {
+                sub.enqueue(body);
+            }
+        }
+    }
+
     private void enqueue(SessionState state, String notification) {
         synchronized (state.pendingNotifications) {
             if (state.pendingNotifications.size() >= rateLimits.maxPendingNotificationsPerSession) {

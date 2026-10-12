@@ -505,6 +505,12 @@ public final class McpHttpHandler extends HttpHandler {
         McpProtocolHandler.McpResponse result = handler.handleRequestResponse(body, sessionId, clientIp);
 
         if (result.getBody() == null) {
+            // Check for SEP-2575 streaming signal
+            String streamingSubsId = result.getStreamingSubscriptionId();
+            if (streamingSubsId != null) {
+                handleSep2575Streaming(response, streamingSubsId, origin);
+                return;
+            }
             writeCorsHeaders(response, origin);
             response.setStatus(202);
             return;
@@ -523,6 +529,72 @@ public final class McpHttpHandler extends HttpHandler {
         if (result.getSessionId() != null) response.setHeader(McpHttpHeaders.SESSION, result.getSessionId());
         response.setStatus(200);
         response.getWriter().write(result.getBody());
+    }
+
+    // ── SEP-2575 subscriptions/listen streaming ─────────────────────────────────
+
+    /**
+     * Handles a SEP-2575 {@code subscriptions/listen} streaming response.
+     *
+     * <p>Protocol:
+     * <ol>
+     *   <li>First frame: JSON-RPC response with acknowledgment notification</li>
+     *   <li>Subsequent frames: queued events for the subscription</li>
+     *   <li>Final frame (on close): {@code resultType: "complete"} notification</li>
+     * </ol>
+     */
+    private void handleSep2575Streaming(Response response, String subscriptionId,
+                                        String origin) throws IOException {
+        if (!sseConnections.tryAcquire()) {
+            writeError(response, McpError.httpTooManyRequests("Too many active SSE connections"));
+            return;
+        }
+        try {
+            setSseHeaders(response, true);
+            writeCorsHeaders(response, origin);
+            response.setStatus(200);
+            // First frame: acknowledgment notification with the subscription id
+            String ackBody = buildSep2575Ack(subscriptionId);
+            response.getWriter().write(sseMessage(ackBody));
+            response.getWriter().flush();
+            // Polling loop for SEP-2575 subscription events
+            runSep2575PollingLoop(response, subscriptionId);
+        } catch (IOException e) {
+            // Client disconnected
+        } finally {
+            handler.cancelStreamingSubscription(subscriptionId);
+            sseConnections.release();
+        }
+    }
+
+    private String buildSep2575Ack(String subscriptionId) {
+        com.google.gson.Gson gson = new com.google.gson.Gson();
+        java.util.Map<String, Object> ack = new java.util.LinkedHashMap<>();
+        ack.put("jsonrpc", "2.0");
+        ack.put("method", "notifications/subscriptions/acknowledged");
+        java.util.Map<String, Object> params = new java.util.LinkedHashMap<>();
+        params.put("subscriptionId", subscriptionId);
+        ack.put("params", params);
+        return gson.toJson(ack);
+    }
+
+    private void runSep2575PollingLoop(Response response, String subscriptionId) throws IOException {
+        long start = System.currentTimeMillis();
+        long timeout = 300_000L; // 5 minutes
+        while (!Thread.currentThread().isInterrupted()
+                && System.currentTimeMillis() - start < timeout) {
+            try { Thread.sleep(1000); } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); break;
+            }
+            String line;
+            boolean sent = false;
+            while ((line = handler.pollSep2575Notification(subscriptionId)) != null) {
+                response.getWriter().write(line);
+                sent = true;
+            }
+            if (!sent) response.getWriter().write(ssePing());
+            response.getWriter().flush();
+        }
     }
 
     private boolean requiresModernRoutingHeaders(Request request) {
