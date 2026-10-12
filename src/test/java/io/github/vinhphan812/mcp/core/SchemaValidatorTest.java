@@ -199,9 +199,9 @@ class SchemaValidatorTest {
                 "maxLength", 3)));
         schema.put("required", List.of("code"));
 
-        // invalid pattern
+        // invalid pattern — use 3 chars so it passes maxLength but fails ^[A-Z]{3}$
         Map<String, Object> badPattern = new LinkedHashMap<>();
-        badPattern.put("code", "abc123");
+        badPattern.put("code", "abc");
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> SchemaValidator.validateData(badPattern, schema));
         assertTrue(ex.getMessage().toLowerCase().contains("pattern"));
