@@ -324,6 +324,25 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
     // ==================== Session State ====================
 
+    private static final ThreadLocal<Map<String, Object>> requestScope =
+            new ThreadLocal<Map<String, Object>>();
+
+    private static void setRequestScopeInputResponses(Map<String, Object> inputResponses) {
+        if (inputResponses != null && !inputResponses.isEmpty()) {
+            requestScope.set(inputResponses);
+        } else {
+            requestScope.remove();
+        }
+    }
+
+    private static void clearRequestScope() {
+        requestScope.remove();
+    }
+
+    public static Map<String, Object> getRequestScopeInputResponses() {
+        return requestScope.get();
+    }
+
     private static class SessionState {
         private static int maxQueuedEvents = McpSecurityDefaults.MAX_QUEUED_EVENTS;
 
@@ -2123,9 +2142,20 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         String name = requireName(params, "tool");
         Map<String, Object> arguments = optionalArguments(params);
 
-        // Parse 2026 request context from _meta (only progressToken is used today).
         Mcp2026RequestContext ctx2026 = Mcp2026RequestContext.fromParams(params);
         Object progressToken = ctx2026.hasProgressToken() ? ctx2026.progressToken : null;
+
+        // SEP-2322 MRTR: merge inputResponses into arguments if present
+        if (ctx2026.hasInputResponses()) {
+            String requestState = ctx2026.requestState;
+            if (requestState != null && !requestState.trim().isEmpty()) {
+                requestStateManager.validateAndGet(requestState);
+                requestStateManager.remove(requestState);
+            }
+            for (Map.Entry<String, Object> entry : ctx2026.inputResponses.entrySet()) {
+                arguments.put(entry.getKey(), entry.getValue());
+            }
+        }
 
         McpToolHandler handler = registry.getToolHandler(name);
         if (handler == null) throw McpException.invalidParams("Unknown tool: " + name);
@@ -2382,13 +2412,25 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         return paginate("resources", registry.getRegisteredResources(), params, "resources");
     }
 
-    private Map<String, Object> handleResourcesRead(Map<String, Object> params) {
+        private Map<String, Object> handleResourcesRead(Map<String, Object> params) {
         if (params == null) throw McpException.invalidParams("missing params");
         Object uriValue = params.get("uri");
         if (!(uriValue instanceof String) || ((String) uriValue).trim().isEmpty()) {
             throw McpException.invalidParams("uri must be a non-empty string");
         }
         String uri = (String) uriValue;
+
+        Mcp2026RequestContext ctx2026 = Mcp2026RequestContext.fromParams(params);
+        if (ctx2026.hasInputResponses()) {
+            String requestState = ctx2026.requestState;
+            if (requestState != null && !requestState.trim().isEmpty()) {
+                requestStateManager.validateAndGet(requestState);
+                requestStateManager.remove(requestState);
+            }
+            setRequestScopeInputResponses(ctx2026.inputResponses);
+        } else {
+            clearRequestScope();
+        }
 
         McpResourceHandler handler = registry.getResourceHandler(uri);
         if (handler == null) handler = findTemplateHandler(uri);
@@ -2400,8 +2442,6 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             }
             return resourceContents(uri, handler.read(uri));
         } catch (ElicitationNeededException e) {
-            // SEP-2322: resource read requires in-band input.
-            // Create a tracked token so that tasks/update can validate the response.
             String trackedToken = requestStateManager.create(null, null);
             InputRequiredResult irr = e.getResult();
             return buildInputRequiredResult(
@@ -2411,6 +2451,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             throw e;
         } catch (Throwable t) {
             return handleHandlerException("Resource", uri, t);
+        } finally {
+            clearRequestScope();
         }
     }
 
@@ -2420,10 +2462,22 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         return paginate("resourceTemplates", registry.getRegisteredResourceTemplates(), params, "resourceTemplates");
     }
 
-    private Map<String, Object> handleResourceTemplatesGet(Map<String, Object> params) {
+        private Map<String, Object> handleResourceTemplatesGet(Map<String, Object> params) {
         if (params == null) return errorResourceResult("Missing params");
         String uri = (String) params.get("uri");
         if (uri == null) return errorResourceResult("Missing resource URI");
+
+        Mcp2026RequestContext ctx2026 = Mcp2026RequestContext.fromParams(params);
+        if (ctx2026.hasInputResponses()) {
+            String requestState = ctx2026.requestState;
+            if (requestState != null && !requestState.trim().isEmpty()) {
+                requestStateManager.validateAndGet(requestState);
+                requestStateManager.remove(requestState);
+            }
+            setRequestScopeInputResponses(ctx2026.inputResponses);
+        } else {
+            clearRequestScope();
+        }
 
         McpResourceHandler handler = registry.getResourceHandler(uri);
         if (handler == null) handler = findTemplateHandler(uri);
@@ -2442,6 +2496,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                             irr.getRequestedSchema(), irr.getExpiresAt(), irr.getMaxRounds()));
         } catch (Throwable t) {
             return handleHandlerException("Resource", uri, t);
+        } finally {
+            clearRequestScope();
         }
     }
 
@@ -2539,6 +2595,20 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
         String name = requireName(params, "prompt");
         Map<String, Object> arguments = optionalArguments(params);
+
+        Mcp2026RequestContext ctx2026 = Mcp2026RequestContext.fromParams(params);
+
+        // SEP-2322 MRTR: merge inputResponses into arguments if present
+        if (ctx2026.hasInputResponses()) {
+            String requestState = ctx2026.requestState;
+            if (requestState != null && !requestState.trim().isEmpty()) {
+                requestStateManager.validateAndGet(requestState);
+                requestStateManager.remove(requestState);
+            }
+            for (Map.Entry<String, Object> entry : ctx2026.inputResponses.entrySet()) {
+                arguments.put(entry.getKey(), entry.getValue());
+            }
+        }
 
         McpPromptHandler handler = registry.getPromptHandler(name);
         if (handler == null) return errorPromptResult("Unknown prompt: " + name);
