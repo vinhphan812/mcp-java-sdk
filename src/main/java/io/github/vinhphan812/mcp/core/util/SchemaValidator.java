@@ -17,14 +17,17 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 /**
- * Lightweight JSON Schema validator using Gson and Guava.
- * Supports the subset of JSON Schema 2020-12 features actually used by the SDK:
+ * Lightweight JSON Schema 2020-12 validator using Gson and Guava.
+ * <p>
+ * Supports all structural keywords used by MCP tool schemas:
  * type, properties, required, additionalProperties, enum, const,
  * minimum/maximum/exclusiveMaximum/exclusiveMinimum, minLength/maxLength,
- * pattern, items, minItems/maxItems, uniqueItems, and local {@code $ref}.
+ * pattern, items, minItems/maxItems, uniqueItems,
+ * local {@code $ref} (including {@code $defs}/$ref), combinators
+ * (oneOf, anyOf, allOf), and conditional schemas (if/then/else).
  * <p>
- * Excludes: remote {@code $ref}, {@code $defs}, format keywords,
- * contentEncoding, and other advanced features not exercised by tool schemas.
+ * Excludes: remote {@code $ref}, format keywords, contentEncoding,
+ * and other advanced features not exercised by MCP tool schemas.
  */
 public final class SchemaValidator {
 
@@ -48,6 +51,15 @@ public final class SchemaValidator {
     private static final String KW_MAX_ITEMS = "maxItems";
     private static final String KW_UNIQUE_ITEMS = "uniqueItems";
     private static final String KW_REF = "$ref";
+    private static final String KW_DEFS = "$defs";
+    // ── 2020-12 combinators ────────────────────────────────────────────────────
+    private static final String KW_ONE_OF = "oneOf";
+    private static final String KW_ANY_OF = "anyOf";
+    private static final String KW_ALL_OF = "allOf";
+    // ── 2020-12 conditionals ──────────────────────────────────────────────────
+    private static final String KW_IF = "if";
+    private static final String KW_THEN = "then";
+    private static final String KW_ELSE = "else";
 
     private SchemaValidator() {}
 
@@ -115,6 +127,58 @@ public final class SchemaValidator {
         if (schemaObj.has(KW_ITEMS)) {
             validateSchemaNode(schemaObj.get(KW_ITEMS));
         }
+
+        // Recurse into combinators
+        if (schemaObj.has(KW_ONE_OF)) {
+            if (!schemaObj.get(KW_ONE_OF).isJsonArray()) {
+                throw new IllegalArgumentException("oneOf must be an array");
+            }
+            for (JsonElement s : schemaObj.getAsJsonArray(KW_ONE_OF)) {
+                validateSchemaNode(s);
+            }
+        }
+        if (schemaObj.has(KW_ANY_OF)) {
+            if (!schemaObj.get(KW_ANY_OF).isJsonArray()) {
+                throw new IllegalArgumentException("anyOf must be an array");
+            }
+            for (JsonElement s : schemaObj.getAsJsonArray(KW_ANY_OF)) {
+                validateSchemaNode(s);
+            }
+        }
+        if (schemaObj.has(KW_ALL_OF)) {
+            if (!schemaObj.get(KW_ALL_OF).isJsonArray()) {
+                throw new IllegalArgumentException("allOf must be an array");
+            }
+            for (JsonElement s : schemaObj.getAsJsonArray(KW_ALL_OF)) {
+                validateSchemaNode(s);
+            }
+        }
+
+        // Recurse into $defs
+        if (schemaObj.has(KW_DEFS)) {
+            if (!schemaObj.get(KW_DEFS).isJsonObject()) {
+                throw new IllegalArgumentException("$defs must be an object");
+            }
+            JsonObject defs = schemaObj.getAsJsonObject(KW_DEFS);
+            for (Map.Entry<String, JsonElement> entry : defs.entrySet()) {
+                validateSchemaNode(entry.getValue());
+            }
+        }
+
+        // Recurse into conditionals
+        if (schemaObj.has(KW_IF)) {
+            JsonElement ifEl = schemaObj.get(KW_IF);
+            if (!ifEl.isJsonObject() && !ifEl.isJsonArray()) {
+                throw new IllegalArgumentException("if must be a schema object or array");
+            }
+            validateSchemaNode(ifEl);
+        }
+        if (schemaObj.has(KW_THEN)) {
+            validateSchemaNode(schemaObj.get(KW_THEN));
+        }
+        if (schemaObj.has(KW_ELSE)) {
+            validateSchemaNode(schemaObj.get(KW_ELSE));
+        }
     }
 
     private static void validateTypeKeyword(String type) {
@@ -133,7 +197,9 @@ public final class SchemaValidator {
      */
     public static void validateData(Map<String, Object> dataMap, Map<String, Object> schemaMap) {
         try {
-            validateNode(toJsonElement(dataMap), toJsonElement(schemaMap), "");
+            JsonElement data = toJsonElement(dataMap);
+            JsonElement schema = toJsonElement(schemaMap);
+            validateNode(data, schema, schema, "");
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
@@ -143,41 +209,134 @@ public final class SchemaValidator {
 
     // ── Core validation dispatch ────────────────────────────────────────────────
 
-    private static void validateNode(JsonElement data, JsonElement schema, String path) {
+    /**
+     * Validates data against schema at the given JSON Pointer path.
+     *
+     * @param data  the instance data to validate
+     * @param schema the current schema node
+     * @param root  the root schema (used to resolve $ref and $defs)
+     * @param path  the JSON Pointer path for error messages
+     */
+    private static void validateNode(JsonElement data, JsonElement schema,
+                                     JsonElement root, String path) {
         if (schema == null || schema.isJsonNull()) return;
 
         JsonObject schemaObj = asObject(schema);
+        JsonObject rootObj = asObject(root);
 
-        // Resolve local $ref first
+        // Resolve local $ref first (always resolves against root schema)
         if (schemaObj.has(KW_REF)) {
             String ref = schemaObj.get(KW_REF).getAsString();
             if (!ref.startsWith("#/")) {
                 throw new IllegalArgumentException(
                         "Invalid JSON Schema: only local $ref (starting with '#/') is supported. " + ref);
             }
-            JsonElement resolved = resolvePointer(schemaObj, ref);
+            JsonElement resolved = resolvePointer(rootObj, ref);
             if (resolved == null) {
                 throw new IllegalArgumentException("Invalid JSON Schema: unresolved $ref: " + ref);
             }
-            validateNode(data, resolved, path);
+            validateNode(data, resolved, root, path);
+            return;
+        }
+
+        // ── Combinators (oneOf / anyOf / allOf) ─────────────────────────────────
+        if (schemaObj.has(KW_ONE_OF)) {
+            int passing = 0;
+            List<String> errors = new ArrayList<>();
+            for (JsonElement sub : schemaObj.getAsJsonArray(KW_ONE_OF)) {
+                try {
+                    validateNode(data, sub, root, path);
+                    passing++;
+                } catch (IllegalArgumentException e) {
+                    errors.add(e.getMessage());
+                }
+            }
+            if (passing != 1) {
+                throw new IllegalArgumentException(atPath(path)
+                        + "expected exactly one of [" + (errors.isEmpty() ? "" : String.join("; ", errors)) + "] to validate; "
+                        + passing + " schemas matched");
+            }
+            return;
+        }
+
+        if (schemaObj.has(KW_ANY_OF)) {
+            for (JsonElement sub : schemaObj.getAsJsonArray(KW_ANY_OF)) {
+                try {
+                    validateNode(data, sub, root, path);
+                    return; // at least one matched
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
+            throw new IllegalArgumentException(atPath(path)
+                    + "expected data to match at least one anyOf schema");
+        }
+
+        if (schemaObj.has(KW_ALL_OF)) {
+            for (JsonElement sub : schemaObj.getAsJsonArray(KW_ALL_OF)) {
+                validateNode(data, sub, root, path); // all must pass
+            }
+            return;
+        }
+
+        // ── Conditional (if / then / else) ─────────────────────────────────────
+        if (schemaObj.has(KW_IF)) {
+            JsonElement ifSchema = schemaObj.get(KW_IF);
+            boolean ifMatches;
+            try {
+                validateNode(data, ifSchema, root, path);
+                ifMatches = true;
+            } catch (IllegalArgumentException e) {
+                ifMatches = false;
+            }
+            if (ifMatches) {
+                if (schemaObj.has(KW_THEN)) {
+                    validateNode(data, schemaObj.get(KW_THEN), root, path);
+                }
+            } else {
+                if (schemaObj.has(KW_ELSE)) {
+                    validateNode(data, schemaObj.get(KW_ELSE), root, path);
+                }
+            }
             return;
         }
 
         List<String> expectedTypes = getTypes(schemaObj);
 
-        for (String expectedType : expectedTypes) {
-            if (matchesType(data, expectedType)) {
-                validateByType(data, schemaObj, expectedType, path);
-                return;
+        if (!expectedTypes.isEmpty()) {
+            for (String expectedType : expectedTypes) {
+                if (matchesType(data, expectedType)) {
+                    validateByType(data, schemaObj, root, expectedType, path);
+                    return;
+                }
             }
+            if (data == null || data.isJsonNull()) {
+                throw new IllegalArgumentException(atPath(path) + "expected " + joinTypes(expectedTypes)
+                        + " but got null");
+            }
+            throw new IllegalArgumentException(atPath(path) + "type schema mismatch: expected "
+                    + joinTypes(expectedTypes) + " but got " + jsonTypeOf(data));
         }
 
-        if (data == null || data.isJsonNull()) {
-            throw new IllegalArgumentException(atPath(path) + "expected " + joinTypes(expectedTypes)
-                    + " but got null");
+        // Schema has no type keyword — validate non-type constraints against the data's actual type.
+        validateConstraints(data, schemaObj, path);
+    }
+
+    /**
+     * Validates non-type constraints (minLength, pattern, enum, const, numeric ranges, etc.)
+     * against the data's actual JSON type, when the schema has no explicit type keyword.
+     */
+    private static void validateConstraints(JsonElement data, JsonObject schemaObj, String path) {
+        if (data == null || data.isJsonNull()) return;
+        if (data.isJsonPrimitive() && data.getAsJsonPrimitive().isString()) {
+            validateString(data, schemaObj, path);
+        } else if (data.isJsonPrimitive() && data.getAsJsonPrimitive().isNumber()) {
+            validateNumber(data, schemaObj, "number", path);
+        } else if (data.isJsonObject()) {
+            validateObject(data, schemaObj, schemaObj, path);
+        } else if (data.isJsonArray()) {
+            validateArray(data, schemaObj, schemaObj, path);
         }
-        throw new IllegalArgumentException(atPath(path) + "type schema mismatch: expected "
-                + joinTypes(expectedTypes) + " but got " + jsonTypeOf(data));
+        // boolean: no numeric/string/array/object constraints apply
     }
 
     private static List<String> getTypes(JsonObject schemaObj) {
@@ -200,13 +359,14 @@ public final class SchemaValidator {
     }
 
     private static void validateByType(JsonElement data, JsonObject schemaObj,
+                                       JsonElement root,
                                        String expectedType, String path) {
         switch (expectedType) {
             case "object":
-                validateObject(data, schemaObj, path);
+                validateObject(data, schemaObj, root, path);
                 break;
             case "array":
-                validateArray(data, schemaObj, path);
+                validateArray(data, schemaObj, root, path);
                 break;
             case "string":
                 validateString(data, schemaObj, path);
@@ -229,7 +389,8 @@ public final class SchemaValidator {
 
     // ── Object validation ───────────────────────────────────────────────────────
 
-    private static void validateObject(JsonElement data, JsonObject schemaObj, String path) {
+    private static void validateObject(JsonElement data, JsonObject schemaObj,
+                                       JsonElement root, String path) {
         if (data == null || !data.isJsonObject()) return;
         JsonObject obj = data.getAsJsonObject();
 
@@ -249,7 +410,7 @@ public final class SchemaValidator {
                 String propName = entry.getKey();
                 if (obj.has(propName)) {
                     String childPath = path.isEmpty() ? propName : path + "." + propName;
-                    validateNode(obj.get(propName), entry.getValue(), childPath);
+                    validateNode(obj.get(propName), entry.getValue(), root, childPath);
                 }
             }
         }
@@ -275,7 +436,8 @@ public final class SchemaValidator {
 
     // ── Array validation ────────────────────────────────────────────────────────
 
-    private static void validateArray(JsonElement data, JsonObject schemaObj, String path) {
+    private static void validateArray(JsonElement data, JsonObject schemaObj,
+                                    JsonElement root, String path) {
         if (data == null || !data.isJsonArray()) return;
         JsonArray arr = data.getAsJsonArray();
 
@@ -306,7 +468,7 @@ public final class SchemaValidator {
         if (schemaObj.has(KW_ITEMS)) {
             JsonElement itemsSchema = schemaObj.get(KW_ITEMS);
             for (int i = 0; i < arr.size(); i++) {
-                validateNode(arr.get(i), itemsSchema, path + "[" + i + "]");
+                validateNode(arr.get(i), itemsSchema, root, path + "[" + i + "]");
             }
         }
     }
@@ -496,8 +658,9 @@ public final class SchemaValidator {
     }
 
     /**
-     * Resolves a JSON Pointer fragment (e.g. "#/properties/name") against a schema root.
-     * Only handles the "#/" prefix and absolute path segments.
+     * Resolves a JSON Pointer fragment (e.g. "#/$defs/Foo" or "#/properties/name")
+     * against a schema root.  Handles the "#/" prefix and unescapes "~0"/"~1".
+     * Supports references into "$defs" and nested properties.
      */
     private static JsonElement resolvePointer(JsonObject root, String ref) {
         if (!ref.startsWith("#/")) return null;
