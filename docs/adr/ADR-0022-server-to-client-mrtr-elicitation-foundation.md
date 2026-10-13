@@ -272,8 +272,69 @@ The logging capability is already implemented (`config.logging`, `handleSetLogLe
 | `-32002` | `RESULT_ALREADY_TERMINAL` | Elicitation already resolved/cancelled |
 | `-32003` | `SERVER_REQUEST_TIMEOUT` | New: server-initiated request timed out |
 | `-32004` | `ELICITATION_REJECTED` | New: client rejected elicitation |
+| `-32005` | `REQUEST_STATE_INVALID` | New: request state token is malformed or unknown |
+| `-32006` | `REQUEST_STATE_EXPIRED` | New: request state token has expired |
+| `-32007` | `MAX_ROUNDS_EXCEEDED` | New: maximum elicitation rounds exceeded |
 
-Error codes `-32003` and `-32004` are added to `McpErrorCodes`.
+Error codes `-32003` through `-32007` are added to `McpErrorCodes`.
+
+---
+
+### 11. SEP-2322 MRTR In-Band Input Required
+
+**Decision:** Implement the SEP-2322 in-band elicitation model for `tools/call`, `prompts/get`, and `resources/read` responses.
+
+**Wire shape:** When a handler signals input is required, the JSON-RPC result carries `resultType: "input_required"`:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "resultType": "input_required",
+    "requestState": "<opaque-token>",
+    "prompt": "Are you sure you want to delete record #42?",
+    "requestedSchema": {
+      "type": "object",
+      "properties": { "confirm": { "type": "boolean" } }
+    },
+    "expiresAt": 1734567890000,
+    "maxRounds": 3
+  }
+}
+```
+
+**API entry point (tool authors):**
+
+```java
+// Inside a tool handler, throw to request client input
+McpProtocolHandler.throwElicitationNeeded(
+        "Confirm deletion",
+        Map.of("type", "object",
+                "properties", Map.of("confirm", Map.of("type", "boolean"))));
+```
+
+**RequestStateManager:** Tracks pending elicitation rounds. Tokens are UUIDs stored in a `ConcurrentHashMap` with TTL and round-counting. Tokens are validated in `tasks/update` to prevent replay.
+
+**Tracked token flow:**
+1. Tool handler calls `throwElicitationNeeded(prompt, schema)`
+2. Protocol handler catches the exception, creates a tracked token via `RequestStateManager`
+3. Response contains `requestState` with the tracked token
+4. Client stores the token, shows the prompt to the user
+5. Client calls `tasks/update` with `requestState` and `inputResponses`
+6. Protocol handler validates the token, removes it (round resolved)
+7. Application re-calls the tool with input in the arguments
+
+**Optional convenience API:**
+```java
+// Build an input_required result with a tracked token (for direct use without throw)
+Map<String, Object> result = handler.inputRequired(
+        taskId, "Enter value:", schema, context);
+```
+
+**Configuration:**
+- `McpServerConfig.maxElicitationRounds` (default 3) — maximum rounds per request
+- `McpServerConfig.requestStateTtlMs` (default 300 000 ms) — TTL for request state tokens
 
 ---
 
@@ -285,6 +346,7 @@ Error codes `-32003` and `-32004` are added to `McpErrorCodes`.
 - Transport-neutral design future-proofs the architecture for WebSocket support.
 - Timeout and cancellation cover the reliability requirements for production deployments.
 - Shutdown cleanup prevents orphaned futures.
+- SEP-2322 MRTR in-band input required enables tools/prompts/resources to request client input as a protocol-level response, not just as an exception flow.
 
 ### Negative / Trade-offs
 - `ScheduledExecutorService` adds a thread to the handler's lifecycle. Must be explicitly shut down.
@@ -300,7 +362,7 @@ Error codes `-32003` and `-32004` are added to `McpErrorCodes`.
 
 ## Test Plan
 
-| ID | Scenario | Expected |
+|| ID | Scenario | Expected |
 |----|----------|----------|
 | T1 | `elicitConfirmation()` resolves with client-selected action | Action string returned |
 | T2 | `elicitConfirmation()` timeout | `CompletionException` with timeout cause |
@@ -312,6 +374,14 @@ Error codes `-32003` and `-32004` are added to `McpErrorCodes`.
 | T8 | `McpProtocolHandler.shutdown()` with pending elicitation | All futures completed with shutdown error |
 | T9 | Elicitation on transport that does not support server requests | `{-32601}` error |
 | T10 | `sampling/createMessage` returns stub error | `{-32601, "Sampling not implemented"}` |
+| T11 | Tool handler throws `ElicitationNeededException` | Response with `resultType: "input_required"` |
+| T12 | Prompt handler throws `ElicitationNeededException` | Response with `resultType: "input_required"` |
+| T13 | Resource handler throws `ElicitationNeededException` | Response with `resultType: "input_required"` |
+| T14 | `tasks/update` with valid `requestState` | Acknowledged, state removed |
+| T15 | `tasks/update` with invalid `requestState` | `{-32005, REQUEST_STATE_INVALID}` |
+| T16 | `createRequestState()` returns unique tokens | Each call returns a different UUID |
+| T17 | `validateRequestState()` unknown token | `McpException(-32005)` |
+| T18 | Full MRTR round-trip: tool needs input then continues | Tool returns `input_required`, then `complete` after input |
 
 ---
 

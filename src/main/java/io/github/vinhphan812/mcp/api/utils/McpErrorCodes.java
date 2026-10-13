@@ -71,6 +71,15 @@ public final class McpErrorCodes {
      */
     public static final int ELICITATION_REJECTED = -32004;
 
+    /** {@code -32005} — The request state token is invalid (malformed, unknown, or tampered). */
+    public static final int REQUEST_STATE_INVALID = -32005;
+
+    /** {@code -32006} — The request state token has expired. */
+    public static final int REQUEST_STATE_EXPIRED = -32006;
+
+    /** {@code -32007} — The maximum number of elicitation rounds has been exceeded. */
+    public static final int MAX_ROUNDS_EXCEEDED = -32007;
+
     private McpErrorCodes() {
         // utility class — prevent instantiation
     }

@@ -166,6 +166,10 @@ public final class McpServerConfig {
     public final long serverRequestTimeoutMs;
     /** Whether the elicitation capability is enabled. Default false. @since 2026-07-28 */
     public final boolean elicitation;
+    /** Max rounds for elicitation. Default 3. @since 2026-07-28 */
+    public final int maxElicitationRounds;
+    /** TTL for request state in ms. Default 300000. @since 2026-07-28 */
+    public final long requestStateTtlMs;
 
     /**
      * Returns the configured queue overflow listener.
@@ -211,6 +215,8 @@ public final class McpServerConfig {
         maxListenerBufferSize = builder.maxListenerBufferSize;
         serverRequestTimeoutMs = builder.serverRequestTimeoutMs > 0 ? builder.serverRequestTimeoutMs : 30_000L;
         elicitation = builder.elicitation;
+        maxElicitationRounds = builder.maxElicitationRounds > 0 ? builder.maxElicitationRounds : 3;
+        requestStateTtlMs = builder.requestStateTtlMs > 0 ? builder.requestStateTtlMs : 300_000L;
     }
 
     /** Creates a builder for server configuration.
@@ -270,6 +276,8 @@ public final class McpServerConfig {
         private int maxListenerBufferSize = 100;
         private long serverRequestTimeoutMs = 30_000L;
         private boolean elicitation = false;
+        private int maxElicitationRounds = 3;
+        private long requestStateTtlMs = 300_000L;
 
         /** Sets maximum page size for paginated responses.
          * @param value positive maximum item count
@@ -569,6 +577,28 @@ public final class McpServerConfig {
          */
         public Builder elicitation(boolean value) {
             this.elicitation = value;
+            return this;
+        }
+
+        /**
+         * Sets max rounds for elicitation. Default 3.
+         * @param value max rounds
+         * @return this builder
+         */
+        public Builder maxElicitationRounds(int value) {
+            if (value <= 0) throw new IllegalArgumentException("maxElicitationRounds must be positive");
+            this.maxElicitationRounds = value;
+            return this;
+        }
+
+        /**
+         * Sets TTL for request state in ms. Default 300000.
+         * @param value TTL in ms
+         * @return this builder
+         */
+        public Builder requestStateTtlMs(long value) {
+            if (value <= 0) throw new IllegalArgumentException("requestStateTtlMs must be positive");
+            this.requestStateTtlMs = value;
             return this;
         }
 
