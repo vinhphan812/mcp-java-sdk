@@ -23,7 +23,8 @@
  *   completion (SEP-2299 § Optional §SEP-2299-completion)
  *
  * Not implemented (extension / out-of-scope):
- *   Sampling, roots, logging, tasks, elicitation — optional per MCP 2026-07-28.
+ *   Sampling, roots, logging, tasks — optional per MCP 2026-07-28.
+ *   Elicitation (SEP-2322 § Optional — enabled; full MRTR input_required in #7)
  */
 package io.github.vinhphan812.mcp;
 
@@ -410,6 +411,7 @@ public final class ConformanceFixture {
                 .prompts(true)
                 .completions(true)
                 .logging(false)
+                .elicitation(true)
                 .build();
 
         McpServer.Builder builder = McpServer.builder()
