@@ -948,6 +948,11 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                     }
                     result = handleResourceTemplatesGet(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
+                case McpMethodNames.RESOURCES_DIRECTORY_READ:
+                    responseSessionId = null;
+                    result = handleResourcesDirectoryRead(params instanceof Map
+                            ? (Map<String, Object>) params : null);
+                    break;
                 case McpMethodNames.RESOURCES_SUBSCRIBE:
                     if (!config.resources || !config.resourceSubscriptions) {
                         return new McpResponse(capabilityError(id, "resource subscriptions"), sessionId);
@@ -1287,6 +1292,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (config.resources) {
             Map<String, Object> resourcesCap = new LinkedHashMap<>();
             resourcesCap.put("listChanged", true);
+            // SEP-2640 Skills: advertise directoryRead when Skills is enabled
+            if (config.skillsExtension != null) resourcesCap.put("directoryRead", true);
             if (config.resourceSubscriptions && !stateless) resourcesCap.put("subscribe", true);
             capabilities.put("resources", resourcesCap);
         }
@@ -1356,6 +1363,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (config.resources) {
             Map<String, Object> resourcesCap = new LinkedHashMap<>();
             resourcesCap.put("listChanged", true);
+            // SEP-2640 Skills: advertise directoryRead when Skills is enabled
+            if (config.skillsExtension != null) resourcesCap.put("directoryRead", true);
             capabilities.put("resources", resourcesCap);
         }
         if (config.prompts) {
@@ -2432,6 +2441,19 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             clearRequestScope();
         }
 
+        // SEP-2640 Skills: serve skill files as resources under skill://<uri>/<file>
+        if (uri.startsWith("skill://")) {
+            String manifest = skillsExtension.readManifestFile(uri, "SKILL.md");
+            if (manifest != null) {
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("contents", List.of(
+                        Map.of("uri", uri, "mimeType", "text/markdown", "text", manifest)));
+                result.put("resultType", "complete");
+                return result;
+            }
+            throw McpException.invalidParams("Unknown skill URI: " + uri);
+        }
+
         McpResourceHandler handler = registry.getResourceHandler(uri);
         if (handler == null) handler = findTemplateHandler(uri);
         if (handler == null) throw McpException.invalidParams("Unknown resource: " + uri);
@@ -2582,6 +2604,32 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             throw McpException.invalidParams("Missing resource URI");
         }
         return (String) params.get("uri");
+    }
+
+    // ==================== Skills Resources (SEP-2640) ====================
+
+    /**
+     * Handles {@code resources/directory/read}: lists directory entries for a skill namespace.
+     * SEP-2640: skill files are exposed as Resources under the conventional skill:// prefix.
+     * This method serves as the directory listing when directoryRead is advertised.
+     */
+    private Map<String, Object> handleResourcesDirectoryRead(Map<String, Object> params) {
+        if (params == null) throw McpException.invalidParams("missing params");
+        String uri = params.get("uri") instanceof String ? (String) params.get("uri") : null;
+        if (uri == null || uri.trim().isEmpty()) {
+            throw McpException.invalidParams("uri is required");
+        }
+        // Delegate to skills extension for directory listing
+        String manifest = skillsExtension.readManifestFile(uri, "SKILL.md");
+        if (manifest == null) {
+            throw McpException.invalidParams("Unknown skill directory: " + uri);
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("resultType", "complete");
+        result.put("entries", List.of(
+                Map.of("uri", uri.endsWith("/") ? uri + "SKILL.md" : uri + "/SKILL.md",
+                        "name", "SKILL.md", "isDirectory", false)));
+        return result;
     }
 
     // ==================== Prompts ====================
