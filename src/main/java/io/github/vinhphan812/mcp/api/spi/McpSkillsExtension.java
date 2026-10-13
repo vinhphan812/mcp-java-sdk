@@ -18,7 +18,7 @@ public interface McpSkillsExtension extends McpExtension {
 
     @Override
     default boolean supports(String protocolVersion) {
-        return false;
+        return "2026-07-28".equals(protocolVersion);
     }
 
     /** Returns the capabilities advertisement for the server/info response. */
