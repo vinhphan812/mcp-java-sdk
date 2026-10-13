@@ -66,7 +66,7 @@ dependencyResolutionManagement {
 }
 
 dependencies {
-    implementation("io.github.vinhphan812.mcp:mcp-java-sdk:1.0.1")
+    implementation("io.github.vinhphan812.mcp:mcp-java-sdk:1.1.1")
 }
 ```
 
@@ -109,7 +109,7 @@ If you only need the JAR file without GitHub Packages:
 
 ```groovy
 dependencies {
-    implementation(files("path/to/mcp-java-sdk-1.0.1.jar"))
+    implementation(files("path/to/mcp-java-sdk-1.1.1.jar"))
 }
 ```
 
@@ -445,9 +445,9 @@ Outputs:
 
 | File                                        | Description       |
 |---------------------------------------------|-------------------|
-| `build/libs/mcp-java-sdk-1.0.1.jar`          | Main artifact      |
-| `build/libs/mcp-java-sdk-1.0.1-sources.jar` | Source code        |
-| `build/libs/mcp-java-sdk-1.0.1-javadoc.jar` | API documentation  |
+| `build/libs/mcp-java-sdk-1.1.1.jar`          | Main artifact      |
+| `build/libs/mcp-java-sdk-1.1.1-sources.jar` | Source code        |
+| `build/libs/mcp-java-sdk-1.1.1-javadoc.jar` | API documentation  |
 
 Override version for local build:
 
@@ -457,7 +457,7 @@ Override version for local build:
 
 Build validation:
 
-- **Tests**: 49 tests pass
+- **Tests**: 532 tests pass
 - **Java compatibility**: source/target Java 11 (bytecode 55); full SDK requires Java 11+ runtime
 - **Javadoc**: 0 warnings
 - **CI**: [.github/workflows/ci.yml](.github/workflows/ci.yml)
@@ -481,8 +481,8 @@ Build validation:
 Tag a version to trigger the release workflow:
 
 ```bash
-git tag v1.0.1
-git push origin v1.0.1
+git tag v1.1.1
+git push origin v1.1.1
 ```
 
 The [Release workflow](.github/workflows/release.yml) automatically:
@@ -531,7 +531,9 @@ verification record and remaining device requirements.
 - Robot/ROSA domain models (belong in the consuming application)
 - Authentication backends (supply through the public API)
 - Persistence (supply through resources or application code)
-- Sampling / elicitation / roots (protocol extension, not yet implemented)
+- Sampling (protocol extension, stub-only; see ADR-0023)
+- Roots (protocol extension, client-side; see ADR-0023)
+- Elicitation — SEP-2322 MRTR in-band input required + out-of-band elicitation/create (implemented)
 
 ### Dependencies
 
