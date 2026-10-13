@@ -770,4 +770,6 @@ class SchemaValidatorTest {
                 () -> SchemaValidator.validateData(badOutput, schema));
         assertTrue(ex.getMessage().toLowerCase().contains("integer"));
     }
+
+
 }
