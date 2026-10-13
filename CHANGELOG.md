@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.1.2] — 2026-10-13
+
+### Fixed
+
+- **SEP-2322 MRTR same-request retry** — `inputResponses` now forwarded to tool/prompt/resource handlers. `Mcp2026RequestContext` exposes `inputResponses` and `requestState` fields. Token validation and round counting integrated.
+- **JSON Schema 2020-12 root-type bug** — `type` keyword no longer required at top level. Combinator-only, conditional, and `$defs` schemas validate correctly.
+- **SchemaValidator dialect policy** — Explicitly documented: supported keywords, excluded keywords (format, prefixItems, dependentRequired, unevaluatedProperties, remote $ref), and pass-through semantics for unsupported vocabulary.
+- **Skills capability advertisement** — `McpSkillsExtension.supports(2026-07-28)` returns `true`, enabling `skills/list` and `skills/get` protocol dispatch.
+
+### Changed
+
+- **README updated** — Version examples updated to 1.1.1, test count corrected to 546, stale elicitation claim removed.
+- **ELICITATION.md** — Updated to show SEP-2322 same-request retry as primary protocol path.
+- **ADR-0022** — Updated MRTR architecture to reflect same-request retry semantics.
+
+---
+
 ## [v1.1.0] — 2026-10-12
 
 ### Added
