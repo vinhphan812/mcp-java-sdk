@@ -7,23 +7,18 @@ application {
     mainClass = 'io.github.vinhphan812.mcp.examples.HttpExample'
 }
 
-def sdkJar = project.findProperty('sdkJar') != null
-        ? project.property('sdkJar')
-        : '../build/libs/mcp-java-sdk-1.0-SNAPSHOT.jar'
-
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    implementation files(sdkJar)
+    // Compile against the main project's compiled classes directory.
+    // Gradle automatically adds a task dependency on main:classes when using
+    // files() that point inside the root project's build/ directory.
+    implementation files('../build/classes/java/main')
 
-    // The SDK is consumed as a local JAR in this standalone examples build.
-    // Mirror its runtime dependency graph so conformanceClasspath can boot the
-    // fixture without NoClassDefFoundError at CI runtime.
+    // The SDK's runtime dependency graph (needed at fixture boot time, not compile time).
     implementation 'com.google.code.gson:gson:2.11.0'
-    implementation 'com.networknt:json-schema-validator:1.5.0'
-    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
     implementation 'org.glassfish.grizzly:grizzly-http-server:4.0.2'
     implementation 'com.google.guava:guava:33.3.0-jre'
 }
@@ -34,7 +29,8 @@ java {
 }
 
 // Produces a file at examples/build/conformance-classpath.txt containing the full
-// classpath needed to run the ConformanceFixture (SDK JAR + examples classes).
+// classpath needed to run the ConformanceFixture (SDK classes + examples classes +
+// SDK runtime deps).
 // The conformance CI job reads this file and passes it to `java -cp`.
 tasks.register('conformanceClasspath') {
     description = 'Compile examples and emit the fixture classpath to examples/build/conformance-classpath.txt'
@@ -42,9 +38,14 @@ tasks.register('conformanceClasspath') {
     dependsOn classes
 
     doLast {
-        // runtimeClasspath contains fixture classes, the local SDK JAR, and the
-        // explicitly declared SDK runtime dependency graph above.
-        def classpath = sourceSets.main.runtimeClasspath.asPath
+        // Build the classpath from the main project's compiled classes,
+        // this project's compiled classes, and the explicitly declared runtime deps.
+        def mainClasses = rootProject.layout.buildDirectory
+                .dir('classes/java/main').get().asFile
+        def thisClasses = project.layout.buildDirectory
+                .dir('classes/java/main').get().asFile
+        def runtimeDeps = sourceSets.main.runtimeClasspath.files
+        def classpath = ([mainClasses, thisClasses] + runtimeDeps).join(java.io.File.pathSeparator)
         def outFile = new File(project.buildDir, 'conformance-classpath.txt')
         outFile.parentFile.mkdirs()
         outFile.text = classpath
