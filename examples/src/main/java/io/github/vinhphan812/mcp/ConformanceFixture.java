@@ -40,6 +40,7 @@ import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.api.dto.McpBlobContent;
 import io.github.vinhphan812.mcp.api.handler.McpBlobResourceHandler;
 import io.github.vinhphan812.mcp.api.handler.McpCompletionProvider;
+import io.github.vinhphan812.mcp.api.utils.ElicitationNeededException;
 import io.github.vinhphan812.mcp.core.McpRegistry;
 import io.github.vinhphan812.mcp.core.McpServer;
 
@@ -172,6 +173,13 @@ public final class ConformanceFixture {
                 @McpParam(name = "message", description = "Error message", required = false)
                 String message) {
             throw new RuntimeException(message != null ? message : "intentional error");
+        }
+
+        @McpTool(name = "test_elicitation", description = "Tool that requires client-side input")
+        public Map<String, Object> testElicitation(
+                @McpParam(name = "id", description = "Task ID", required = true)
+                String id) {
+            throw new ElicitationNeededException(id, "Need input for task " + id);
         }
 
         @McpTool(name = "test_tool_with_progress", description = "Tool that supports progress notifications")
