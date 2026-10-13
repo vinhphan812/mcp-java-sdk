@@ -63,7 +63,7 @@ public class McpSkillsExtensionTest {
                             Map.of(),                   // manifest
                             Map.of("SKILL.md", ""),     // files
                             Map.of()))                  // digests
-                    .toList();
+                    .collect(java.util.stream.Collectors.toList());
         }
 
         @Override
