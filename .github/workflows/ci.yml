@@ -178,9 +178,10 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
 
-      # Compile examples (includes ConformanceFixture) and produce the fixture classpath.
+      # Build SDK JAR then compile examples (includes ConformanceFixture) and produce the fixture classpath.
       - name: Build examples and generate fixture classpath
         run: |
+          ./gradlew --no-daemon jar --console=plain
           ./gradlew --no-daemon -p examples compileJava conformanceClasspath --console=plain
 
       # Set up Node (required by the conformance runner only — CI-only tooling).

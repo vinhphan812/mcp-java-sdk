@@ -1,2 +1,3 @@
 rootProject.name = 'mcp-java-sdk'
 
+include 'examples'
