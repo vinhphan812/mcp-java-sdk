@@ -15,7 +15,7 @@
 # ── Extension / optional scenarios ───────────────────────────────────────────────
 # Tasks: io.modelcontextprotocol/tasks extension negotiation not yet implemented
 #   (t_39d575c0 — Re-audit and fix final Tasks extension semantics — is pending).
-# Elicitation: Basic MRTR support wired but not full conformance.
+# Elicitation (SEP-2322 MRTR): Fully implemented in v1.1.1+. No baseline needed.
 # Sampling / roots / logging: Deprecated / out-of-scope per ADR-0023; not implemented.
 # ────────────────────────────────────────────────────────────────────────────────
 
@@ -29,9 +29,7 @@ server:
   - tasks-notify-completed
   - tasks-submit-result
 
-  # Elicitation / MRTR (extension — optional per SEP-1730)
-  - elicitation-simple
-  - elicitation-composite
+  # Elicitation (SEP-2322 MRTR): Fully implemented — scored by conformance suite.
 
   # Sampling (deprecated / out-of-scope per ADR-0023)
   - sampling-create-message
