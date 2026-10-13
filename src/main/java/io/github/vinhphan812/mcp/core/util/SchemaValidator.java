@@ -19,15 +19,22 @@ import java.util.regex.PatternSyntaxException;
 /**
  * Lightweight JSON Schema 2020-12 validator using Gson and Guava.
  * <p>
- * Supports all structural keywords used by MCP tool schemas:
- * type, properties, required, additionalProperties, enum, const,
+ * Dialect: JSON Schema 2020-12 (§4.3). Supported: all structural keywords used by
+ * MCP tool schemas — type, properties, required, additionalProperties, enum, const,
  * minimum/maximum/exclusiveMaximum/exclusiveMinimum, minLength/maxLength,
- * pattern, items, minItems/maxItems, uniqueItems,
- * local {@code $ref} (including {@code $defs}/$ref), combinators
- * (oneOf, anyOf, allOf), and conditional schemas (if/then/else).
+ * pattern, items, minItems/maxItems, uniqueItems, local {@code $ref}
+ * (including {@code $defs}/$ref), combinators (oneOf, anyOf, allOf),
+ * and conditional schemas (if/then/else).
  * <p>
- * Excludes: remote {@code $ref}, format keywords, contentEncoding,
- * and other advanced features not exercised by MCP tool schemas.
+ * Explicitly excluded / not enforced: format, contentEncoding, prefixItems,
+ * dependentRequired, unevaluatedProperties, remote {@code $ref}. A schema containing
+ * an unsupported keyword is <b>not rejected</b> — the keyword is silently ignored.
+ * This is intentional: it allows schemas from broader tooling to pass through without
+ * false negatives.
+ * <p>
+ * Dialect handling: the {@code $schema} keyword is accepted and ignored (not used for
+ * validation). The validator targets JSON Schema 2020-12 behaviour for supported
+ * vocabulary only.
  */
 public final class SchemaValidator {
 
