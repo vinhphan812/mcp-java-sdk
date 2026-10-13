@@ -284,7 +284,31 @@ Error codes `-32003` through `-32007` are added to `McpErrorCodes`.
 
 **Decision:** Implement the SEP-2322 in-band elicitation model for `tools/call`, `prompts/get`, and `resources/read` responses.
 
-**Wire shape:** When a handler signals input is required, the JSON-RPC result carries `resultType: "input_required"`:
+**Primary protocol path — same-request retry (`inputResponses` in body):** The client re-sends the same
+`tools/call` (or `prompts/get`, `resources/read`) with `inputResponses` embedded in the request body.
+This is the preferred SEP-2322 path; it is self-contained and avoids a separate `tasks/update` round.
+
+```json
+// Client → Server retry with inputResponses (primary SEP-2322 path):
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "delete-record",
+    "arguments": { "id": "42" },
+    "inputResponses": [
+      {
+        "requestState": "<token-from-input_required>",
+        "contents": [{ "type": "text", "text": "true" }]
+      }
+    ]
+  }
+}
+// → {"result": {"resultType": "complete", "content": [...]}}
+```
+
+When a handler signals input is required, the JSON-RPC result carries `resultType: "input_required`:
 
 ```json
 {
@@ -304,26 +328,16 @@ Error codes `-32003` through `-32007` are added to `McpErrorCodes`.
 }
 ```
 
-**API entry point (tool authors):**
-
-```java
-// Inside a tool handler, throw to request client input
-McpProtocolHandler.throwElicitationNeeded(
-        "Confirm deletion",
-        Map.of("type", "object",
-                "properties", Map.of("confirm", Map.of("type", "boolean"))));
-```
-
-**RequestStateManager:** Tracks pending elicitation rounds. Tokens are UUIDs stored in a `ConcurrentHashMap` with TTL and round-counting. Tokens are validated in `tasks/update` to prevent replay.
-
-**Tracked token flow:**
+**Tracked token flow (same-request retry):**
 1. Tool handler calls `throwElicitationNeeded(prompt, schema)`
 2. Protocol handler catches the exception, creates a tracked token via `RequestStateManager`
 3. Response contains `requestState` with the tracked token
 4. Client stores the token, shows the prompt to the user
-5. Client calls `tasks/update` with `requestState` and `inputResponses`
-6. Protocol handler validates the token, removes it (round resolved)
-7. Application re-calls the tool with input in the arguments
+5. Client re-sends the same `tools/call` with `inputResponses` and `requestState` in the params
+6. Protocol handler validates the token, injects responses as original arguments
+7. Application re-executes the tool with the user's input in the arguments
+
+**Alternative protocol path — `tasks/update` + re-invoke:** For clients that cannot embed `inputResponses` in the retry request body, the client may call `tasks/update` with `requestState` and `inputResponses` first, then re-invoke the tool with explicit arguments. This is a two-round out-of-band alternative; prefer same-request retry.
 
 **Optional convenience API:**
 ```java

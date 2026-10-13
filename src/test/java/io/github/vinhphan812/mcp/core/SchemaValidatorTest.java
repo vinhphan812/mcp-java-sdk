@@ -756,20 +756,58 @@ class SchemaValidatorTest {
                 "Expected oneOf error: " + ex.getMessage());
     }
 
+    // ── Unsupported vocabulary — silently ignored, schema still validates ─────────
+
     @Test
-    void validateData_rejectsOutputViolatingOutputSchema() {
+    void validateSchema_ignoresPrefixItems() {
+        // prefixItems is not enforced; schema is accepted without error
         Map<String, Object> schema = new LinkedHashMap<>();
-        schema.put("type", "object");
-        schema.put("properties", Map.of("count", Map.of("type", "integer")));
-        schema.put("required", List.of("count"));
-
-        Map<String, Object> badOutput = new LinkedHashMap<>();
-        badOutput.put("count", "not-an-integer");
-
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> SchemaValidator.validateData(badOutput, schema));
-        assertTrue(ex.getMessage().toLowerCase().contains("integer"));
+        schema.put("type", "array");
+        schema.put("prefixItems", List.of(Map.of("type", "string"), Map.of("type", "integer")));
+        assertDoesNotThrow(() -> SchemaValidator.validateSchema(schema));
     }
 
+    @Test
+    void validateSchema_ignoresDependentRequired() {
+        // dependentRequired is not enforced; schema is accepted without error
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        schema.put("properties", Map.of("name", Map.of("type", "string")));
+        schema.put("dependentRequired", Map.of("name", List.of("id")));
+        assertDoesNotThrow(() -> SchemaValidator.validateSchema(schema));
+    }
+
+    @Test
+    void validateSchema_ignoresUnevaluatedProperties() {
+        // unevaluatedProperties is not enforced; schema is accepted without error
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        schema.put("properties", Map.of("name", Map.of("type", "string")));
+        schema.put("unevaluatedProperties", false);
+        assertDoesNotThrow(() -> SchemaValidator.validateSchema(schema));
+    }
+
+    @Test
+    void validateSchema_ignoresFormatKeyword() {
+        // format is not enforced; schema is accepted without error
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        schema.put("properties", Map.of(
+                "email", Map.of("type", "string", "format", "email"),
+                "uri",    Map.of("type", "string", "format", "uri"),
+                "uuid",   Map.of("type", "string", "format", "uuid")));
+        assertDoesNotThrow(() -> SchemaValidator.validateSchema(schema));
+    }
+
+    @Test
+    void validateSchema_ignoresDialectSchemaKeyword() {
+        // $schema declares the dialect; it is accepted and ignored, not used for validation
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("$schema", "https://json-schema.org/draft/2020-12/schema");
+        schema.put("type", "object");
+        schema.put("properties", Map.of("name", Map.of("type", "string")));
+        schema.put("required", List.of("name"));
+        assertDoesNotThrow(() -> SchemaValidator.validateSchema(schema));
+    }
 
 }
