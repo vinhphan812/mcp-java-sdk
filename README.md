@@ -457,7 +457,7 @@ Override version for local build:
 
 Build validation:
 
-- **Tests**: 532 tests pass
+- **Tests**: 561 tests pass
 - **Java compatibility**: source/target Java 11 (bytecode 55); full SDK requires Java 11+ runtime
 - **Javadoc**: 0 warnings
 - **CI**: [.github/workflows/ci.yml](.github/workflows/ci.yml)
