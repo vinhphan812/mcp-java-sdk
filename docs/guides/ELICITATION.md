@@ -10,6 +10,7 @@ This guide covers:
 - the async Java API with `CompletableFuture`;
 - the protocol wire shape (JSON-RPC over HTTP/SSE);
 - timeout, cancellation, and error handling;
+- SEP-2322 MRTR in-band input required (in-tool elicitation);
 - relationship to the deprecated Sampling and Roots capabilities.
 
 For the architectural design, see [ADR-0022](../adr/ADR-0022-server-to-client-mrtr-elicitation-foundation.md).
@@ -235,6 +236,154 @@ Or per-call by passing a positive value to the elicitation method:
 ```java
 handler.elicitConfirmation(sessionId, message, actions, 10_000);  // 10-second override
 ```
+
+---
+
+## SEP-2322 — MRTR In-Band Input Required
+
+The SEP-2322 MRTR (Method Request/Response Transport) profile adds **in-band input required**
+responses to tool, prompt, and resource handlers. When a handler signals that client input is
+needed, the JSON-RPC result carries `resultType: "input_required"` instead of `resultType: "complete"`.
+
+Unlike the out-of-band `elicitConfirmation` / `elicitInput` methods (which send a separate
+`elicitation/create` request over SSE), in-band input required embeds the elicitation
+directly in the handler response — ideal for tools that need structured input before proceeding.
+
+### When to use in-band vs out-of-band
+
+| Scenario | Approach |
+|---|---|
+| Tool needs confirmation before deleting a record | In-band (`throwElicitationNeeded`) |
+| Tool needs a filename from the user | In-band (`throwElicitationNeeded`) |
+| Prompt needs the user to pick a tone | In-band (`throwElicitationNeeded`) |
+| Resource read requires an API token | In-band (`throwElicitationNeeded`) |
+| Server wants a structured decision with timeout UI | Out-of-band (`elicitConfirmation`) |
+
+### API — throwElicitationNeeded
+
+The primary entry point is `McpProtocolHandler.throwElicitationNeeded(...)`. Call this from
+inside any tool, prompt, or resource handler — it throws an exception that the protocol
+handler catches and converts into a proper `input_required` response:
+
+```java
+import io.github.vinhphan812.mcp.api.utils.ElicitationNeededException;
+import io.github.vinhphan812.mcp.api.dto.InputRequiredResult;
+import io.github.vinhphan812.mcp.core.McpProtocolHandler;
+
+// Inside a tool handler:
+public Map<String, Object> call(Map<String, Object> arguments) {
+    // Before deleting, ask the client for confirmation
+    if (needsConfirmation) {
+        McpProtocolHandler.throwElicitationNeeded(
+                "Are you sure you want to delete record #" + arguments.get("id") + "?",
+                Map.of("type", "object",
+                        "properties", Map.of("confirm", Map.of("type", "boolean"))));
+    }
+    // unreachable — only reached if input not required
+    return doDelete(arguments);
+}
+```
+
+Overload with TTL and round limits:
+
+```java
+long expiresAt = System.currentTimeMillis() + 60_000;
+int maxRounds = 5;
+McpProtocolHandler.throwElicitationNeeded(
+        "Enter your name:",
+        schema,
+        expiresAt,
+        maxRounds);
+```
+
+### Wire shape
+
+```json
+// JSON-RPC response from tools/call, prompts/get, or resources/read:
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "resultType": "input_required",
+    "requestState": "a1b2c3d4-5678-90ab-cdef-1234567890ab",
+    "prompt": "Are you sure you want to delete record #42?",
+    "requestedSchema": {
+      "type": "object",
+      "properties": { "confirm": { "type": "boolean" } }
+    },
+    "expiresAt": 1734567890000,
+    "maxRounds": 3
+  }
+}
+```
+
+### Full round-trip flow
+
+1. **Tool call** → handler throws `ElicitationNeededException`
+2. **Protocol handler** catches it, creates a tracked token, returns `resultType: "input_required"`
+3. **Client** stores the `requestState` token, shows the prompt to the user
+4. **User** provides input
+5. **Client** calls `tasks/update` with `requestState` and `inputResponses`
+6. **Protocol handler** validates the token (rejects if expired/invalid/max-rounds)
+7. **Application** re-invokes the tool with the user's input in the arguments
+
+```java
+// Server: tool handler signals input need
+public Map<String, Object> call(Map<String, Object> args) {
+    if (args.get("confirmed") == null) {
+        McpProtocolHandler.throwElicitationNeeded(
+                "Confirm deletion",
+                Map.of("type", "object",
+                        "properties", Map.of("confirmed", Map.of("type", "boolean"))));
+    }
+    // confirmed branch — proceed with deletion
+    return Map.of("deleted", true);
+}
+```
+
+```java
+// Client: receives input_required response, calls tasks/update, then re-calls tool
+// tasks/update response:
+{"jsonrpc": "2.0", "id": 5, "result": {}}
+
+// Re-call with input:
+{"jsonrpc": "2.0", "id": 6, "method": "tools/call",
+ "params": {"name": "delete-record", "arguments": {"id": "42", "confirmed": true}}}
+// → {"result": {"resultType": "complete", "content": [...]}}
+```
+
+### RequestStateManager
+
+Tokens are tracked in a `RequestStateManager` backed by a `ConcurrentHashMap`. The manager
+enforces TTL and round limits per token. Tokens are validated in `tasks/update` to prevent
+replay attacks.
+
+Configuration:
+```java
+McpServerConfig cfg = McpServerConfig.builder()
+        .maxElicitationRounds(5)       // default: 3
+        .requestStateTtlMs(600_000L)    // default: 300 000 ms (5 min)
+        .build();
+```
+
+### Error codes (SEP-2322)
+
+| Code | Name | When |
+|------|------|-------|
+| `-32005` | `REQUEST_STATE_INVALID` | Token not found or tampered |
+| `-32006` | `REQUEST_STATE_EXPIRED` | Token TTL exceeded |
+| `-32007` | `MAX_ROUNDS_EXCEEDED` | Elicitation round limit hit |
+
+### Public API surface
+
+| Method | Use |
+|--------|-----|
+| `McpProtocolHandler.throwElicitationNeeded(prompt, schema)` | Signal input need from handler |
+| `McpProtocolHandler.throwElicitationNeeded(prompt, schema, expiresAt, maxRounds)` | With TTL and round limit |
+| `handler.inputRequired(taskId, prompt, schema, context)` | Convenience: build result with tracked token |
+| `handler.createRequestState(taskId, context)` | Create a tracked token manually |
+| `handler.validateRequestState(token)` | Validate token from tasks/update |
+| `handler.consumeRequestState(token)` | Remove token after consumption |
 
 ---
 

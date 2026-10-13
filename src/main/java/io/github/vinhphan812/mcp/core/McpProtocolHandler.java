@@ -24,6 +24,7 @@ import io.github.vinhphan812.mcp.api.config.RateLimits;
 import io.github.vinhphan812.mcp.api.dto.ElicitAction;
 import io.github.vinhphan812.mcp.api.dto.ElicitRequest;
 import io.github.vinhphan812.mcp.api.dto.ElicitationResult;
+import io.github.vinhphan812.mcp.api.dto.InputRequiredResult;
 import io.github.vinhphan812.mcp.api.dto.ListenRequest;
 import io.github.vinhphan812.mcp.api.dto.McpBlobContent;
 import io.github.vinhphan812.mcp.api.dto.SkillDTO;
@@ -38,6 +39,8 @@ import io.github.vinhphan812.mcp.api.spi.McpRegistryChangeListener;
 import io.github.vinhphan812.mcp.api.spi.McpTaskExtension;
 import io.github.vinhphan812.mcp.api.spi.McpSkillsExtension;
 import io.github.vinhphan812.mcp.api.utils.*;
+import io.github.vinhphan812.mcp.core.requeststate.RequestState;
+import io.github.vinhphan812.mcp.core.requeststate.RequestStateManager;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -82,6 +85,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private final McpTaskExtension tasksExtension;
     private final McpSkillsExtension skillsExtension;
     private final McpTaskExtension.TaskRegistry taskRegistry;
+    private final RequestStateManager requestStateManager;
 
     public McpServerConfig getConfig() {
         return config;
@@ -471,13 +475,11 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         this.tasksExtension = config.tasksExtension;
         this.skillsExtension = config.skillsExtension;
         this.taskRegistry = new TaskRegistryImpl(registry);
+        this.requestStateManager = new RequestStateManager(config.requestStateTtlMs, config.maxElicitationRounds);
         if (this.tasksExtension != null) {
             this.tasksExtension.register(this.taskRegistry);
         }
         this.listenerSubscriptions = new SubscriptionManager(config.maxListenerBufferSize);
-        registry.setNotificationTarget(this);
-        registry.addRegistryChangeListener(this);
-        startCleanupThread();
         registry.setNotificationTarget(this);
         registry.addRegistryChangeListener(this);
         startCleanupThread();
@@ -1497,6 +1499,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     /**
      * Handles SEP-2663 tasks/update: client provides inputResponses for an INPUT_REQUIRED task.
      * Returns an empty acknowledgement on success (SEP-2663 §Task Update).
+     * Also validates the requestState token to prevent replay attacks.
      *
      * @param params must contain "taskId" (String) and "inputResponses" (Map)
      * @param sessionId MCP session id
@@ -1511,6 +1514,15 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             throw McpException.invalidParams("taskId is required");
         Map<String, Object> inputResponses = params.get("inputResponses") instanceof Map
                 ? (Map<String, Object>) params.get("inputResponses") : null;
+        // SEP-2322: validate requestState token if provided
+        String requestState = params.get("requestState") instanceof String
+                ? (String) params.get("requestState") : null;
+        if (requestState != null && !requestState.trim().isEmpty()) {
+            // validateAndGet throws McpException on invalid/expired/max-rounds
+            requestStateManager.validateAndGet(requestState);
+            // Remove consumed state — round is resolved
+            requestStateManager.remove(requestState);
+        }
         // Find task — throws INVALID_PARAMS if unknown
         McpTask task = registry.getTask(taskId);
         if (task == null)
@@ -1931,6 +1943,115 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         });
     }
 
+    // ==================== MRTR In-Band Input Required (SEP-2322) ====================
+
+    /**
+     * Throws {@link ElicitationNeededException} from within a tool handler to signal that
+     * in-band user elicitation is required. The exception is caught by {@link #handleToolsCall}
+     * and translated to a wire response with {@code resultType: "input_required"}.
+     *
+     * <p>This is the primary entry point for tool authors to request client input mid-execution.
+     *
+     * @param prompt          human-readable instruction for the user
+     * @param requestedSchema JSON Schema defining the expected input shape
+     * @param expiresAtMs     optional epoch timestamp when this request state expires, or null
+     * @param maxRounds       optional maximum elicitation rounds, or null to use the server default
+     * @throws ElicitationNeededException always — intended to be used with {@code throw}
+     */
+    public static void throwElicitationNeeded(String prompt, Map<String, Object> requestedSchema,
+                                              Long expiresAtMs, Integer maxRounds) {
+        String token = UUID.randomUUID().toString();
+        throw new ElicitationNeededException(
+                new InputRequiredResult(token, prompt, requestedSchema, expiresAtMs, maxRounds));
+    }
+
+    /**
+     * Throws {@link ElicitationNeededException} from within a tool handler using only the
+     * prompt and schema, with server-configured TTL and round limits.
+     *
+     * @param prompt          human-readable instruction for the user
+     * @param requestedSchema JSON Schema defining the expected input shape
+     * @throws ElicitationNeededException always — intended to be used with {@code throw}
+     */
+    public static void throwElicitationNeeded(String prompt, Map<String, Object> requestedSchema) {
+        throwElicitationNeeded(prompt, requestedSchema, null, null);
+    }
+
+    /**
+     * Builds the wire result map for a SEP-2322 in-band input-required response.
+     * Called when {@link ElicitationNeededException} is caught from a handler.
+     *
+     * @param irr the input-required DTO
+     * @return a Map suitable for JSON-RPC inclusion as the result value
+     */
+    private Map<String, Object> buildInputRequiredResult(InputRequiredResult irr) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("resultType", "input_required");
+        result.put("requestState", irr.getRequestState());
+        result.put("prompt", irr.getPrompt());
+        if (irr.getRequestedSchema() != null) {
+            result.put("requestedSchema", irr.getRequestedSchema());
+        }
+        if (irr.getExpiresAt() != null) {
+            result.put("expiresAt", irr.getExpiresAt());
+        }
+        if (irr.getMaxRounds() != null) {
+            result.put("maxRounds", irr.getMaxRounds());
+        }
+        return result;
+    }
+
+    /**
+     * Creates and stores a new request state token for a pending MRTR elicitation round.
+     * The token is returned as part of the {@code input_required} response.
+     *
+     * @param taskId  the task this round belongs to (may be null for tool/prompt/resource calls)
+     * @param context arbitrary context map passed through to the response, or null
+     * @return a new request state token string
+     */
+    public String createRequestState(String taskId, Map<String, Object> context) {
+        return requestStateManager.create(taskId, context);
+    }
+
+    /**
+     * Validates an incoming request state token from a {@code tasks/update} request.
+     * Increments the round counter on success.
+     *
+     * @param token the request state token from the client
+     * @return the validated {@link RequestState}
+     * @throws McpException if the token is invalid, expired, or round limit exceeded
+     */
+    public RequestState validateRequestState(String token) {
+        return requestStateManager.validateAndGet(token);
+    }
+
+    /**
+     * Removes a request state after it has been consumed (final round resolved).
+     *
+     * @param token the request state token
+     */
+    public void consumeRequestState(String token) {
+        requestStateManager.remove(token);
+    }
+
+    /**
+     * Convenience: creates a token and immediately builds an {@code input_required} result.
+     * Combines {@link #createRequestState} and {@link #buildInputRequiredResult} into one call.
+     *
+     * @param taskId          associated task id (may be null)
+     * @param prompt          human-readable instruction
+     * @param requestedSchema JSON Schema for expected input
+     * @param context         arbitrary context map (passed through to response), or null
+     * @return a Map suitable for JSON-RPC inclusion as the result value
+     */
+    public Map<String, Object> inputRequired(String taskId, String prompt,
+                                              Map<String, Object> requestedSchema,
+                                              Map<String, Object> context) {
+        String token = createRequestState(taskId, context);
+        InputRequiredResult irr = new InputRequiredResult(token, prompt, requestedSchema, null, null);
+        return buildInputRequiredResult(irr);
+    }
+
     // ==================== Tools ====================
 
     private Map<String, Object> handleToolsList(Map<String, Object> params) {
@@ -2130,6 +2251,15 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 }
             }
             return result;
+        } catch (ElicitationNeededException e) {
+            // SEP-2322: tool requires in-band input.
+            // The handler auto-generated a token for the exception — create a tracked token here
+            // so that tasks/update can validate it.
+            String trackedToken = requestStateManager.create(null, null);
+            InputRequiredResult irr = e.getResult();
+            return buildInputRequiredResult(
+                    new InputRequiredResult(trackedToken, irr.getPrompt(),
+                            irr.getRequestedSchema(), irr.getExpiresAt(), irr.getMaxRounds()));
         } catch (McpException e) {
             throw e;
         } catch (Throwable t) {
@@ -2269,6 +2399,14 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 return blobContents(uri, ((McpBlobResourceHandler) handler).readBlob(uri));
             }
             return resourceContents(uri, handler.read(uri));
+        } catch (ElicitationNeededException e) {
+            // SEP-2322: resource read requires in-band input.
+            // Create a tracked token so that tasks/update can validate the response.
+            String trackedToken = requestStateManager.create(null, null);
+            InputRequiredResult irr = e.getResult();
+            return buildInputRequiredResult(
+                    new InputRequiredResult(trackedToken, irr.getPrompt(),
+                            irr.getRequestedSchema(), irr.getExpiresAt(), irr.getMaxRounds()));
         } catch (McpException e) {
             throw e;
         } catch (Throwable t) {
@@ -2296,6 +2434,12 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 return blobContents(uri, ((McpBlobResourceHandler) handler).readBlob(uri));
             }
             return resourceContents(uri, handler.read(uri));
+        } catch (ElicitationNeededException e) {
+            String trackedToken = requestStateManager.create(null, null);
+            InputRequiredResult irr = e.getResult();
+            return buildInputRequiredResult(
+                    new InputRequiredResult(trackedToken, irr.getPrompt(),
+                            irr.getRequestedSchema(), irr.getExpiresAt(), irr.getMaxRounds()));
         } catch (Throwable t) {
             return handleHandlerException("Resource", uri, t);
         }
@@ -2405,6 +2549,14 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             if (result == null) result = new LinkedHashMap<>();
             result.put("resultType", "complete");
             return result;
+        } catch (ElicitationNeededException e) {
+            // SEP-2322: prompt requires in-band input.
+            // Create a tracked token so that tasks/update can validate the response.
+            String trackedToken = requestStateManager.create(null, null);
+            InputRequiredResult irr = e.getResult();
+            return buildInputRequiredResult(
+                    new InputRequiredResult(trackedToken, irr.getPrompt(),
+                            irr.getRequestedSchema(), irr.getExpiresAt(), irr.getMaxRounds()));
         } catch (Throwable t) {
             LOGGER.log(Level.SEVERE, "Prompt get error: " + name, t);
             if (t instanceof Error) throw (Error) t;
@@ -2889,5 +3041,29 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         result.put("description", "Error: " + message);
         result.put("messages", new ArrayList<>());
         return result;
+    }
+
+    /**
+     * Builds a SEP-2322 error response with resultType "input_required".
+     * Used when a tool/prompt/resource throws {@link ElicitationNeededException}.
+     *
+     * @param irr the input-required details
+     * @return a Map suitable for JSON-RPC error result or inline result
+     */
+    private Map<String, Object> inputRequiredError(InputRequiredResult irr) {
+        Map<String, Object> err = new LinkedHashMap<>();
+        err.put("resultType", "input_required");
+        err.put("requestState", irr.getRequestState());
+        err.put("prompt", irr.getPrompt());
+        if (irr.getRequestedSchema() != null) {
+            err.put("requestedSchema", irr.getRequestedSchema());
+        }
+        if (irr.getExpiresAt() != null) {
+            err.put("expiresAt", irr.getExpiresAt());
+        }
+        if (irr.getMaxRounds() != null) {
+            err.put("maxRounds", irr.getMaxRounds());
+        }
+        return err;
     }
 }
