@@ -74,9 +74,9 @@ public final class SchemaValidator {
             JsonElement schema = toJsonElement(schemaMap);
             // Basic structural checks on the root schema object
             JsonObject schemaObj = asObject(schema);
-            if (!schemaObj.has(KW_TYPE)) {
-                throw new IllegalArgumentException("schema is missing required 'type' keyword");
-            }
+            // JSON Schema 2020-12 does not require 'type' at root.
+            // Boolean schemas (true/false) are valid.
+            if (schemaObj.size() == 0) return; // empty object is valid (equivalent to true)
             // Recurse to validate nested schemas recursively without data constraints
             validateSchemaNode(schemaObj);
         } catch (IllegalArgumentException e) {
@@ -91,6 +91,8 @@ public final class SchemaValidator {
      */
     private static void validateSchemaNode(JsonElement schema) {
         if (schema == null || schema.isJsonNull()) return;
+        // JSON Schema 2020-12 §4.3: boolean schemas are valid (true = allow all, false = deny all)
+        if (schema.isJsonPrimitive() && schema.getAsJsonPrimitive().isBoolean()) return;
         JsonObject schemaObj = asObject(schema);
 
         // Check $ref is local only
