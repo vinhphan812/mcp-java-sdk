@@ -187,14 +187,19 @@ class Mcp2026WireContractTest {
         }
 
         @Test
-        void fromParamsReturnsEmptyWhenProgressTokenAbsent() {
+        void fromParamsCollectsExtrasWhenProgressTokenAbsent() {
             Map<String, Object> params = new LinkedHashMap<>();
             Map<String, Object> meta = new LinkedHashMap<>();
             meta.put("otherKey", "value");
             params.put("_meta", meta);
             Mcp2026RequestContext ctx = Mcp2026RequestContext.fromParams(params);
             assertFalse(ctx.hasProgressToken());
-            assertTrue(ctx.extras.isEmpty());
+            // extras contains otherKey (forward-compat)
+            assertFalse(ctx.extras.isEmpty());
+            assertEquals("value", ctx.extras.get("otherKey"));
+            // SEP-2322 MRTR fields are null
+            assertNull(ctx.inputResponses);
+            assertNull(ctx.requestState);
         }
 
         @Test

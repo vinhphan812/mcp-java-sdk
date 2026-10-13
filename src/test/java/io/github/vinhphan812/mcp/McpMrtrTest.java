@@ -583,6 +583,120 @@ class McpMrtrTest {
         assertEquals("complete", result2.get("resultType").getAsString());
         assertTrue(result2.has("content"));
 
+        
+
+    }
+    // ==================== SEP-2322 MRTR Same-Request Retry ====================
+
+    /**
+     * SEP-2322: client retries tools/call with inputResponses + requestState
+     * in the same request body. Handler receives merged arguments and completes.
+     */
+    @Test
+    void toolSameRequestRetry_withInputResponses_completes() {
+        McpRegistry registry = new McpRegistry();
+        final boolean[] secondCall = new boolean[1];
+
+        registry.registerTool(
+                "confirm-delete",
+                "Delete with confirmation",
+                Map.of("type", "object",
+                        "properties", Map.of("recordId", Map.of("type", "string"))),
+                null,
+                (McpToolHandler) args -> {
+                    if (!secondCall[0]) {
+                        secondCall[0] = true;
+                        McpProtocolHandler.throwElicitationNeeded(
+                                "Confirm deletion?",
+                                Map.of("type", "object",
+                                        "properties", Map.of("confirmed", Map.of("type", "boolean"))));
+                    }
+                    // Second call: inputResponses merged into args
+                    assertTrue(args.containsKey("confirmed"));
+                    assertEquals(true, args.get("confirmed"));
+                    return Map.of("deleted", true);
+                });
+
+        McpProtocolHandler handler = new McpProtocolHandler(registry,
+                McpServerConfig.builder().build());
+        String sessionId = initSession(handler);
+
+        // Round 1: call tool, get input_required
+        String req1 = "{\"jsonrpc\":\"2.0\",\"id\":30,\"method\":\"tools/call\","
+                + "\"params\":{\"name\":\"confirm-delete\",\"arguments\":{\"recordId\":\"r-99\"}}}";
+        JsonObject resp1 = GSON.fromJson(
+                handler.handleRequestResponse(req1, sessionId).getBody(),
+                JsonObject.class);
+        String requestState = resp1.getAsJsonObject("result").get("requestState").getAsString();
+
+        // Round 2: same-request retry with inputResponses + requestState
+        String req2 = String.format(
+                "{\"jsonrpc\":\"2.0\",\"id\":31,\"method\":\"tools/call\","
+                        + "\"params\":{\"name\":\"confirm-delete\",\"arguments\":{\"recordId\":\"r-99\"},"
+                        + "\"requestState\":\"%s\","
+                        + "\"inputResponses\":{\"confirmed\":true}}}",
+                requestState);
+        JsonObject resp2 = GSON.fromJson(
+                handler.handleRequestResponse(req2, sessionId).getBody(),
+                JsonObject.class);
+        JsonObject result2 = resp2.getAsJsonObject("result");
+        assertEquals("complete", result2.get("resultType").getAsString());
+
         handler.shutdown();
     }
+
+    /**
+     * SEP-2322: consumed requestState token is rejected on retry.
+     */
+    @Test
+    void toolSameRequestRetry_withConsumedToken_returnsError() {
+        McpRegistry registry = new McpRegistry();
+        registry.registerTool(
+                "ask-tool",
+                "Ask tool",
+                null,
+                null,
+                (McpToolHandler) args -> {
+                    McpProtocolHandler.throwElicitationNeeded("Prompt", null);
+                    return null;
+                });
+
+        McpProtocolHandler handler = new McpProtocolHandler(registry,
+                McpServerConfig.builder().build());
+        String sessionId = initSession(handler);
+
+        // Get valid input_required response
+        String req1 = "{\"jsonrpc\":\"2.0\",\"id\":50,\"method\":\"tools/call\","
+                + "\"params\":{\"name\":\"ask-tool\",\"arguments\":{}}}";
+        JsonObject resp1 = GSON.fromJson(
+                handler.handleRequestResponse(req1, sessionId).getBody(),
+                JsonObject.class);
+        String validToken = resp1.getAsJsonObject("result").get("requestState").getAsString();
+
+        // Consume the token with first retry
+        String req2 = String.format(
+                "{\"jsonrpc\":\"2.0\",\"id\":51,\"method\":\"tools/call\","
+                        + "\"params\":{\"name\":\"ask-tool\",\"arguments\":{},"
+                        + "\"requestState\":\"%s\","
+                        + "\"inputResponses\":{\"value\":\"first\"}}}",
+                validToken);
+        handler.handleRequestResponse(req2, sessionId);
+
+        // Retry with same token — should fail
+        String req3 = String.format(
+                "{\"jsonrpc\":\"2.0\",\"id\":52,\"method\":\"tools/call\","
+                        + "\"params\":{\"name\":\"ask-tool\",\"arguments\":{},"
+                        + "\"requestState\":\"%s\","
+                        + "\"inputResponses\":{\"value\":\"second\"}}}",
+                validToken);
+        JsonObject resp3 = GSON.fromJson(
+                handler.handleRequestResponse(req3, sessionId).getBody(),
+                JsonObject.class);
+        assertTrue(resp3.has("error"));
+        assertEquals(McpErrorCodes.REQUEST_STATE_INVALID,
+                resp3.getAsJsonObject("error").get("code").getAsInt());
+
+        handler.shutdown();
+    }
+
 }
