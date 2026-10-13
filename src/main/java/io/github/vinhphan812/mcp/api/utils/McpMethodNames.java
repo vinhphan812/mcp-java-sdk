@@ -47,6 +47,12 @@ public final class McpMethodNames {
     /** {@code resources/templates/get} — returns content for a resolved resource template URI. */
     public static final String RESOURCES_TEMPLATES_GET = "resources/templates/get";
 
+    /**
+     * {@code resources/directory/read} — SEP-2640 Skills extension: lists the
+     * directory entries of a skill namespace when directoryRead is advertised.
+     */
+    public static final String RESOURCES_DIRECTORY_READ = "resources/directory/read";
+
     // ── Prompts ──────────────────────────────────────────────────────────────
 
     /** {@code prompts/list} — returns the registry's prompt list. */
