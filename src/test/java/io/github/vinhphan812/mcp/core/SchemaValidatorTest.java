@@ -810,4 +810,99 @@ class SchemaValidatorTest {
         assertDoesNotThrow(() -> SchemaValidator.validateSchema(schema));
     }
 
+
+    // ── Pass-through regression (Option B §6) ─────────────────────────────
+
+    @Test
+    void validateSchema_preservesUnsupportedKeywords_inPassThrough() {
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        schema.put("prefixItems", List.of(Map.of("type", "string")));
+        schema.put("dependentRequired", Map.of("name", List.of("age")));
+        schema.put("unevaluatedProperties", false);
+        assertDoesNotThrow(() -> SchemaValidator.validateSchema(schema));
+    }
+
+    @Test
+    void validateSchema_preservesAllKeywordFamilies_inPassThrough() {
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        schema.put("properties", Map.of("x", Map.of("type", "integer")));
+        schema.put("required", List.of("x"));
+        schema.put("minimum", 0);
+        schema.put("maxLength", 100);
+        schema.put("minItems", 0);
+        schema.put("uniqueItems", false);
+        schema.put("additionalProperties", false);
+        schema.put("enum", List.of("a", "b"));
+        schema.put("const", "a");
+        Map<String, Object> ifS = new LinkedHashMap<>();
+        ifS.put("type", "string");
+        schema.put("if", ifS);
+        Map<String, Object> thenS = new LinkedHashMap<>();
+        thenS.put("minLength", 1);
+        schema.put("then", thenS);
+        Map<String, Object> defs = new LinkedHashMap<>();
+        defs.put("T", Map.of("type", "string"));
+        schema.put("$defs", defs);
+        schema.put("$ref", "#/$defs/T");
+        schema.put("format", "email");
+        schema.put("contentEncoding", "base64");
+        schema.put("prefixItems", List.of());
+        schema.put("dependentRequired", Map.of());
+        schema.put("unevaluatedProperties", true);
+        assertDoesNotThrow(() -> SchemaValidator.validateSchema(schema));
+    }
+
+    // ── Enforcement proof: only documented subset is enforced (Option B §7) ─────
+
+    @Test
+    void validateData_formatEmail_notEnforced() {
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        Map<String, Object> props = new LinkedHashMap<>();
+        props.put("email", Map.of("type", "string", "format", "email"));
+        schema.put("properties", props);
+        schema.put("required", List.of("email"));
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("email", "not-an-email");
+        assertDoesNotThrow(() -> SchemaValidator.validateData(data, schema));
+    }
+
+    @Test
+    void validateData_dependentRequired_notEnforced() {
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        Map<String, Object> props = new LinkedHashMap<>();
+        props.put("name", Map.of("type", "string"));
+        props.put("age", Map.of("type", "number"));
+        schema.put("properties", props);
+        schema.put("dependentRequired", Map.of("name", List.of("age")));
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("name", "Alice");
+        assertDoesNotThrow(() -> SchemaValidator.validateData(data, schema));
+    }
+
+    @Test
+    void validateData_prefixItems_notEnforced() {
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "array");
+        schema.put("prefixItems", List.of(Map.of("type", "string")));
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("items", List.of(42, "hello"));
+        assertDoesNotThrow(() -> SchemaValidator.validateSchema(schema));
+    }
+
+    @Test
+    void validateData_unevaluatedProperties_notEnforced() {
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        schema.put("properties", Map.of("name", Map.of("type", "string")));
+        schema.put("additionalProperties", true);
+        schema.put("unevaluatedProperties", false);
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("name", "Bob");
+        data.put("extra", "value");
+        assertDoesNotThrow(() -> SchemaValidator.validateData(data, schema));
+    }
 }
