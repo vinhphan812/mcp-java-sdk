@@ -175,4 +175,16 @@ public final class McpMethodNames {
      */
     public static final String SUBSCRIPTIONS_LISTEN = "subscriptions/listen";
 
+    // ── SEP-2640 skills (2026-07-28) ──────────────────────────────────────────
+
+    /**
+     * {@code skills/list} — SEP-2640 (2026-07-28): lists available agent skills.
+     */
+    public static final String SKILLS_LIST = "skills/list";
+
+    /**
+     * {@code skills/get} — SEP-2640 (2026-07-28): retrieves a skill by URI.
+     */
+    public static final String SKILLS_GET = "skills/get";
+
 }
