@@ -35,6 +35,29 @@ public interface McpSkillsExtension extends McpExtension {
     /** Retrieves a skill by URI. */
     SkillDTO getSkill(String uri);
 
+    /**
+     * Returns whether this extension supports the {@code resources/directory/read} method.
+     * When {@code false} (the default), the server will not advertise the
+     * {@code directoryRead} capability and will respond with method-not-found
+     * to directory-read requests.
+     *
+     * @return {@code true} if directory listing is supported
+     */
+    default boolean supportsDirectoryRead() {
+        return false;
+    }
+
+    /**
+     * Lists directory entries for a skill URI.
+     * Called only when {@link #supportsDirectoryRead()} returns {@code true}.
+     *
+     * @param skillRootUri the skill root URI (e.g. {@code skill://refunds})
+     * @return list of directory entries, or empty list if the directory is empty
+     */
+    default List<DirectoryEntry> listDirectory(String skillRootUri) {
+        return List.of();
+    }
+
     /** Serves manifest files. */
     String readManifestFile(String uri, String fileName);
 
