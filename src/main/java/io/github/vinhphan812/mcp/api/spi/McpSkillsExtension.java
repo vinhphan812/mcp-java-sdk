@@ -1,6 +1,7 @@
 package io.github.vinhphan812.mcp.api.spi;
 
 import io.github.vinhphan812.mcp.api.dto.SkillDTO;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -18,6 +19,14 @@ public interface McpSkillsExtension extends McpExtension {
     @Override
     default boolean supports(String protocolVersion) {
         return false;
+    }
+
+    /** Returns the capabilities advertisement for the server/info response. */
+    default Map<String, Object> advertiseCapabilities(String protocolVersion) {
+        if (!supports(protocolVersion)) return null;
+        Map<String, Object> caps = new LinkedHashMap<>();
+        caps.put("namespace", NAMESPACE);
+        return caps;
     }
 
     /** Lists available skills. */

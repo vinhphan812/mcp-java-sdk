@@ -26,6 +26,7 @@ import io.github.vinhphan812.mcp.api.dto.ElicitRequest;
 import io.github.vinhphan812.mcp.api.dto.ElicitationResult;
 import io.github.vinhphan812.mcp.api.dto.ListenRequest;
 import io.github.vinhphan812.mcp.api.dto.McpBlobContent;
+import io.github.vinhphan812.mcp.api.dto.SkillDTO;
 import io.github.vinhphan812.mcp.api.dto.McpTask;
 import io.github.vinhphan812.mcp.api.dto.Mcp2026RequestContext;
 import io.github.vinhphan812.mcp.api.dto.SubscriptionListenRequest;
@@ -990,6 +991,16 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                     if (!config.completions) return new McpResponse(capabilityError(id, "completions"), sessionId);
                     result = handleCompletion(params instanceof Map ? (Map<String, Object>) params : null);
                     break;
+                case McpMethodNames.SKILLS_LIST:
+                    responseSessionId = null;
+                    if (skillsExtension == null) return new McpResponse(errorResponse(id, McpErrorCodes.METHOD_NOT_FOUND, "Skills not configured"), sessionId);
+                    result = handleSkillsList(params instanceof Map ? (Map<String, Object>) params : null);
+                    break;
+                case McpMethodNames.SKILLS_GET:
+                    responseSessionId = null;
+                    if (skillsExtension == null) return new McpResponse(errorResponse(id, McpErrorCodes.METHOD_NOT_FOUND, "Skills not configured"), sessionId);
+                    result = handleSkillsGet(params instanceof Map ? (Map<String, Object>) params : null);
+                    break;
                 case McpMethodNames.LOGGING_SET_LEVEL:
                     responseSessionId = null;
                     if (!config.logging) return new McpResponse(capabilityError(id, "logging"), sessionId);
@@ -1273,6 +1284,13 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 capabilities.put("tasks", tasksExtension.advertiseCapabilities(negotiatedVersion));
             } else if (tasksExtension == null) {
                 capabilities.put("tasks", new LinkedHashMap<String, Object>());
+            }
+        }
+        if (config.skillsExtension != null) {
+            if (skillsExtension.supports(negotiatedVersion)) {
+                capabilities.put("skills", skillsExtension.advertiseCapabilities(negotiatedVersion));
+            } else {
+                capabilities.put("skills", new LinkedHashMap<String, Object>());
             }
         }
         if (!config.experimental.isEmpty()) capabilities.put("experimental", config.experimental);
@@ -2392,6 +2410,38 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             if (t instanceof Error) throw (Error) t;
             return errorPromptResult("Error getting prompt " + name + ": " + t.getMessage());
         }
+    }
+
+    // ==================== Skills (SEP-2640) ====================
+
+    private Map<String, Object> handleSkillsList(Map<String, Object> params) {
+        int offset = 0, limit = 100;
+        if (params != null) {
+            if (params.get("cursor") instanceof String) {
+                String cursor = (String) params.get("cursor");
+                try { offset = Integer.parseInt(cursor); } catch (NumberFormatException ignored) {}
+            }
+            Object l = params.get("limit");
+            if (l instanceof Number) limit = ((Number) l).intValue();
+        }
+        List<SkillDTO> all = skillsExtension.listSkills(offset, limit);
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (SkillDTO s : all) items.add(s.toMap());
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("skills", items);
+        // Next cursor if more skills exist
+        List<SkillDTO> nextPage = skillsExtension.listSkills(offset + limit, 1);
+        if (!nextPage.isEmpty()) result.put("nextCursor", String.valueOf(offset + limit));
+        return result;
+    }
+
+    private Map<String, Object> handleSkillsGet(Map<String, Object> params) {
+        if (params == null) throw McpException.invalidParams("params required");
+        String uri = params.get("uri") instanceof String ? (String) params.get("uri") : null;
+        if (uri == null || uri.trim().isEmpty()) throw McpException.invalidParams("uri required");
+        SkillDTO skill = skillsExtension.getSkill(uri);
+        if (skill == null) throw McpException.invalidParams("Unknown skill: " + uri);
+        return skill.toMap();
     }
 
     // ==================== Registration (called by Managers) ====================
