@@ -51,6 +51,40 @@ dependencies {
 
     implementation 'com.google.guava:guava:33.3.0-jre'
 
+    // ── JWT / JOSE (MIT licence, Android-compatible) ──────────────────────────────
+    // jjwt-api:    provider-neutral JWT parser/builder API (compileOnly → included in
+    //              published JAR so callers can type-annotate against it; the impl
+    //              is a runtime dependency of the consuming application, not the SDK)
+    // jjwt-impl:   reference implementation of the parser/builder; pulled in as
+    //              runtimeOnly so it is not part of the SDK JAR but is available at
+    //              test/runtime.  Its transitive dep jjwt-jackson brings in
+    //              jackson-databind which is excluded from the SDK core — it lives
+    //              only in the consuming application's classpath.
+    //              Android note: for Android use the android-jwt split (separate impl
+    //              modules for J2SE, Android) if jackson-databind is unavailable.
+    // jjwt-api:    provider-neutral JWT parser/builder API.
+    //              compileOnly for the main source (SDK JAR does not bundle it).
+    //              testImplementation so the test suite can also compile against it.
+    // jjwt-impl:   reference implementation; runtimeOnly for main source
+    //              (compileOnly SDK pattern) and testRuntimeOnly so the test
+    //              JVM can actually run the parser at test time.
+    //              Its transitive dep jjwt-jackson is excluded so that only
+    //              jjwt-gson (Gson-based JSON) is available — avoiding a conflict
+    //              with the SDK's own Gson dependency and the json-schema-validator
+    //              transitive dep on jackson-databind.
+    compileOnly 'io.jsonwebtoken:jjwt-api:0.12.6'
+    testImplementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly('io.jsonwebtoken:jjwt-impl:0.12.6') {
+        exclude group: 'io.jsonwebtoken', module: 'jjwt-jackson'
+    }
+    // jjwt-gson:   Gson-based JSON serializer for jjwt-impl (required when
+    //              jjwt-jackson is excluded).  Gson is already a transitive dep
+    //              of the SDK via com.google.code.gson:gson.
+    testRuntimeOnly 'io.jsonwebtoken:jjwt-gson:0.12.6'
+    testRuntimeOnly('io.jsonwebtoken:jjwt-impl:0.12.6') {
+        exclude group: 'io.jsonwebtoken', module: 'jjwt-jackson'
+    }
+
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
