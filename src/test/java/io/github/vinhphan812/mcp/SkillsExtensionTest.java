@@ -74,6 +74,11 @@ class SkillsExtensionTest {
         }
 
         @Override
+        public boolean supportsDirectoryRead() {
+            return true;
+        }
+
+        @Override
         public List<SkillDTO> listSkills(int offset, int limit) {
             int end = Math.min(offset + limit, skills.size());
             if (offset >= skills.size()) return Collections.emptyList();
@@ -91,14 +96,25 @@ class SkillsExtensionTest {
         public String readManifestFile(String uri, String fileName) {
             lastReadUri = uri;
             lastReadFile = fileName;
+            // uri is the skill root (e.g. "skill://test/skill-one")
+            // fileName is the relative path (e.g. "SKILL.md" or "scripts/check.py")
             if (!"SKILL.md".equals(fileName)) return null;
-            // Only return manifest for registered skills
             for (SkillDTO skill : skills) {
                 if (uri.equals(skill.uri)) {
                     return "# Test Skill\n\nThis is a test skill manifest.\n";
                 }
             }
-            return null; // unknown skill
+            return null;
+        }
+
+        @Override
+        public List<DirectoryEntry> listDirectory(String skillRootUri) {
+            // Return SKILL.md as the only entry
+            return List.of(new DirectoryEntry() {
+                @Override public String uri() { return skillRootUri + "/SKILL.md"; }
+                @Override public String name() { return "SKILL.md"; }
+                @Override public boolean isDirectory() { return false; }
+            });
         }
     }
 
@@ -238,6 +254,7 @@ class SkillsExtensionTest {
                 + "\"params\":{\"uri\":\"skill://test/skill-two\"}}";
         handler.handleRequestResponse(req, sessionId);
 
+        // With new URI parsing: skillRoot=skill://test/skill-two, relativePath=""
         assertEquals("skill://test/skill-two", skillsExtension.lastReadUri);
         assertEquals("SKILL.md", skillsExtension.lastReadFile);
     }
@@ -281,7 +298,9 @@ class SkillsExtensionTest {
         JsonObject result = resp.getAsJsonObject("result");
         assertFalse(result.has("error"));
         assertEquals("complete", result.get("resultType").getAsString());
-        assertTrue(result.has("entries"));
+        // New response shape: "resources" field (not "entries")
+        assertTrue(result.has("resources"));
+        assertEquals(1, result.getAsJsonArray("resources").size());
     }
 
     @Test

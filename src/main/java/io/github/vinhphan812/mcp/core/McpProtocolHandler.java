@@ -1292,8 +1292,10 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (config.resources) {
             Map<String, Object> resourcesCap = new LinkedHashMap<>();
             resourcesCap.put("listChanged", true);
-            // SEP-2640 Skills: advertise directoryRead when Skills is enabled
-            if (config.skillsExtension != null) resourcesCap.put("directoryRead", true);
+            // SEP-2640 Skills: advertise directoryRead only when Skills extension supports it
+            if (config.skillsExtension != null && config.skillsExtension.supportsDirectoryRead()) {
+                resourcesCap.put("directoryRead", true);
+            }
             if (config.resourceSubscriptions && !stateless) resourcesCap.put("subscribe", true);
             capabilities.put("resources", resourcesCap);
         }
@@ -1363,8 +1365,10 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (config.resources) {
             Map<String, Object> resourcesCap = new LinkedHashMap<>();
             resourcesCap.put("listChanged", true);
-            // SEP-2640 Skills: advertise directoryRead when Skills is enabled
-            if (config.skillsExtension != null) resourcesCap.put("directoryRead", true);
+            // SEP-2640 Skills: advertise directoryRead only when Skills extension supports it
+            if (config.skillsExtension != null && config.skillsExtension.supportsDirectoryRead()) {
+                resourcesCap.put("directoryRead", true);
+            }
             capabilities.put("resources", resourcesCap);
         }
         if (config.prompts) {
@@ -2421,7 +2425,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         return paginate("resources", registry.getRegisteredResources(), params, "resources");
     }
 
-        private Map<String, Object> handleResourcesRead(Map<String, Object> params) {
+    private Map<String, Object> handleResourcesRead(Map<String, Object> params) {
         if (params == null) throw McpException.invalidParams("missing params");
         Object uriValue = params.get("uri");
         if (!(uriValue instanceof String) || ((String) uriValue).trim().isEmpty()) {
@@ -2441,17 +2445,56 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             clearRequestScope();
         }
 
-        // SEP-2640 Skills: serve skill files as resources under skill://<uri>/<file>
+        // SEP-2640 Skills: serve skill files as resources under skill://<name>/<path>
         if (uri.startsWith("skill://")) {
-            String manifest = skillsExtension.readManifestFile(uri, "SKILL.md");
-            if (manifest != null) {
+            if (skillsExtension == null) {
+                throw McpException.methodNotFound("Skills not configured");
+            }
+            // Find the skill root by checking which stored skill URI is a prefix of the request URI.
+            // This handles multi-segment skill names (e.g. skill://test/skill-one).
+            String skillRoot = null;
+            for (SkillDTO skill : skillsExtension.listSkills(0, 1000)) {
+                if (uri.equals(skill.uri) || uri.startsWith(skill.uri + "/")) {
+                    skillRoot = skill.uri;
+                    break;
+                }
+            }
+            if (skillRoot == null) {
+                throw McpException.invalidParams("Unknown skill URI: " + uri);
+            }
+            String relativePath = uri.equals(skillRoot) || uri.equals(skillRoot + "/")
+                    ? "" : uri.substring(skillRoot.length() + 1);
+            // Reject path traversal (no .. segments)
+            if (relativePath.contains("..")) {
+                throw McpException.invalidParams("Invalid skill URI: path traversal not allowed");
+            }
+
+            if (relativePath.isEmpty()) {
+                // Root request: serve SKILL.md
+                String manifest = skillsExtension.readManifestFile(skillRoot, "SKILL.md");
+                if (manifest == null) {
+                    throw McpException.invalidParams("Unknown skill: " + skillRoot);
+                }
                 Map<String, Object> result = new LinkedHashMap<>();
                 result.put("contents", List.of(
                         Map.of("uri", uri, "mimeType", "text/markdown", "text", manifest)));
                 result.put("resultType", "complete");
                 return result;
             }
-            throw McpException.invalidParams("Unknown skill URI: " + uri);
+
+            // Companion file request: pass the full URI to the extension so it can
+            // match against stored skill URIs. The extension is responsible for
+            // extracting the skill root and locating the file.
+            String fullUri = skillRoot + "/" + relativePath;
+            String content = skillsExtension.readManifestFile(fullUri, relativePath);
+            if (content == null) {
+                throw McpException.invalidParams("Unknown skill file: " + uri);
+            }
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("contents", List.of(
+                    Map.of("uri", uri, "mimeType", mimeTypeForUri(uri), "text", content)));
+            result.put("resultType", "complete");
+            return result;
         }
 
         McpResourceHandler handler = registry.getResourceHandler(uri);
@@ -2619,16 +2662,29 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (uri == null || uri.trim().isEmpty()) {
             throw McpException.invalidParams("uri is required");
         }
-        // Delegate to skills extension for directory listing
-        String manifest = skillsExtension.readManifestFile(uri, "SKILL.md");
-        if (manifest == null) {
+        if (skillsExtension == null) {
+            throw McpException.methodNotFound("Skills not configured");
+        }
+        if (!skillsExtension.supportsDirectoryRead()) {
+            throw McpException.methodNotFound("directoryRead not supported");
+        }
+        // Normalise skill root URI: strip trailing slash if present
+        String skillRoot = uri.endsWith("/") ? uri.substring(0, uri.length() - 1) : uri;
+        // Verify the skill root exists by checking the manifest
+        if (skillsExtension.readManifestFile(skillRoot, "SKILL.md") == null) {
             throw McpException.invalidParams("Unknown skill directory: " + uri);
+        }
+        List<McpSkillsExtension.DirectoryEntry> entries = skillsExtension.listDirectory(skillRoot);
+        List<Map<String, Object>> resourceList = new ArrayList<>();
+        for (McpSkillsExtension.DirectoryEntry entry : entries) {
+            resourceList.add(Map.of(
+                    "uri", entry.uri(),
+                    "name", entry.name(),
+                    "isDirectory", entry.isDirectory()));
         }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("resultType", "complete");
-        result.put("entries", List.of(
-                Map.of("uri", uri.endsWith("/") ? uri + "SKILL.md" : uri + "/SKILL.md",
-                        "name", "SKILL.md", "isDirectory", false)));
+        result.put("resources", resourceList);
         return result;
     }
 
