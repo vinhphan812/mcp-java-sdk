@@ -317,15 +317,19 @@ McpProtocolHandler.throwElicitationNeeded(
 }
 ```
 
-### Full round-trip flow
+### Full round-trip flow — same-request retry (primary, SEP-2322)
+
+The primary SEP-2322 protocol path uses **same-request retry**: the client re-sends the original
+`tools/call` (or `prompts/get`, `resources/read`) with `inputResponses` included in the request
+body. This is the preferred path — simpler, self-contained, and avoids a separate round.
 
 1. **Tool call** → handler throws `ElicitationNeededException`
 2. **Protocol handler** catches it, creates a tracked token, returns `resultType: "input_required"`
 3. **Client** stores the `requestState` token, shows the prompt to the user
 4. **User** provides input
-5. **Client** calls `tasks/update` with `requestState` and `inputResponses`
-6. **Protocol handler** validates the token (rejects if expired/invalid/max-rounds)
-7. **Application** re-invokes the tool with the user's input in the arguments
+5. **Client** re-sends the same `tools/call` with `inputResponses` and `requestState` in the params
+6. **Protocol handler** validates the token and injects the responses as if they were original arguments
+7. **Application** re-executes the tool with the user's input in the arguments
 
 ```java
 // Server: tool handler signals input need
@@ -341,16 +345,51 @@ public Map<String, Object> call(Map<String, Object> args) {
 }
 ```
 
-```java
-// Client: receives input_required response, calls tasks/update, then re-calls tool
-// tasks/update response:
-{"jsonrpc": "2.0", "id": 5, "result": {}}
+```json
+// Client: receives input_required, re-calls tool with inputResponses (same-request retry)
+{"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+ "params": {
+    "name": "delete-record",
+    "arguments": {"id": "42"},
+    "inputResponses": [
+      {"requestState": "a1b2c3d4-5678-90ab-cdef-1234567890ab",
+       "contents": [{"type": "text", "text": "true"}]}
+    ]
+  }
+}
+// → {"result": {"resultType": "complete", "content": [...]}}
+```
 
-// Re-call with input:
+### Alternative — tasks/update + re-invoke (out-of-band)
+
+The `tasks/update` path is an **alternative** for clients that cannot embed `inputResponses` in the
+retry request body (e.g. clients that do not control the retry invocation point directly). It
+requires two round-trips:
+
+1. Client calls `tasks/update` with `requestState` and `inputResponses`
+2. Client re-invokes the tool with the user's input as explicit arguments
+
+```json
+// Step 1: tasks/update
+{"jsonrpc": "2.0", "id": 5, "method": "tasks/update",
+ "params": {
+    "taskToken": "a1b2c3d4-5678-90ab-cdef-1234567890ab",
+    "inputResponses": [
+      {"requestState": "a1b2c3d4-5678-90ab-cdef-1234567890ab",
+       "contents": [{"type": "text", "text": "true"}]}
+    ]
+  }
+}
+// → {"jsonrpc": "2.0", "id": 5, "result": {}}
+
+// Step 2: re-invoke with arguments supplied directly
 {"jsonrpc": "2.0", "id": 6, "method": "tools/call",
  "params": {"name": "delete-record", "arguments": {"id": "42", "confirmed": true}}}
 // → {"result": {"resultType": "complete", "content": [...]}}
 ```
+
+**Use same-request retry when possible.** Reserve `tasks/update` for clients that cannot hold
+`requestState` across the retry boundary.
 
 ### RequestStateManager
 
