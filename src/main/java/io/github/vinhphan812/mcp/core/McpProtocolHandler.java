@@ -2687,23 +2687,71 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (!skillsExtension.supportsDirectoryRead()) {
             throw McpException.methodNotFound("directoryRead not supported");
         }
-        // Normalise skill root URI: strip trailing slash if present
-        String skillRoot = uri.endsWith("/") ? uri.substring(0, uri.length() - 1) : uri;
-        // Verify the skill root exists by checking the manifest
-        if (skillsExtension.readManifestFile(skillRoot, "SKILL.md") == null) {
+        // Validate skill: readManifestFile checks the manifest at the skill root (original URI).
+        // The extension resolves the skill root from the given URI — it may navigate
+        // up parent directories to find the SKILL.md. If no manifest found, the URI is invalid.
+        if (skillsExtension.readManifestFile(uri, "SKILL.md") == null) {
             throw McpException.invalidParams("Unknown skill directory: " + uri);
         }
-        List<McpSkillsExtension.DirectoryEntry> entries = skillsExtension.listDirectory(skillRoot);
-        List<Map<String, Object>> resourceList = new ArrayList<>();
-        for (McpSkillsExtension.DirectoryEntry entry : entries) {
-            resourceList.add(Map.of(
-                    "uri", entry.uri(),
-                    "name", entry.name(),
-                    "isDirectory", entry.isDirectory()));
+
+        // Parse cursor and limit for pagination
+        String cursor = null;
+        Object cursorVal = params.get("cursor");
+        if (cursorVal instanceof String) cursor = (String) cursorVal;
+        int limit = 100;
+        Object limitVal = params.get("limit");
+        if (limitVal instanceof Number) limit = ((Number) limitVal).intValue();
+        if (limit <= 0) limit = 100;
+
+        // skillRoot is the discovered skill root; the extension uses it to navigate
+        // direct children. For nested paths (e.g. skill://acme/billing/templates),
+        // the discovered root is skill://acme.
+        String skillRoot = uri;
+        int lastSlash = uri.lastIndexOf('/');
+        while (lastSlash > "skill://".length()) {
+            String candidate = uri.substring(0, lastSlash);
+            if (skillsExtension.readManifestFile(candidate, "SKILL.md") != null) {
+                skillRoot = candidate;
+                break;
+            }
+            lastSlash = candidate.lastIndexOf('/');
         }
+
+        // Delegate to PaginatedSkillsExtension if available; otherwise fall back to listDirectory
+        List<Map<String, Object>> resourceList = new ArrayList<>();
+        String nextCursor = null;
+        if (skillsExtension instanceof McpSkillsExtension.PaginatedSkillsExtension) {
+            McpSkillsExtension.PaginatedSkillsExtension ext =
+                    (McpSkillsExtension.PaginatedSkillsExtension) skillsExtension;
+            // skillRoot is the discovered skill root; the extension uses it to list
+            // direct children. For nested paths (e.g. skill://acme/billing/templates),
+            // the extension receives the skill root (skill://acme) so it can navigate
+            // the relative path within that skill's workspace.
+            List<McpSkillsExtension.DirectoryEntry> entries =
+                    ext.listDirectoryPaginated(skillRoot, cursor, limit);
+            for (McpSkillsExtension.DirectoryEntry entry : entries) {
+                resourceList.add(Map.of(
+                        "uri", entry.uri(),
+                        "name", entry.name(),
+                        "mimeType", entry.mimeType() != null ? entry.mimeType() : "inode/directory"));
+            }
+            nextCursor = ext.getLastDirectoryCursor();
+        } else {
+            // Legacy fallback: listDirectory without pagination
+            List<McpSkillsExtension.DirectoryEntry> entries =
+                    skillsExtension.listDirectory(skillRoot);
+            for (McpSkillsExtension.DirectoryEntry entry : entries) {
+                resourceList.add(Map.of(
+                        "uri", entry.uri(),
+                        "name", entry.name(),
+                        "mimeType", entry.mimeType() != null ? entry.mimeType() : "inode/directory"));
+            }
+        }
+
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("resultType", "complete");
         result.put("resources", resourceList);
+        if (nextCursor != null) result.put("nextCursor", nextCursor);
         return result;
     }
 

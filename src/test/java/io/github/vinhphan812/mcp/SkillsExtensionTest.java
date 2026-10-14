@@ -403,9 +403,14 @@ class SkillsExtensionTest {
 
         String req = "{\"jsonrpc\":\"2.0\",\"id\":18,\"method\":\"resources/directory/read\","
                 + "\"params\":{\"uri\":\"skill://test/skill-one\"}}";
-        JsonObject resp = GSON.fromJson(
-                handler.handleRequestResponse(req, sessionId).getBody(),
-                JsonObject.class);
+        McpProtocolHandler.McpResponse rawResp = handler.handleRequestResponse(req, sessionId);
+        assertNotNull(rawResp.getBody(), "Response body should not be null: " + rawResp.getStreamingSubscriptionId());
+        JsonObject resp = GSON.fromJson(rawResp.getBody(), JsonObject.class);
+        if (resp.has("error") && !resp.get("error").isJsonNull()) {
+            fail("Unexpected error: " + resp.getAsJsonObject("error").toString());
+        }
+        assertTrue(resp.has("result") && !resp.get("result").isJsonNull(),
+                "Response missing result: " + resp.toString());
         JsonObject result = resp.getAsJsonObject("result");
         assertFalse(result.has("error"));
         assertEquals("complete", result.get("resultType").getAsString());

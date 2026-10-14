@@ -120,6 +120,22 @@ public class McpSkillsExtensionTest {
                         @Override public boolean isDirectory() {
                             return isDir;
                         }
+                        @Override public String mimeType() {
+                            if (isDir) return "inode/directory";
+                            String name = childName.replaceAll("/$", "");
+                            int dot = name.lastIndexOf('.');
+                            if (dot < 0) return null;
+                            String ext = name.substring(dot + 1).toLowerCase();
+                            switch (ext) {
+                                case "md": return "text/markdown";
+                                case "txt": return "text/plain";
+                                case "json": return "application/json";
+                                case "yaml": case "yml": return "text/yaml";
+                                case "sh": return "text/x-shellscript";
+                                case "py": return "text/x-python";
+                                default: return null;
+                            }
+                        }
                     })
                     .collect(java.util.stream.Collectors.toList());
         }
@@ -382,15 +398,17 @@ public class McpSkillsExtensionTest {
         List<Map<String, Object>> resources = (List<Map<String, Object>>) result.get("resources");
         assertFalse(resources.isEmpty(), "resources list should not be empty");
 
-        // Verify SKILL.md is present
+        // Verify SKILL.md is present with correct MIME type
         boolean hasSkillMd = resources.stream()
-                .anyMatch(e -> "SKILL.md".equals(e.get("name")) && Boolean.FALSE.equals(e.get("isDirectory")));
-        assertTrue(hasSkillMd, "SKILL.md must be listed as a non-directory resource");
+                .anyMatch(e -> "SKILL.md".equals(e.get("name"))
+                        && "text/markdown".equals(e.get("mimeType")));
+        assertTrue(hasSkillMd, "SKILL.md must be listed with mimeType=text/markdown");
 
-        // Verify scripts/ is present as a directory
+        // Verify scripts/ is present as a directory with inode/directory MIME type
         boolean hasScripts = resources.stream()
-                .anyMatch(e -> "scripts".equals(e.get("name")) && Boolean.TRUE.equals(e.get("isDirectory")));
-        assertTrue(hasScripts, "scripts/ must be listed as a directory resource");
+                .anyMatch(e -> "scripts".equals(e.get("name"))
+                        && "inode/directory".equals(e.get("mimeType")));
+        assertTrue(hasScripts, "scripts/ must be listed with mimeType=inode/directory");
     }
 
     @Test
