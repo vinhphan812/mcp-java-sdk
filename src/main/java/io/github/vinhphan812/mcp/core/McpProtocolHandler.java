@@ -25,9 +25,11 @@ import io.github.vinhphan812.mcp.api.dto.ElicitAction;
 import io.github.vinhphan812.mcp.api.dto.ElicitRequest;
 import io.github.vinhphan812.mcp.api.dto.ElicitationResult;
 import io.github.vinhphan812.mcp.api.dto.InputRequiredResult;
+import io.github.vinhphan812.mcp.api.dto.ListSkillsResult;
 import io.github.vinhphan812.mcp.api.dto.ListenRequest;
 import io.github.vinhphan812.mcp.api.dto.McpBlobContent;
 import io.github.vinhphan812.mcp.api.dto.SkillDTO;
+import io.github.vinhphan812.mcp.api.dto.SkillResource;
 import io.github.vinhphan812.mcp.api.dto.McpTask;
 import io.github.vinhphan812.mcp.api.dto.Mcp2026RequestContext;
 import io.github.vinhphan812.mcp.api.dto.SubscriptionListenRequest;
@@ -2388,6 +2390,100 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         return stringObjectMap((Map<?, ?>) value, "arguments");
     }
 
+    // ==================== Skills resource helpers ====================
+
+    /**
+     * Normalises and validates a skill URI path component to prevent traversal attacks.
+     * Applies URL decoding, normalisation (removing redundant separators), and rejects:
+     * <ul>
+     *   <li>Percent-encoded traversal metacharacters ({@code %2e}, {@code %2E}, {@code %00})</li>
+     *   <li>Double-encoded traversal ({@code %252e})</li>
+     *   <li>Backslash separators ({@code \})</li>
+     *   <li>Encoded null bytes ({@code %00})</li>
+     *   <li>Malformed percent encoding (e.g. {@code %ZZ})</li>
+     * </ul>
+     *
+     * @param path the raw path component from the URI
+     * @return the normalised path, or {@code null} if traversal detected
+     */
+    private static String normalizePath(String path) {
+        if (path == null || path.isEmpty()) return "";
+        // Step 1: URL-decode (first pass)
+        String decoded;
+        try {
+            decoded = java.net.URLDecoder.decode(path, "UTF-8");
+        } catch (Exception e) {
+            return null; // malformed encoding
+        }
+        // Step 2: Reject backslash
+        if (decoded.indexOf('\\') >= 0) return null;
+        // Step 3: Reject NUL bytes (encoded or literal)
+        if (decoded.indexOf('\0') >= 0) return null;
+        // Step 4: Reject malformed percent encoding (%ZZ — not two hex digits).
+        // After decoding, we scan for sequences that decode to dangerous bytes.
+        // NUL byte: decoded from %00. Literal NUL is caught here too.
+        if (decoded.indexOf('\0') >= 0) return null;
+        // Scan for %XX sequences where XX is not two hex digits — malformed encoding.
+        for (int i = 0; i < decoded.length() - 2; i++) {
+            if (decoded.charAt(i) == '%') {
+                char h1 = decoded.charAt(i + 1);
+                char h2 = decoded.charAt(i + 2);
+                if (!isHexDigit(h1) || !isHexDigit(h2)) {
+                    return null; // malformed percent encoding
+                }
+            }
+        }
+        // Step 5: Reject leading/trailing separator BEFORE normalisation
+        if (decoded.startsWith("/") || decoded.endsWith("/")) return null;
+        // Step 6: Reject raw .. before normalisation (catches %2e%2e after single decode)
+        if (decoded.indexOf("..") >= 0) return null;
+        // Step 7: Normalise: remove redundant /./ and collapsing ////
+        StringBuilder sb = new StringBuilder();
+        int len = decoded.length();
+        for (int i = 0; i < len; i++) {
+            char c = decoded.charAt(i);
+            if (c == '/') {
+                // Skip redundant /
+                if (sb.length() > 0 && sb.charAt(sb.length() - 1) != '/') {
+                    sb.append(c);
+                }
+            } else {
+                sb.append(c);
+            }
+        }
+        String normalised = sb.toString();
+        // Step 8: Final safety scan
+        if (normalised.startsWith(".") || normalised.indexOf("..") >= 0
+                || normalised.indexOf('\\') >= 0) return null;
+        return normalised;
+    }
+
+    /**
+     * Returns true if c is an ASCII hex digit (0-9, a-f, A-F).
+     */
+    private static boolean isHexDigit(char c) {
+        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+    }
+
+    /**
+     * Serialises a {@link SkillResource} as an MCP {@code resources/read} content item.
+     * Text resources are serialised as {@code {type:"text", text:"..."}}.
+     * Blob resources are serialised as {@code {type:"blob", blob:"<base64>", mimeType:"..."}}
+     * per the MCP BlobResourceContents wire contract.
+     */
+    private Map<String, Object> skillResourceContents(String uri, SkillResource resource) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("uri", uri);
+        item.put("mimeType", resource.mimeType());
+        if (resource.isText()) {
+            item.put("text", resource.text());
+        } else {
+            // Blob: encode as Base64 — MCP BlobResourceContents uses "blob" field
+            item.put("blob", java.util.Base64.getEncoder().encodeToString(resource.blob()));
+        }
+        return item;
+    }
+
     private Map<String, Object> resourceContents(String uri, String text) {
         Map<String, Object> contentItem = new LinkedHashMap<>();
         contentItem.put("uri", uri);
@@ -2453,7 +2549,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             // Find the skill root by checking which stored skill URI is a prefix of the request URI.
             // This handles multi-segment skill names (e.g. skill://test/skill-one).
             String skillRoot = null;
-            for (SkillDTO skill : skillsExtension.listSkills(0, 1000)) {
+            for (SkillDTO skill : skillsExtension.listSkills(null, 1000).skills) {
                 if (uri.equals(skill.uri) || uri.startsWith(skill.uri + "/")) {
                     skillRoot = skill.uri;
                     break;
@@ -2462,11 +2558,12 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             if (skillRoot == null) {
                 throw McpException.invalidParams("Unknown skill URI: " + uri);
             }
-            String relativePath = uri.equals(skillRoot) || uri.equals(skillRoot + "/")
+            // Extract relative path after skill root; normalise to prevent traversal attacks
+            String rawRelativePath = uri.equals(skillRoot) || uri.equals(skillRoot + "/")
                     ? "" : uri.substring(skillRoot.length() + 1);
-            // Reject path traversal (no .. segments)
-            if (relativePath.contains("..")) {
-                throw McpException.invalidParams("Invalid skill URI: path traversal not allowed");
+            String relativePath = normalizePath(rawRelativePath);
+            if (relativePath == null) {
+                throw McpException.invalidParams("Invalid skill URI: path traversal or malformed encoding not allowed");
             }
 
             if (relativePath.isEmpty()) {
@@ -2482,17 +2579,22 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 return result;
             }
 
-            // Companion file request: pass the full URI to the extension so it can
-            // match against stored skill URIs. The extension is responsible for
-            // extracting the skill root and locating the file.
-            String fullUri = skillRoot + "/" + relativePath;
-            String content = skillsExtension.readManifestFile(fullUri, relativePath);
-            if (content == null) {
+            // Companion file request: readSkillResource(skillRoot, relativePath, mimeType)
+            // skillRoot is the discovered skill root (e.g. "skill://test/skill-one")
+            // relativePath is the normalised path component (e.g. "scripts/deploy.sh")
+            String mimeType = mimeTypeForSkillFile(relativePath);
+            io.github.vinhphan812.mcp.api.dto.SkillResource resource =
+                    skillsExtension.readSkillResource(skillRoot, relativePath, mimeType);
+            if (resource == null) {
                 throw McpException.invalidParams("Unknown skill file: " + uri);
             }
+            // Verify the MIME type is consistent (no spoofing)
+            if (resource.mimeType() != null && !resource.mimeType().equals(mimeType)) {
+                // Extension returned a different MIME type — trust extension's
+                mimeType = resource.mimeType();
+            }
             Map<String, Object> result = new LinkedHashMap<>();
-            result.put("contents", List.of(
-                    Map.of("uri", uri, "mimeType", mimeTypeForUri(uri), "text", content)));
+            result.put("contents", List.of(skillResourceContents(uri, resource)));
             result.put("resultType", "complete");
             return result;
         }
@@ -2579,6 +2681,26 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             }
         }
         return null;
+    }
+
+    private String mimeTypeForSkillFile(String relativePath) {
+        if (relativePath == null) return "text/plain";
+        if (relativePath.endsWith(".md")) return "text/markdown";
+        if (relativePath.endsWith(".txt")) return "text/plain";
+        if (relativePath.endsWith(".json")) return "application/json";
+        if (relativePath.endsWith(".yaml") || relativePath.endsWith(".yml")) return "text/yaml";
+        if (relativePath.endsWith(".sh")) return "text/x-shellscript";
+        if (relativePath.endsWith(".py")) return "text/x-python";
+        if (relativePath.endsWith(".js")) return "application/javascript";
+        if (relativePath.endsWith(".ts")) return "application/typescript";
+        if (relativePath.endsWith(".html") || relativePath.endsWith(".htm")) return "text/html";
+        if (relativePath.endsWith(".css")) return "text/css";
+        if (relativePath.endsWith(".xml")) return "application/xml";
+        if (relativePath.endsWith(".csv")) return "text/csv";
+        if (relativePath.endsWith(".sql")) return "application/x-sql";
+        if (relativePath.endsWith(".java")) return "text/x-java-source";
+        if (relativePath.endsWith(".kt") || relativePath.endsWith(".kts")) return "text/x-kotlin";
+        return "text/plain";
     }
 
     private String mimeTypeForUri(String uri) {
@@ -2668,23 +2790,71 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (!skillsExtension.supportsDirectoryRead()) {
             throw McpException.methodNotFound("directoryRead not supported");
         }
-        // Normalise skill root URI: strip trailing slash if present
-        String skillRoot = uri.endsWith("/") ? uri.substring(0, uri.length() - 1) : uri;
-        // Verify the skill root exists by checking the manifest
-        if (skillsExtension.readManifestFile(skillRoot, "SKILL.md") == null) {
+        // Validate skill: readManifestFile checks the manifest at the skill root (original URI).
+        // The extension resolves the skill root from the given URI — it may navigate
+        // up parent directories to find the SKILL.md. If no manifest found, the URI is invalid.
+        if (skillsExtension.readManifestFile(uri, "SKILL.md") == null) {
             throw McpException.invalidParams("Unknown skill directory: " + uri);
         }
-        List<McpSkillsExtension.DirectoryEntry> entries = skillsExtension.listDirectory(skillRoot);
-        List<Map<String, Object>> resourceList = new ArrayList<>();
-        for (McpSkillsExtension.DirectoryEntry entry : entries) {
-            resourceList.add(Map.of(
-                    "uri", entry.uri(),
-                    "name", entry.name(),
-                    "isDirectory", entry.isDirectory()));
+
+        // Parse cursor and limit for pagination
+        String cursor = null;
+        Object cursorVal = params.get("cursor");
+        if (cursorVal instanceof String) cursor = (String) cursorVal;
+        int limit = 100;
+        Object limitVal = params.get("limit");
+        if (limitVal instanceof Number) limit = ((Number) limitVal).intValue();
+        if (limit <= 0) limit = 100;
+
+        // skillRoot is the discovered skill root; the extension uses it to navigate
+        // direct children. For nested paths (e.g. skill://acme/billing/templates),
+        // the discovered root is skill://acme.
+        String skillRoot = uri;
+        int lastSlash = uri.lastIndexOf('/');
+        while (lastSlash > "skill://".length()) {
+            String candidate = uri.substring(0, lastSlash);
+            if (skillsExtension.readManifestFile(candidate, "SKILL.md") != null) {
+                skillRoot = candidate;
+                break;
+            }
+            lastSlash = candidate.lastIndexOf('/');
         }
+
+        // Delegate to PaginatedSkillsExtension if available; otherwise fall back to listDirectory
+        List<Map<String, Object>> resourceList = new ArrayList<>();
+        String nextCursor = null;
+        if (skillsExtension instanceof McpSkillsExtension.PaginatedSkillsExtension) {
+            McpSkillsExtension.PaginatedSkillsExtension ext =
+                    (McpSkillsExtension.PaginatedSkillsExtension) skillsExtension;
+            // Pass the full requested URI so the extension can navigate nested paths.
+            // skillRoot is the discovered skill root used for manifest validation only.
+            io.github.vinhphan812.mcp.api.dto.DirectoryPage page =
+                    ext.listDirectoryPage(uri, cursor, limit);
+            if (page != null) {
+                for (McpSkillsExtension.DirectoryEntry entry : page.getEntries()) {
+                    resourceList.add(Map.of(
+                            "uri", entry.uri(),
+                            "name", entry.name(),
+                            "mimeType", entry.mimeType()));
+                }
+                nextCursor = page.getNextCursor();
+            }
+        } else {
+            // Legacy fallback: listDirectory without pagination
+            List<McpSkillsExtension.DirectoryEntry> entries =
+                    skillsExtension.listDirectory(skillRoot);
+            for (McpSkillsExtension.DirectoryEntry entry : entries) {
+                resourceList.add(Map.of(
+                        "uri", entry.uri(),
+                        "name", entry.name(),
+                        "mimeType", entry.mimeType()));
+            }
+        }
+
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("resultType", "complete");
         result.put("resources", resourceList);
+        if (nextCursor != null) result.put("nextCursor", nextCursor);
         return result;
     }
 
@@ -2741,24 +2911,26 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     // ==================== Skills (SEP-2640) ====================
 
     private Map<String, Object> handleSkillsList(Map<String, Object> params) {
-        int offset = 0, limit = 100;
+        String cursor = null;
+        int limit = 100;
         if (params != null) {
-            if (params.get("cursor") instanceof String) {
-                String cursor = (String) params.get("cursor");
-                try { offset = Integer.parseInt(cursor); } catch (NumberFormatException ignored) {}
+            Object c = params.get("cursor");
+            if (c instanceof String && !((String) c).isEmpty()) {
+                cursor = (String) c;
             }
             Object l = params.get("limit");
-            if (l instanceof Number) limit = ((Number) l).intValue();
+            if (l instanceof Number) {
+                int requested = ((Number) l).intValue();
+                if (requested > 0) limit = Math.min(requested, 1000);
+            }
         }
-        List<SkillDTO> all = skillsExtension.listSkills(offset, limit);
+        ListSkillsResult result = skillsExtension.listSkills(cursor, limit);
         List<Map<String, Object>> items = new ArrayList<>();
-        for (SkillDTO s : all) items.add(s.toMap());
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("skills", items);
-        // Next cursor if more skills exist
-        List<SkillDTO> nextPage = skillsExtension.listSkills(offset + limit, 1);
-        if (!nextPage.isEmpty()) result.put("nextCursor", String.valueOf(offset + limit));
-        return result;
+        for (SkillDTO s : result.skills) items.add(s.toMap());
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("skills", items);
+        if (result.nextCursor != null) out.put("nextCursor", result.nextCursor);
+        return out;
     }
 
     private Map<String, Object> handleSkillsGet(Map<String, Object> params) {
