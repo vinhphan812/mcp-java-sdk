@@ -57,22 +57,24 @@ class SkillsExtensionTest {
         private String lastReadFile;
 
         TestSkillsExtension() {
+            // skill-one
             skills.add(new SkillDTO(
                     "skill://test/skill-one",
                     "skill-one",
                     "Test Skill One",
                     "A test skill",
                     Map.of("category", "test"),
-                    Map.of("SKILL.md", "src/skills/skill-one/SKILL.md"),
-                    Map.of()));
+                    McpSkillsExtension.buildResourceEntries("skill://test/skill-one",
+                            java.util.Arrays.asList("SKILL.md"), this)));
+            // skill-two
             skills.add(new SkillDTO(
                     "skill://test/skill-two",
                     "skill-two",
                     "Test Skill Two",
                     "Another test skill",
                     Map.of("category", "test"),
-                    Map.of("SKILL.md", "src/skills/skill-two/SKILL.md"),
-                    Map.of()));
+                    McpSkillsExtension.buildResourceEntries("skill://test/skill-two",
+                            java.util.Arrays.asList("SKILL.md"), this)));
         }
 
         @Override
