@@ -66,7 +66,7 @@ dependencyResolutionManagement {
 }
 
 dependencies {
-    implementation("io.github.vinhphan812.mcp:mcp-java-sdk:1.1.2")
+    implementation("io.github.vinhphan812.mcp:mcp-java-sdk:1.1.3")
 }
 ```
 
@@ -109,7 +109,7 @@ If you only need the JAR file without GitHub Packages:
 
 ```groovy
 dependencies {
-    implementation(files("path/to/mcp-java-sdk-1.1.2.jar"))
+    implementation(files("path/to/mcp-java-sdk-1.1.3.jar"))
 }
 ```
 
@@ -445,9 +445,9 @@ Outputs:
 
 | File                                        | Description       |
 |---------------------------------------------|-------------------|
-| `build/libs/mcp-java-sdk-1.1.2.jar`          | Main artifact      |
-| `build/libs/mcp-java-sdk-1.1.2-sources.jar` | Source code        |
-| `build/libs/mcp-java-sdk-1.1.2-javadoc.jar` | API documentation  |
+| `build/libs/mcp-java-sdk-1.1.3.jar`          | Main artifact      |
+| `build/libs/mcp-java-sdk-1.1.3-sources.jar` | Source code        |
+| `build/libs/mcp-java-sdk-1.1.3-javadoc.jar` | API documentation  |
 
 Override version for local build:
 
