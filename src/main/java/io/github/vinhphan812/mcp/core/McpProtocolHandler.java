@@ -2723,19 +2723,19 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (skillsExtension instanceof McpSkillsExtension.PaginatedSkillsExtension) {
             McpSkillsExtension.PaginatedSkillsExtension ext =
                     (McpSkillsExtension.PaginatedSkillsExtension) skillsExtension;
-            // skillRoot is the discovered skill root; the extension uses it to list
-            // direct children. For nested paths (e.g. skill://acme/billing/templates),
-            // the extension receives the skill root (skill://acme) so it can navigate
-            // the relative path within that skill's workspace.
-            List<McpSkillsExtension.DirectoryEntry> entries =
-                    ext.listDirectoryPaginated(skillRoot, cursor, limit);
-            for (McpSkillsExtension.DirectoryEntry entry : entries) {
-                resourceList.add(Map.of(
-                        "uri", entry.uri(),
-                        "name", entry.name(),
-                        "mimeType", entry.mimeType() != null ? entry.mimeType() : "inode/directory"));
+            // Pass the full requested URI so the extension can navigate nested paths.
+            // skillRoot is the discovered skill root used for manifest validation only.
+            io.github.vinhphan812.mcp.api.dto.DirectoryPage page =
+                    ext.listDirectoryPage(uri, cursor, limit);
+            if (page != null) {
+                for (McpSkillsExtension.DirectoryEntry entry : page.getEntries()) {
+                    resourceList.add(Map.of(
+                            "uri", entry.uri(),
+                            "name", entry.name(),
+                            "mimeType", entry.mimeType()));
+                }
+                nextCursor = page.getNextCursor();
             }
-            nextCursor = ext.getLastDirectoryCursor();
         } else {
             // Legacy fallback: listDirectory without pagination
             List<McpSkillsExtension.DirectoryEntry> entries =
@@ -2744,7 +2744,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 resourceList.add(Map.of(
                         "uri", entry.uri(),
                         "name", entry.name(),
-                        "mimeType", entry.mimeType() != null ? entry.mimeType() : "inode/directory"));
+                        "mimeType", entry.mimeType()));
             }
         }
 
