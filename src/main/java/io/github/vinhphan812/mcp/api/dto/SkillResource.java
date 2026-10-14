@@ -6,9 +6,9 @@ package io.github.vinhphan812.mcp.api.dto;
  * <p>Two representations are supported:
  * <ul>
  *   <li><b>Text</b>: UTF-8 text content (SKILL.md, scripts, config files, source code).
- *       Returned via {@link #text(String)}.</li>
+ *       Returned via {@link #text(String, String)}.</li>
  *   <li><b>Blob</b>: binary content encoded as Base64. Used for binary files
- *       (images, PDFs, archives). Returned via {@link #blob(byte[])}.</li>
+ *       (images, PDFs, archives). Returned via {@link #blob(String, byte[])}.</li>
  * </ul>
  *
  * <p>The MCP {@code resources/read} response serialises this as:
