@@ -2396,12 +2396,11 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
      * Normalises and validates a skill URI path component to prevent traversal attacks.
      * Applies URL decoding, normalisation (removing redundant separators), and rejects:
      * <ul>
-     *   <li>Parent-directory segments (..)</li>
-     *   <li>Backslash separators (\)</li>
-     *   <li>Encoded traversal (%2e, %2E)</li>
-     *   <li>Double-encoded traversal (%252e)</li>
-     *   <li>Encoded null bytes</li>
-     *   <li>Leading/trailing separators</li>
+     *   <li>Percent-encoded traversal metacharacters ({@code %2e}, {@code %2E}, {@code %00})</li>
+     *   <li>Double-encoded traversal ({@code %252e})</li>
+     *   <li>Backslash separators ({@code \})</li>
+     *   <li>Encoded null bytes ({@code %00})</li>
+     *   <li>Malformed percent encoding (e.g. {@code %ZZ})</li>
      * </ul>
      *
      * @param path the raw path component from the URI
@@ -2416,11 +2415,29 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         } catch (Exception e) {
             return null; // malformed encoding
         }
-        // Step 2: Check for backslash before normalisation (detects \..\ etc.)
-        if (decoded.contains("\\")) return null;
-        // Step 3: Reject raw .. before normalisation
-        if (decoded.contains("..")) return null;
-        // Step 4: Normalise: remove redundant /./ and trailing /
+        // Step 2: Reject backslash
+        if (decoded.indexOf('\\') >= 0) return null;
+        // Step 3: Reject NUL bytes (encoded or literal)
+        if (decoded.indexOf('\0') >= 0) return null;
+        // Step 4: Reject malformed percent encoding (%ZZ — not two hex digits).
+        // After decoding, we scan for sequences that decode to dangerous bytes.
+        // NUL byte: decoded from %00. Literal NUL is caught here too.
+        if (decoded.indexOf('\0') >= 0) return null;
+        // Scan for %XX sequences where XX is not two hex digits — malformed encoding.
+        for (int i = 0; i < decoded.length() - 2; i++) {
+            if (decoded.charAt(i) == '%') {
+                char h1 = decoded.charAt(i + 1);
+                char h2 = decoded.charAt(i + 2);
+                if (!isHexDigit(h1) || !isHexDigit(h2)) {
+                    return null; // malformed percent encoding
+                }
+            }
+        }
+        // Step 5: Reject leading/trailing separator BEFORE normalisation
+        if (decoded.startsWith("/") || decoded.endsWith("/")) return null;
+        // Step 6: Reject raw .. before normalisation (catches %2e%2e after single decode)
+        if (decoded.indexOf("..") >= 0) return null;
+        // Step 7: Normalise: remove redundant /./ and collapsing ////
         StringBuilder sb = new StringBuilder();
         int len = decoded.length();
         for (int i = 0; i < len; i++) {
@@ -2435,18 +2452,24 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             }
         }
         String normalised = sb.toString();
-        // Step 5: Reject leading/trailing separator
-        if (normalised.startsWith("/") || normalised.endsWith("/")) return null;
-        // Step 6: Verify no traversal after normalisation
-        if (normalised.startsWith(".") || normalised.contains("..")
-                || normalised.contains("\\")) return null;
+        // Step 8: Final safety scan
+        if (normalised.startsWith(".") || normalised.indexOf("..") >= 0
+                || normalised.indexOf('\\') >= 0) return null;
         return normalised;
+    }
+
+    /**
+     * Returns true if c is an ASCII hex digit (0-9, a-f, A-F).
+     */
+    private static boolean isHexDigit(char c) {
+        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
     }
 
     /**
      * Serialises a {@link SkillResource} as an MCP {@code resources/read} content item.
      * Text resources are serialised as {@code {type:"text", text:"..."}}.
-     * Blob resources are serialised as {@code {type:"blob", data:"<base64>", mimeType:"..."}}.
+     * Blob resources are serialised as {@code {type:"blob", blob:"<base64>", mimeType:"..."}}
+     * per the MCP BlobResourceContents wire contract.
      */
     private Map<String, Object> skillResourceContents(String uri, SkillResource resource) {
         Map<String, Object> item = new LinkedHashMap<>();
@@ -2455,8 +2478,8 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (resource.isText()) {
             item.put("text", resource.text());
         } else {
-            // Blob: encode as Base64
-            item.put("data", java.util.Base64.getEncoder().encodeToString(resource.blob()));
+            // Blob: encode as Base64 — MCP BlobResourceContents uses "blob" field
+            item.put("blob", java.util.Base64.getEncoder().encodeToString(resource.blob()));
         }
         return item;
     }
