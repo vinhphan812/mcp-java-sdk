@@ -3,6 +3,7 @@ package io.github.vinhphan812.mcp.api.spi;
 import io.github.vinhphan812.mcp.api.dto.DirectoryPage;
 import io.github.vinhphan812.mcp.api.dto.ListSkillsResult;
 import io.github.vinhphan812.mcp.api.dto.SkillDTO;
+import io.github.vinhphan812.mcp.api.dto.SkillResource;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,13 +31,55 @@ public interface McpSkillsExtension extends McpExtension {
         return caps;
     }
 
-    ListSkillsResult listSkills(String cursor, int limit);
+    /**
+     * Lists available skills with offset-based pagination (primary method for v1.1.2 compat).
+     *
+     * <p>Implement this method for full backward compatibility with extensions
+     * written against the v1.1.2 API.
+     *
+     * @param offset skip the first {@code offset} skills
+     * @param limit  maximum number of skills to return
+     * @return list of skills (up to {@code limit})
+     */
+    List<SkillDTO> listSkills(int offset, int limit);
 
-    @Deprecated
-    default List<SkillDTO> listSkills(int offset, int limit) {
-        String cursor = offset == 0 ? null : String.valueOf(offset);
-        ListSkillsResult r = listSkills(cursor, limit);
-        return r.skills;
+    /**
+     * Returns the total number of skills known to this extension.
+     * Used by the default {@link #listSkills(String, int)} implementation to compute
+     * cursor pagination correctly. Override to provide an accurate count.
+     *
+     * @return total skill count, or {@link Integer#MAX_VALUE} if unknown
+     */
+    default int totalSkills() {
+        return Integer.MAX_VALUE;
+    }
+
+    /**
+     * Lists available skills with cursor-based pagination.
+     *
+     * <p>Default implementation converts the cursor to an offset and delegates
+     * to {@link #listSkills(int, int)}. Override this method directly if you
+     * want native cursor semantics (opaque cursor string, not integer offset).
+     *
+     * @param cursor opaque pagination cursor (null/empty for first page).
+     *     If the cursor is a numeric string, it is decoded as the offset.
+     * @param limit  maximum number of skills to return
+     * @return paginated result with optional nextCursor
+     */
+    default ListSkillsResult listSkills(String cursor, int limit) {
+        int offset = 0;
+        if (cursor != null && !cursor.isEmpty()) {
+            try {
+                offset = Integer.parseInt(cursor);
+            } catch (NumberFormatException e) {
+                offset = 0;
+            }
+        }
+        List<SkillDTO> skills = listSkills(offset, limit);
+        int total = totalSkills();
+        boolean hasNextPage = offset + limit < total;
+        String nextCursor = hasNextPage ? String.valueOf(offset + limit) : null;
+        return new ListSkillsResult(skills, nextCursor);
     }
 
     SkillDTO getSkill(String uri);
@@ -50,6 +93,23 @@ public interface McpSkillsExtension extends McpExtension {
     }
 
     String readManifestFile(String uri, String fileName);
+
+    /**
+     * Reads a skill file resource, supporting both text and binary content.
+     *
+     * <p>Default implementation wraps {@link #readManifestFile} as a text resource.
+     * Override to serve binary files (images, archives) as blobs.
+     *
+     * @param uri      the skill URI being requested
+     * @param fileName the file name / relative path within the skill (e.g. {@code "scripts/check.py"})
+     * @param mimeType the MIME type of the file (from {@link DirectoryEntry#mimeType()})
+     * @return the file content as a {@link SkillResource}, or {@code null} if not found
+     */
+    default SkillResource readSkillResource(String uri, String fileName, String mimeType) {
+        String text = readManifestFile(uri, fileName);
+        if (text == null) return null;
+        return SkillResource.text(mimeType, text);
+    }
 
     interface DirectoryEntry {
         String uri();

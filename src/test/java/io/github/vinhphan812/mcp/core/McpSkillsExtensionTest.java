@@ -52,26 +52,20 @@ public class McpSkillsExtensionTest {
         }
 
         @Override
-        public ListSkillsResult listSkills(String cursor, int limit) {
-            int offset = 0;
-            if (cursor != null && !cursor.isEmpty()) {
-                try { offset = Integer.parseInt(cursor); } catch (NumberFormatException ignored) {}
-            }
+        public List<SkillDTO> listSkills(int offset, int limit) {
             List<SkillDTO> page = skillFiles.keySet().stream()
                     .skip(offset)
                     .limit(limit)
                     .map(name -> new SkillDTO(
-                            "skill://" + name,          // uri
-                            name,                       // name
-                            name,                       // title
-                            "Test skill",               // description
-                            Map.of(),                   // manifest
-                            Map.of("SKILL.md", ""),     // files
-                            Map.of()))                  // digests
+                            "skill://" + name,
+                            name,
+                            name,
+                            "Test skill",
+                            Map.of(),
+                            Map.of("SKILL.md", ""),
+                            Map.of()))
                     .collect(java.util.stream.Collectors.toList());
-            int total = skillFiles.size();
-            String nextCursor = (offset + limit < total) ? String.valueOf(offset + limit) : null;
-            return new ListSkillsResult(page, nextCursor);
+            return page;
         }
 
         @Override

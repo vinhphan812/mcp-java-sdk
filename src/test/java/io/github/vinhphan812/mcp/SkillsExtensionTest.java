@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.api.dto.ListSkillsResult;
 import io.github.vinhphan812.mcp.api.dto.SkillDTO;
+import io.github.vinhphan812.mcp.api.dto.SkillResource;
 import io.github.vinhphan812.mcp.api.spi.McpSkillsExtension;
 import io.github.vinhphan812.mcp.core.McpProtocolHandler;
 import io.github.vinhphan812.mcp.core.McpRegistry;
@@ -80,16 +81,15 @@ class SkillsExtensionTest {
         }
 
         @Override
-        public ListSkillsResult listSkills(String cursor, int limit) {
-            int offset = 0;
-            if (cursor != null && !cursor.isEmpty()) {
-                try { offset = Integer.parseInt(cursor); } catch (NumberFormatException ignored) {}
-            }
+        public List<SkillDTO> listSkills(int offset, int limit) {
+            if (offset >= skills.size()) return Collections.emptyList();
             int end = Math.min(offset + limit, skills.size());
-            if (offset >= skills.size()) return new ListSkillsResult(Collections.<SkillDTO>emptyList(), null);
-            List<SkillDTO> page = new ArrayList<>(skills.subList(offset, end));
-            String nextCursor = (end < skills.size()) ? String.valueOf(end) : null;
-            return new ListSkillsResult(page, nextCursor);
+            return new ArrayList<>(skills.subList(offset, end));
+        }
+
+        @Override
+        public int totalSkills() {
+            return skills.size();
         }
 
         @Override
@@ -116,6 +116,23 @@ class SkillsExtensionTest {
             } else if ("config.yaml".equals(fileName) && uri.equals("skill://test/skill-two")) {
                 return "key: value\n";
             }
+            return null;
+        }
+
+        @Override
+        public SkillResource readSkillResource(String uri, String fileName, String mimeType) {
+            lastReadUri = uri;
+            lastReadFile = fileName;
+            // uri is the skill root (e.g. "skill://test/skill-one")
+            // fileName is the relative path (e.g. "scripts/deploy.sh")
+            if ("scripts/deploy.sh".equals(fileName) && uri.equals("skill://test/skill-one")) {
+                return SkillResource.text("text/x-shellscript", "#!/bin/sh\necho deploying\n");
+            } else if ("config.yaml".equals(fileName) && uri.equals("skill://test/skill-two")) {
+                return SkillResource.text("text/yaml", "key: value\n");
+            }
+            // Fall back to readManifestFile for SKILL.md and other text files
+            String text = readManifestFile(uri, fileName);
+            if (text != null) return SkillResource.text(mimeType, text);
             return null;
         }
 
@@ -283,7 +300,7 @@ class SkillsExtensionTest {
     }
 
     @Test
-    void resourcesRead_callsReadManifestFile_withCorrectParams() {
+    void resourcesRead_callsReadSkillResource_withCorrectParams() {
         McpProtocolHandler handler = new McpProtocolHandler(registry,
                 McpServerConfig.builder()
                         .protocolVersion("2026-07-28")
@@ -292,11 +309,13 @@ class SkillsExtensionTest {
                         .build());
         String sessionId = initSession(handler);
 
+        // Full URI (skillRoot) is passed as the uri parameter, "SKILL.md" as the file name
         String req = "{\"jsonrpc\":\"2.0\",\"id\":16,\"method\":\"resources/read\","
                 + "\"params\":{\"uri\":\"skill://test/skill-two\"}}";
         handler.handleRequestResponse(req, sessionId);
 
-        // skillRoot=skill://test/skill-two, relativePath="SKILL.md"
+        // Handler calls readSkillResource(uri=skillRoot, fileName="SKILL.md", mimeType)
+        // Which delegates to readManifestFile(uri=skillRoot, fileName="SKILL.md")
         assertEquals("skill://test/skill-two", skillsExtension.lastReadUri);
         assertEquals("SKILL.md", skillsExtension.lastReadFile);
     }
@@ -351,9 +370,8 @@ class SkillsExtensionTest {
         // scripts/deploy.sh -> text/x-shellscript
         String reqSh = "{\"jsonrpc\":\"2.0\",\"id\":24,\"method\":\"resources/read\","
                 + "\"params\":{\"uri\":\"skill://test/skill-one/scripts/deploy.sh\"}}";
-        JsonObject respSh = GSON.fromJson(
-                handler.handleRequestResponse(reqSh, sessionId).getBody(),
-                JsonObject.class);
+        String bodySh = handler.handleRequestResponse(reqSh, sessionId).getBody();
+        JsonObject respSh = GSON.fromJson(bodySh, JsonObject.class);
         JsonObject resultSh = respSh.getAsJsonObject("result");
         assertEquals("text/x-shellscript", resultSh.getAsJsonArray("contents")
                 .get(0).getAsJsonObject().get("mimeType").getAsString());

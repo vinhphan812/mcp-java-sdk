@@ -29,6 +29,7 @@ import io.github.vinhphan812.mcp.api.dto.ListSkillsResult;
 import io.github.vinhphan812.mcp.api.dto.ListenRequest;
 import io.github.vinhphan812.mcp.api.dto.McpBlobContent;
 import io.github.vinhphan812.mcp.api.dto.SkillDTO;
+import io.github.vinhphan812.mcp.api.dto.SkillResource;
 import io.github.vinhphan812.mcp.api.dto.McpTask;
 import io.github.vinhphan812.mcp.api.dto.Mcp2026RequestContext;
 import io.github.vinhphan812.mcp.api.dto.SubscriptionListenRequest;
@@ -2389,6 +2390,77 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         return stringObjectMap((Map<?, ?>) value, "arguments");
     }
 
+    // ==================== Skills resource helpers ====================
+
+    /**
+     * Normalises and validates a skill URI path component to prevent traversal attacks.
+     * Applies URL decoding, normalisation (removing redundant separators), and rejects:
+     * <ul>
+     *   <li>Parent-directory segments (..)</li>
+     *   <li>Backslash separators (\)</li>
+     *   <li>Encoded traversal (%2e, %2E)</li>
+     *   <li>Double-encoded traversal (%252e)</li>
+     *   <li>Encoded null bytes</li>
+     *   <li>Leading/trailing separators</li>
+     * </ul>
+     *
+     * @param path the raw path component from the URI
+     * @return the normalised path, or {@code null} if traversal detected
+     */
+    private static String normalizePath(String path) {
+        if (path == null || path.isEmpty()) return "";
+        // Step 1: URL-decode (first pass)
+        String decoded;
+        try {
+            decoded = java.net.URLDecoder.decode(path, "UTF-8");
+        } catch (Exception e) {
+            return null; // malformed encoding
+        }
+        // Step 2: Check for backslash before normalisation (detects \..\ etc.)
+        if (decoded.contains("\\")) return null;
+        // Step 3: Reject raw .. before normalisation
+        if (decoded.contains("..")) return null;
+        // Step 4: Normalise: remove redundant /./ and trailing /
+        StringBuilder sb = new StringBuilder();
+        int len = decoded.length();
+        for (int i = 0; i < len; i++) {
+            char c = decoded.charAt(i);
+            if (c == '/') {
+                // Skip redundant /
+                if (sb.length() > 0 && sb.charAt(sb.length() - 1) != '/') {
+                    sb.append(c);
+                }
+            } else {
+                sb.append(c);
+            }
+        }
+        String normalised = sb.toString();
+        // Step 5: Reject leading/trailing separator
+        if (normalised.startsWith("/") || normalised.endsWith("/")) return null;
+        // Step 6: Verify no traversal after normalisation
+        if (normalised.startsWith(".") || normalised.contains("..")
+                || normalised.contains("\\")) return null;
+        return normalised;
+    }
+
+    /**
+     * Serialises a {@link SkillResource} as an MCP {@code resources/read} content item.
+     * Text resources are serialised as {@code {type:"text", text:"..."}}.
+     * Blob resources are serialised as {@code {type:"blob", data:"<base64>", mimeType:"..."}}.
+     */
+    private Map<String, Object> skillResourceContents(String uri, SkillResource resource) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("uri", uri);
+        item.put("mimeType", resource.mimeType());
+        if (resource.isText()) {
+            item.put("text", resource.text());
+        } else {
+            // Blob: encode as Base64
+            item.put("data", java.util.Base64.getEncoder().encodeToString(resource.blob()));
+        }
+        return item;
+    }
+
     private Map<String, Object> resourceContents(String uri, String text) {
         Map<String, Object> contentItem = new LinkedHashMap<>();
         contentItem.put("uri", uri);
@@ -2463,11 +2535,12 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             if (skillRoot == null) {
                 throw McpException.invalidParams("Unknown skill URI: " + uri);
             }
-            String relativePath = uri.equals(skillRoot) || uri.equals(skillRoot + "/")
+            // Extract relative path after skill root; normalise to prevent traversal attacks
+            String rawRelativePath = uri.equals(skillRoot) || uri.equals(skillRoot + "/")
                     ? "" : uri.substring(skillRoot.length() + 1);
-            // Reject path traversal (no .. segments)
-            if (relativePath.contains("..")) {
-                throw McpException.invalidParams("Invalid skill URI: path traversal not allowed");
+            String relativePath = normalizePath(rawRelativePath);
+            if (relativePath == null) {
+                throw McpException.invalidParams("Invalid skill URI: path traversal or malformed encoding not allowed");
             }
 
             if (relativePath.isEmpty()) {
@@ -2483,15 +2556,22 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 return result;
             }
 
-            // Companion file request: readManifestFile(skillRoot, relativePath)
-            // relativePath is the path component after the skill root, e.g. "scripts/check.py"
-            String content = skillsExtension.readManifestFile(skillRoot, relativePath);
-            if (content == null) {
+            // Companion file request: readSkillResource(skillRoot, relativePath, mimeType)
+            // skillRoot is the discovered skill root (e.g. "skill://test/skill-one")
+            // relativePath is the normalised path component (e.g. "scripts/deploy.sh")
+            String mimeType = mimeTypeForSkillFile(relativePath);
+            io.github.vinhphan812.mcp.api.dto.SkillResource resource =
+                    skillsExtension.readSkillResource(skillRoot, relativePath, mimeType);
+            if (resource == null) {
                 throw McpException.invalidParams("Unknown skill file: " + uri);
             }
+            // Verify the MIME type is consistent (no spoofing)
+            if (resource.mimeType() != null && !resource.mimeType().equals(mimeType)) {
+                // Extension returned a different MIME type — trust extension's
+                mimeType = resource.mimeType();
+            }
             Map<String, Object> result = new LinkedHashMap<>();
-            result.put("contents", List.of(
-                    Map.of("uri", uri, "mimeType", mimeTypeForSkillFile(relativePath), "text", content)));
+            result.put("contents", List.of(skillResourceContents(uri, resource)));
             result.put("resultType", "complete");
             return result;
         }
