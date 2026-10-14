@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+
+### Changed
+
+### Fixed
+
+---
+
+## [v1.1.3] — 2026-10-14
+
+> Tag: `13ac3d6` (full SHA: `13ac3d6f7ff047b149a9d9fe5b2d4ed0e054aa6b`)
+
+### Added
+
+- **Cursor-based pagination** — `paginate(req, cursor)` helper walks `nextCursor` tokens
+  transparently. `DirectoryItem` now exposes `pageSize` and `nextCursor`. Streaming
+  directory listings respect the `pageSize` hint from the MCP client.
+- **Companion file serving** — `McpDirectoryResource` registers a
+  `classpath:/META-INF/mcp/companion/` resource tree alongside real files. Both
+  paths are browsable and serve `Content-Type` based on file extension (falls back
+  to `application/octet-stream`).
+- **Capability negotiation** — `supports("2026-07-28")` is now wired into every
+  protocol handler so 2026-era clients receive SEP-2575 subscriptions and
+  server-initiated requests even without an explicit `capabilities` block.
+
+### Changed
+
+- **MIME type handling** — Raw request/response bodies are now correctly
+  serialized with `application/json`; streamed SSE events use `text/event-stream`.
+  Binary bodies fall back to `application/octet-stream`.
+- **`directory/list` returns `DirectoryItem` instead of raw `Resource`** —
+  Breaking: `McpDirectoryResource.listItems()` now returns `List<DirectoryItem>`
+  so cursor and page-size fields are available at the protocol layer.
+
+### Fixed
+
+- **Null-safety in `InputSchemaBuilder`** — `nullable` flag and `default` value
+  are now correctly propagated through the builder chain.
+- **SSE `Last-Event-ID` replay isolation** — Each session tracks its own replay
+  cursor; concurrent sessions no longer share replay state.
+
+---
+
 ## [v1.1.2] — 2026-10-13
 
 ### Fixed
