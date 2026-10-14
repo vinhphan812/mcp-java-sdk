@@ -2394,13 +2394,18 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
     /**
      * Normalises and validates a skill URI path component to prevent traversal attacks.
-     * Applies URL decoding, normalisation (removing redundant separators), and rejects:
+     * Applies multi-pass URL decoding: decodes until no %XX patterns remain, checking
+     * for dangerous patterns after each pass.
+     *
+     * <p>Rejects:
      * <ul>
-     *   <li>Percent-encoded traversal metacharacters ({@code %2e}, {@code %2E}, {@code %00})</li>
-     *   <li>Double-encoded traversal ({@code %252e})</li>
+     *   <li>Percent-encoded traversal ({@code %2e}, {@code %2E})</li>
+     *   <li>Double-encoded traversal ({@code %252e} → {@code %2e} → {@code .})</li>
      *   <li>Backslash separators ({@code \})</li>
      *   <li>Encoded null bytes ({@code %00})</li>
      *   <li>Malformed percent encoding (e.g. {@code %ZZ})</li>
+     *   <li>Encoded slash ({@code %2f}, {@code %2F})</li>
+     *   <li>Literal {@code ..} or {@code .} path segments</li>
      * </ul>
      *
      * @param path the raw path component from the URI
@@ -2408,42 +2413,77 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
      */
     private static String normalizePath(String path) {
         if (path == null || path.isEmpty()) return "";
-        // Step 1: URL-decode (first pass)
-        String decoded;
-        try {
-            decoded = java.net.URLDecoder.decode(path, "UTF-8");
-        } catch (Exception e) {
-            return null; // malformed encoding
-        }
-        // Step 2: Reject backslash
-        if (decoded.indexOf('\\') >= 0) return null;
-        // Step 3: Reject NUL bytes (encoded or literal)
-        if (decoded.indexOf('\0') >= 0) return null;
-        // Step 4: Reject malformed percent encoding (%ZZ — not two hex digits).
-        // After decoding, we scan for sequences that decode to dangerous bytes.
-        // NUL byte: decoded from %00. Literal NUL is caught here too.
-        if (decoded.indexOf('\0') >= 0) return null;
-        // Scan for %XX sequences where XX is not two hex digits — malformed encoding.
-        for (int i = 0; i < decoded.length() - 2; i++) {
-            if (decoded.charAt(i) == '%') {
-                char h1 = decoded.charAt(i + 1);
-                char h2 = decoded.charAt(i + 2);
-                if (!isHexDigit(h1) || !isHexDigit(h2)) {
-                    return null; // malformed percent encoding
+        String s = path;
+
+        // Multi-pass decode: keep decoding until no %XX patterns remain.
+        // This catches %252e%252e -> %2e%252e -> .. through recursive decode.
+        while (true) {
+            // Scan for encoded slash (%2f / %2F) BEFORE any decode —
+            // after decode it becomes a real / and can't be distinguished.
+            for (int i = 0; i < s.length() - 2; i++) {
+                if (s.charAt(i) == '%') {
+                    char h1 = s.charAt(i + 1);
+                    char h2 = s.charAt(i + 2);
+                    if ((h1 == '2' && (h2 == 'f' || h2 == 'F'))) {
+                        return null; // encoded slash
+                    }
                 }
             }
+
+            // Decode this pass
+            String decoded;
+            try {
+                decoded = java.net.URLDecoder.decode(s, "UTF-8");
+            } catch (Exception e) {
+                return null; // malformed encoding
+            }
+
+            // Step A: Reject backslash
+            if (decoded.indexOf('\\') >= 0) return null;
+            // Step B: Reject NUL bytes
+            if (decoded.indexOf('\0') >= 0) return null;
+
+            // Step C: Scan for remaining %XX sequences — if none, we're done decoding
+            boolean hasPercent = false;
+            for (int i = 0; i < decoded.length(); i++) {
+                if (decoded.charAt(i) == '%') {
+                    hasPercent = true;
+                    break;
+                }
+            }
+            if (!hasPercent) {
+                s = decoded;
+                break; // fully decoded
+            }
+
+            // Step D: After decode, scan for dangerous patterns:
+            // - Malformed %XX (not two hex digits)
+            for (int i = 0; i < decoded.length() - 2; i++) {
+                if (decoded.charAt(i) == '%') {
+                    char h1 = decoded.charAt(i + 1);
+                    char h2 = decoded.charAt(i + 2);
+                    boolean isHex = isHexDigit(h1) && isHexDigit(h2);
+                    // Malformed: % followed by non-hex
+                    if (!isHex) return null;
+                }
+            }
+
+            // Continue to next pass with the decoded string
+            s = decoded;
         }
-        // Step 5: Reject leading/trailing separator BEFORE normalisation
-        if (decoded.startsWith("/") || decoded.endsWith("/")) return null;
-        // Step 6: Reject raw .. before normalisation (catches %2e%2e after single decode)
-        if (decoded.indexOf("..") >= 0) return null;
-        // Step 7: Normalise: remove redundant /./ and collapsing ////
+
+        // s is now fully decoded; apply structural checks
+        // Step 1: Reject leading/trailing separator
+        if (s.startsWith("/") || s.endsWith("/")) return null;
+        // Step 2: Reject dot segments
+        if (s.indexOf("..") >= 0 || s.equals(".") || s.startsWith(".")) return null;
+
+        // Step 3: Normalise: collapse redundant /./ and multiple //
         StringBuilder sb = new StringBuilder();
-        int len = decoded.length();
+        int len = s.length();
         for (int i = 0; i < len; i++) {
-            char c = decoded.charAt(i);
+            char c = s.charAt(i);
             if (c == '/') {
-                // Skip redundant /
                 if (sb.length() > 0 && sb.charAt(sb.length() - 1) != '/') {
                     sb.append(c);
                 }
@@ -2452,7 +2492,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             }
         }
         String normalised = sb.toString();
-        // Step 8: Final safety scan
+        // Step 4: Final safety scan
         if (normalised.startsWith(".") || normalised.indexOf("..") >= 0
                 || normalised.indexOf('\\') >= 0) return null;
         return normalised;
@@ -2546,13 +2586,17 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             if (skillsExtension == null) {
                 throw McpException.methodNotFound("Skills not configured");
             }
-            // Find the skill root by checking which stored skill URI is a prefix of the request URI.
-            // This handles multi-segment skill names (e.g. skill://test/skill-one).
+            // Find the skill root using longest-match: overlapping skills like
+            // skill://a and skill://a/b are resolved by selecting the deepest match.
             String skillRoot = null;
+            int bestMatch = -1;
             for (SkillDTO skill : skillsExtension.listSkills(null, 1000).skills) {
                 if (uri.equals(skill.uri) || uri.startsWith(skill.uri + "/")) {
-                    skillRoot = skill.uri;
-                    break;
+                    // Longer skill.uri = deeper match = better
+                    if (skill.uri.length() > bestMatch) {
+                        skillRoot = skill.uri;
+                        bestMatch = skill.uri.length();
+                    }
                 }
             }
             if (skillRoot == null) {
@@ -2784,6 +2828,10 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (uri == null || uri.trim().isEmpty()) {
             throw McpException.invalidParams("uri is required");
         }
+        // Reject file:// URIs — this endpoint is for skill:// only
+        if (uri.startsWith("file://")) {
+            throw McpException.invalidParams("file:// URIs are not supported by this endpoint");
+        }
         if (skillsExtension == null) {
             throw McpException.methodNotFound("Skills not configured");
         }
@@ -2928,8 +2976,12 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         List<Map<String, Object>> items = new ArrayList<>();
         for (SkillDTO s : result.skills) items.add(s.toMap());
         Map<String, Object> out = new LinkedHashMap<>();
+        out.put("resultType", "complete");
         out.put("skills", items);
         if (result.nextCursor != null) out.put("nextCursor", result.nextCursor);
+        // Stable spec cache contract
+        out.put("ttlMs", 3600000L);
+        out.put("cacheScope", "public");
         return out;
     }
 
@@ -2939,7 +2991,12 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (uri == null || uri.trim().isEmpty()) throw McpException.invalidParams("uri required");
         SkillDTO skill = skillsExtension.getSkill(uri);
         if (skill == null) throw McpException.invalidParams("Unknown skill: " + uri);
-        return skill.toMap();
+        Map<String, Object> result = new LinkedHashMap<>(skill.toMap());
+        // Stable spec cache contract
+        result.put("resultType", "complete");
+        result.put("ttlMs", 3600000L);
+        result.put("cacheScope", "public");
+        return result;
     }
 
     // ==================== Registration (called by Managers) ====================

@@ -21,7 +21,9 @@ import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.api.dto.ListSkillsResult;
 import io.github.vinhphan812.mcp.api.dto.SkillDTO;
 import io.github.vinhphan812.mcp.api.dto.SkillResource;
+import io.github.vinhphan812.mcp.api.dto.SkillResourceEntry;
 import io.github.vinhphan812.mcp.api.spi.McpSkillsExtension;
+import static io.github.vinhphan812.mcp.api.spi.McpSkillsExtension.buildResourceEntries;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -63,8 +65,8 @@ public class McpSkillsExtensionTest {
                             name,
                             "Test skill",
                             Map.of(),
-                            Map.of("SKILL.md", ""),
-                            Map.of()))
+                            buildResourceEntries("skill://" + name,
+                                    skillFiles.get(name).keySet(), this)))
                     .collect(java.util.stream.Collectors.toList());
             return page;
         }
@@ -75,20 +77,22 @@ public class McpSkillsExtensionTest {
             if (skillFiles.containsKey(name)) {
                 return new SkillDTO(
                         "skill://" + name, name, name, "Test skill",
-                        Map.of(), Map.of("SKILL.md", ""), Map.of());
+                        Map.of(),
+                        buildResourceEntries("skill://" + name,
+                                skillFiles.get(name).keySet(), this));
             }
             return null;
         }
 
         @Override
         public String readManifestFile(String uri, String fileName) {
-            // Normalize the skill name from the URI consistently with listSkills:
-            // skill://refunds        -> "refunds"
-            // skill://refunds/       -> "refunds"
-            // skill://refunds/scripts/check.py -> "refunds"
-            String name = uri.replace("skill://", "");
-            int slash = name.indexOf('/');
-            name = slash >= 0 ? name.substring(0, slash) : name;
+            // Extract the skill name: full path after skill://
+            // skill://refunds             -> "refunds"
+            // skill://refunds/            -> "refunds"
+            // skill://a/b                 -> "a/b"
+            // skill://a/b/scripts/x.py    -> "a/b"
+            // uri here is the discovered skillRoot (e.g. "skill://a/b")
+            String name = uri.replace("skill://", "").replaceAll("/$", "");
             Map<String, String> files = skillFiles.get(name);
             if (files == null) return null;
             return files.get(fileName);
@@ -96,7 +100,9 @@ public class McpSkillsExtensionTest {
 
         @Override
         public List<DirectoryEntry> listDirectory(String skillRootUri) {
-            String name = skillRootUri.replace("skill://", "").replace("/", "");
+            String remainder = skillRootUri.replace("skill://", "");
+            int slash = remainder.indexOf('/');
+            String name = slash >= 0 ? remainder.substring(0, slash) : remainder;
             Map<String, String> files = skillFiles.get(name);
             if (files == null) return List.of();
             return files.keySet().stream()
@@ -497,20 +503,27 @@ public class McpSkillsExtensionTest {
 
     @Test
     void normalizePath_rejectsDoubleEncodedTraversal() throws Exception {
-        // %252e%252e -> %2e%2e after decode -> .. after second decode
-        // We decode once, so %252e%252e stays as %2e%2e in decoded string.
-        // Step 5 checks for ".." — but "%2e%2e" doesn't match ".."
-        // However, the single-decode policy is documented: we only guarantee
-        // protection against single-encoded traversal. Double-encoded is blocked
-        // by the fact that no filesystem adapter should receive the raw path.
-        // This test documents the policy: %252e%252e is NOT rejected by normalizePath.
-        // Real double-encode protection would require recursive decoding.
+        // %252e%252e -> %2e%2e after first decode -> .. after second decode
+        // Multi-pass decode catches this: after first decode, %2e%2e still contains
+        // %XX, so we decode again, yielding "..", which is rejected.
         java.lang.reflect.Method m = McpProtocolHandler.class.getDeclaredMethod(
                 "normalizePath", String.class);
         m.setAccessible(true);
-        String result = (String) m.invoke(null, "%252e%252e");
-        // Policy: single-decode only. %2e%2e is NOT ".." so it passes.
-        // (In practice no real filesystem would resolve this as traversal.)
+        assertNull(m.invoke(null, "%252e%252e"),
+                "%252e%252e (double-encoded ..) must be rejected by multi-pass decode");
+        assertNull(m.invoke(null, "%252e%252e%252f"),
+                "%252e%252e%252f (double-encoded ../) must be rejected");
+    }
+
+    @Test
+    void normalizePath_rejectsEncodedSlash() throws Exception {
+        java.lang.reflect.Method m = McpProtocolHandler.class.getDeclaredMethod(
+                "normalizePath", String.class);
+        m.setAccessible(true);
+        assertNull(m.invoke(null, "scripts%2fdeploy.sh"),
+                "encoded slash %2f must be rejected");
+        assertNull(m.invoke(null, "scripts%2Fdeploy.sh"),
+                "encoded slash %2F must be rejected");
     }
 
     @Test
@@ -566,6 +579,183 @@ public class McpSkillsExtensionTest {
     }
 
     // ==================== Blob wire shape ====================
+
+
+    // ==================== Stable spec: cache contract ====================
+
+    @Test
+    void skillsList_hasCacheContract() {
+        String manifestContent = "# Test\n";
+        Map<String, String> files = Map.of("SKILL.md", manifestContent);
+        McpSkillsExtension ext = new TestSkillsExtension(Map.of("test", files));
+        McpProtocolHandler handler = makeHandler(ext);
+
+        Map<String, Object> result = send(handler, "skills/list", Map.of());
+
+        assertEquals("complete", result.get("resultType"),
+                "skills/list must include resultType: complete");
+        assertNotNull(result.get("ttlMs"), "skills/list must include ttlMs");
+        assertNotNull(result.get("cacheScope"), "skills/list must include cacheScope");
+    }
+
+    @Test
+    void skillsGet_hasCacheContract() {
+        String manifestContent = "# Test\n";
+        Map<String, String> files = Map.of("SKILL.md", manifestContent);
+        McpSkillsExtension ext = new TestSkillsExtension(Map.of("test", files));
+        McpProtocolHandler handler = makeHandler(ext);
+
+        Map<String, Object> result = send(handler, "skills/get",
+                Map.of("uri", "skill://test"));
+
+        assertEquals("complete", result.get("resultType"),
+                "skills/get must include resultType: complete");
+        assertNotNull(result.get("ttlMs"), "skills/get must include ttlMs");
+        assertNotNull(result.get("cacheScope"), "skills/get must include cacheScope");
+    }
+
+    // ==================== Stable spec: directory file:// URI rejection ====================
+
+    @Test
+    void directoryRead_rejectsFileUri() {
+        String manifestContent = "# Test\n";
+        Map<String, String> files = Map.of("SKILL.md", manifestContent);
+        McpSkillsExtension ext = new TestSkillsExtension(Map.of("test", files));
+        McpProtocolHandler handler = makeHandler(ext);
+
+        String body = GSON.toJson(Map.of(
+                "jsonrpc", "2.0", "id", 1,
+                "method", "resources/directory/read",
+                "params", Map.of("uri", "file:///etc/passwd",
+                        "protocolVersion", "2026-07-28")));
+        assertRpcError(handler.handleRequest(body), -32602);
+    }
+
+    // ==================== Stable spec: empty directory ====================
+
+    @Test
+    void directoryRead_emptyDirectory_returnsEmptyResources() {
+        // A skill with only SKILL.md (no companion files)
+        String emptyContent = "# Empty Skill\n";
+        Map<String, String> files = Map.of("SKILL.md", emptyContent);
+        McpSkillsExtension ext = new TestSkillsExtension(Map.of("empty", files));
+        McpProtocolHandler handler = makeHandler(ext);
+
+        Map<String, Object> result = send(handler, "resources/directory/read",
+                Map.of("uri", "skill://empty"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> resources = (List<Map<String, Object>>) result.get("resources");
+        // SKILL.md should be in the list
+        assertFalse(resources.isEmpty(), "directory with SKILL.md should not be empty");
+    }
+
+    // ==================== Stable spec: longest-match skill root ====================
+
+    @Test
+    void resourcesRead_longestMatchSkillRoot() {
+        // skill://a and skill://a/b overlapping: longest root wins
+        String aContent = "# Skill A\n";
+        Map<String, String> filesA = Map.of("SKILL.md", aContent);
+        String abContent = "# Skill A/B\n";
+        Map<String, String> filesAB = Map.of("SKILL.md", abContent);
+        McpSkillsExtension ext = new TestSkillsExtension(
+                Map.of("a", filesA, "a/b", filesAB));
+        McpProtocolHandler handler = makeHandler(ext);
+
+        // skill://a/b should resolve to skill://a/b (longest match)
+        Map<String, Object> result = send(handler, "resources/read",
+                Map.of("uri", "skill://a/b"));
+        @SuppressWarnings("unchecked")
+        String text = (String) ((Map<?, ?>) ((List<?>) result.get("contents")).get(0)).get("text");
+        assertTrue(text.contains("Skill A/B"), "skill://a/b should match skill://a/b, not skill://a");
+    }
+
+    // ==================== Stable spec: SkillResourceEntry ====================
+
+    @Test
+    void skillResourceEntry_toMap() {
+        SkillResourceEntry entry = new SkillResourceEntry(
+                "skill://test/README.md", "README.md", "sha256:abc123", 42);
+        Map<String, Object> map = entry.toMap();
+        assertEquals("skill://test/README.md", map.get("uri"));
+        assertEquals("README.md", map.get("name"));
+        assertEquals("sha256:abc123", map.get("digest"));
+        assertEquals(42L, map.get("size"));
+    }
+
+    @Test
+    void skillResourceEntry_dynamic() {
+        SkillResourceEntry dyn = SkillResourceEntry.dynamic();
+        assertEquals("dynamic", dyn.uri);
+        assertEquals("dynamic", dyn.name);
+        assertNull(dyn.digest);
+        assertEquals(-1L, dyn.size);
+    }
+
+    @Test
+    void skillResourceEntry_equality() {
+        SkillResourceEntry a = new SkillResourceEntry("u", "n", "d", 1L);
+        SkillResourceEntry b = new SkillResourceEntry("u", "n", "d", 1L);
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+    }
+
+    @Test
+    void skillResourceEntry_toMap_dynamicOmitsDigestSize() {
+        SkillResourceEntry dyn = SkillResourceEntry.dynamic();
+        Map<String, Object> map = dyn.toMap();
+        assertEquals("dynamic", map.get("uri"));
+        assertFalse(map.containsKey("digest"), "dynamic entry must not include digest");
+        assertFalse(map.containsKey("size"), "dynamic entry must not include size");
+    }
+
+    @Test
+    void sha256Hex_textAndBytes() {
+        String text = "Hello, world!";
+        String fromText = McpSkillsExtension.sha256Hex(text);
+        String fromBytes = McpSkillsExtension.sha256Hex(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertEquals(fromText, fromBytes, "sha256Hex must produce same result for text and bytes");
+        assertTrue(fromText.startsWith("sha256:"), "digest must start with sha256:");
+        assertEquals(71, fromText.length(), "sha256: + 64 hex chars = 71");
+    }
+
+    @Test
+    void buildResourceEntries_includesSkillMdFirst() {
+        java.util.LinkedHashMap<String, String> files = new java.util.LinkedHashMap<>();
+        files.put("SKILL.md", "# Manifest\n");
+        files.put("README.md", "Readme content");
+        files.put("scripts/check.py", "#!/usr/bin/env python3\n");
+        java.util.Map<String, java.util.Map<String, String>> skillFiles =
+                new java.util.HashMap<>();
+        skillFiles.put("test", new java.util.LinkedHashMap<>(files));
+        TestSkillsExtension ext = new TestSkillsExtension(skillFiles);
+        List<SkillResourceEntry> entries =
+                McpSkillsExtension.buildResourceEntries("skill://test", files.keySet(), ext);
+        assertFalse(entries.isEmpty(), "entries must not be empty");
+        assertEquals("SKILL.md", entries.get(0).name,
+                "SKILL.md must be the first entry");
+        assertTrue(entries.get(0).digest.startsWith("sha256:"), "digest must be present");
+        assertTrue(entries.get(0).size > 0, "size must be positive");
+    }
+
+    @Test
+    void buildResourceEntries_deduplicates() {
+        // Test that LinkedHashMap (used internally by buildResourceEntries) deduplicates
+        // by URI — first occurrence wins.
+        java.util.LinkedHashMap<String, String> files = new java.util.LinkedHashMap<>();
+        files.put("SKILL.md", "# Manifest\n");
+        files.put("README.md", "Readme content");
+        files.put("SKILL.md", "# Manifest dup\n");  // duplicate key - first wins
+        java.util.Map<String, java.util.Map<String, String>> skillFiles =
+                new java.util.HashMap<>();
+        skillFiles.put("test", new java.util.LinkedHashMap<>(files));
+        TestSkillsExtension ext = new TestSkillsExtension(skillFiles);
+        List<SkillResourceEntry> entries =
+                McpSkillsExtension.buildResourceEntries("skill://test", files.keySet(), ext);
+        long skillMdCount = entries.stream().filter(e -> "SKILL.md".equals(e.name)).count();
+        assertEquals(1L, skillMdCount, "SKILL.md must appear exactly once");
+    }
 
     @Test
     void blobResource_usesBlobFieldNotDataField() {
