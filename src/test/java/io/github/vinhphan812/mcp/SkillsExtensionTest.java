@@ -3,6 +3,7 @@ package io.github.vinhphan812.mcp;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
+import io.github.vinhphan812.mcp.api.dto.ListSkillsResult;
 import io.github.vinhphan812.mcp.api.dto.SkillDTO;
 import io.github.vinhphan812.mcp.api.spi.McpSkillsExtension;
 import io.github.vinhphan812.mcp.core.McpProtocolHandler;
@@ -79,10 +80,16 @@ class SkillsExtensionTest {
         }
 
         @Override
-        public List<SkillDTO> listSkills(int offset, int limit) {
+        public ListSkillsResult listSkills(String cursor, int limit) {
+            int offset = 0;
+            if (cursor != null && !cursor.isEmpty()) {
+                try { offset = Integer.parseInt(cursor); } catch (NumberFormatException ignored) {}
+            }
             int end = Math.min(offset + limit, skills.size());
-            if (offset >= skills.size()) return Collections.emptyList();
-            return new ArrayList<>(skills.subList(offset, end));
+            if (offset >= skills.size()) return new ListSkillsResult(Collections.<SkillDTO>emptyList(), null);
+            List<SkillDTO> page = new ArrayList<>(skills.subList(offset, end));
+            String nextCursor = (end < skills.size()) ? String.valueOf(end) : null;
+            return new ListSkillsResult(page, nextCursor);
         }
 
         @Override
@@ -98,11 +105,16 @@ class SkillsExtensionTest {
             lastReadFile = fileName;
             // uri is the skill root (e.g. "skill://test/skill-one")
             // fileName is the relative path (e.g. "SKILL.md" or "scripts/check.py")
-            if (!"SKILL.md".equals(fileName)) return null;
-            for (SkillDTO skill : skills) {
-                if (uri.equals(skill.uri)) {
-                    return "# Test Skill\n\nThis is a test skill manifest.\n";
+            if ("SKILL.md".equals(fileName)) {
+                for (SkillDTO skill : skills) {
+                    if (uri.equals(skill.uri)) {
+                        return "# Test Skill\n\nThis is a test skill manifest.\n";
+                    }
                 }
+            } else if ("scripts/deploy.sh".equals(fileName) && uri.equals("skill://test/skill-one")) {
+                return "#!/bin/sh\necho deploying\n";
+            } else if ("config.yaml".equals(fileName) && uri.equals("skill://test/skill-two")) {
+                return "key: value\n";
             }
             return null;
         }
@@ -140,7 +152,7 @@ class SkillsExtensionTest {
     }
 
     @Test
-    void skillsList_respectsPagination() {
+    void skillsList_respectsCursorPagination() {
         McpProtocolHandler handler = new McpProtocolHandler(registry,
                 McpServerConfig.builder()
                         .protocolVersion("2026-07-28")
@@ -148,6 +160,7 @@ class SkillsExtensionTest {
                         .build());
         String sessionId = initSession(handler);
 
+        // Page 1: limit=1, should get nextCursor
         String req = "{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"skills/list\",\"params\":{\"limit\":1}}";
         JsonObject resp = GSON.fromJson(
                 handler.handleRequestResponse(req, sessionId).getBody(),
@@ -155,6 +168,35 @@ class SkillsExtensionTest {
         JsonObject result = resp.getAsJsonObject("result");
         assertEquals(1, result.getAsJsonArray("skills").size());
         assertTrue(result.has("nextCursor"), "nextCursor should be present for page 1 of 2");
+        String cursor = result.get("nextCursor").getAsString();
+
+        // Page 2: use cursor, should get remaining skills
+        String req2 = "{\"jsonrpc\":\"2.0\",\"id\":12,\"method\":\"skills/list\",\"params\":{\"cursor\":\"" + cursor + "\",\"limit\":10}}";
+        JsonObject resp2 = GSON.fromJson(
+                handler.handleRequestResponse(req2, sessionId).getBody(),
+                JsonObject.class);
+        JsonObject result2 = resp2.getAsJsonObject("result");
+        assertEquals(1, result2.getAsJsonArray("skills").size());
+        assertFalse(result2.has("nextCursor"), "no nextCursor on last page");
+    }
+
+    @Test
+    void skillsList_noNextCursor_whenResultsFitInOnePage() {
+        McpProtocolHandler handler = new McpProtocolHandler(registry,
+                McpServerConfig.builder()
+                        .protocolVersion("2026-07-28")
+                        .skillsExtension(skillsExtension)
+                        .build());
+        String sessionId = initSession(handler);
+
+        // All skills fit in one page
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":13,\"method\":\"skills/list\",\"params\":{\"limit\":10}}";
+        JsonObject resp = GSON.fromJson(
+                handler.handleRequestResponse(req, sessionId).getBody(),
+                JsonObject.class);
+        JsonObject result = resp.getAsJsonObject("result");
+        assertEquals(2, result.getAsJsonArray("skills").size());
+        assertFalse(result.has("nextCursor"), "no nextCursor when all results fit");
     }
 
     // ==================== Skills Get ====================
@@ -254,9 +296,78 @@ class SkillsExtensionTest {
                 + "\"params\":{\"uri\":\"skill://test/skill-two\"}}";
         handler.handleRequestResponse(req, sessionId);
 
-        // With new URI parsing: skillRoot=skill://test/skill-two, relativePath=""
+        // skillRoot=skill://test/skill-two, relativePath="SKILL.md"
         assertEquals("skill://test/skill-two", skillsExtension.lastReadUri);
         assertEquals("SKILL.md", skillsExtension.lastReadFile);
+    }
+
+    // ==================== Companion File Serving ====================
+
+    @Test
+    void resourcesRead_servesCompanionFile_withCorrectSkillRoot() {
+        McpProtocolHandler handler = new McpProtocolHandler(registry,
+                McpServerConfig.builder()
+                        .protocolVersion("2026-07-28")
+                        .resources(true)
+                        .skillsExtension(skillsExtension)
+                        .build());
+        String sessionId = initSession(handler);
+
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":22,\"method\":\"resources/read\","
+                + "\"params\":{\"uri\":\"skill://test/skill-one/scripts/deploy.sh\"}}";
+        JsonObject resp = GSON.fromJson(
+                handler.handleRequestResponse(req, sessionId).getBody(),
+                JsonObject.class);
+        JsonObject result = resp.getAsJsonObject("result");
+        assertFalse(result.has("error"));
+        assertEquals("complete", result.get("resultType").getAsString());
+        // skillRoot passed to extension, not the full URI
+        assertEquals("skill://test/skill-one", skillsExtension.lastReadUri);
+        assertEquals("scripts/deploy.sh", skillsExtension.lastReadFile);
+        assertTrue(result.getAsJsonArray("contents").get(0).getAsJsonObject()
+                .get("text").getAsString().contains("deploying"));
+    }
+
+    @Test
+    void resourcesRead_returnsCorrectMimeTypes() {
+        McpProtocolHandler handler = new McpProtocolHandler(registry,
+                McpServerConfig.builder()
+                        .protocolVersion("2026-07-28")
+                        .resources(true)
+                        .skillsExtension(skillsExtension)
+                        .build());
+        String sessionId = initSession(handler);
+
+        // SKILL.md -> text/markdown
+        String reqMd = "{\"jsonrpc\":\"2.0\",\"id\":23,\"method\":\"resources/read\","
+                + "\"params\":{\"uri\":\"skill://test/skill-one\"}}";
+        JsonObject respMd = GSON.fromJson(
+                handler.handleRequestResponse(reqMd, sessionId).getBody(),
+                JsonObject.class);
+        JsonObject resultMd = respMd.getAsJsonObject("result");
+        assertEquals("text/markdown", resultMd.getAsJsonArray("contents")
+                .get(0).getAsJsonObject().get("mimeType").getAsString());
+
+        // scripts/deploy.sh -> text/x-shellscript
+        String reqSh = "{\"jsonrpc\":\"2.0\",\"id\":24,\"method\":\"resources/read\","
+                + "\"params\":{\"uri\":\"skill://test/skill-one/scripts/deploy.sh\"}}";
+        JsonObject respSh = GSON.fromJson(
+                handler.handleRequestResponse(reqSh, sessionId).getBody(),
+                JsonObject.class);
+        JsonObject resultSh = respSh.getAsJsonObject("result");
+        assertEquals("text/x-shellscript", resultSh.getAsJsonArray("contents")
+                .get(0).getAsJsonObject().get("mimeType").getAsString());
+
+        // config.yaml -> text/yaml
+        String reqYaml = "{\"jsonrpc\":\"2.0\",\"id\":25,\"method\":\"resources/read\","
+                + "\"params\":{\"uri\":\"skill://test/skill-two/config.yaml\"}}";
+        JsonObject respYaml = GSON.fromJson(
+                handler.handleRequestResponse(reqYaml, sessionId).getBody(),
+                JsonObject.class);
+        JsonObject resultYaml = respYaml.getAsJsonObject("result");
+        assertFalse(resultYaml.has("error"));
+        assertEquals("text/yaml", resultYaml.getAsJsonArray("contents")
+                .get(0).getAsJsonObject().get("mimeType").getAsString());
     }
 
     @Test

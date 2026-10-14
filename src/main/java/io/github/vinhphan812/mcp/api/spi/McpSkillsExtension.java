@@ -1,5 +1,6 @@
 package io.github.vinhphan812.mcp.api.spi;
 
+import io.github.vinhphan812.mcp.api.dto.ListSkillsResult;
 import io.github.vinhphan812.mcp.api.dto.SkillDTO;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,8 +30,14 @@ public interface McpSkillsExtension extends McpExtension {
         return caps;
     }
 
-    /** Lists available skills. */
-    List<SkillDTO> listSkills(int offset, int limit);
+    /**
+     * Lists available skills with cursor-based pagination.
+     *
+     * @param cursor opaque pagination cursor (null/empty for first page)
+     * @param limit  maximum number of skills to return
+     * @return paginated result with optional nextCursor
+     */
+    ListSkillsResult listSkills(String cursor, int limit);
 
     /** Retrieves a skill by URI. */
     SkillDTO getSkill(String uri);

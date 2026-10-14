@@ -18,6 +18,7 @@ package io.github.vinhphan812.mcp.core;
 
 import com.google.gson.Gson;
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
+import io.github.vinhphan812.mcp.api.dto.ListSkillsResult;
 import io.github.vinhphan812.mcp.api.dto.SkillDTO;
 import io.github.vinhphan812.mcp.api.spi.McpSkillsExtension;
 import org.junit.jupiter.api.Test;
@@ -51,8 +52,12 @@ public class McpSkillsExtensionTest {
         }
 
         @Override
-        public List<SkillDTO> listSkills(int offset, int limit) {
-            return skillFiles.keySet().stream()
+        public ListSkillsResult listSkills(String cursor, int limit) {
+            int offset = 0;
+            if (cursor != null && !cursor.isEmpty()) {
+                try { offset = Integer.parseInt(cursor); } catch (NumberFormatException ignored) {}
+            }
+            List<SkillDTO> page = skillFiles.keySet().stream()
                     .skip(offset)
                     .limit(limit)
                     .map(name -> new SkillDTO(
@@ -64,6 +69,9 @@ public class McpSkillsExtensionTest {
                             Map.of("SKILL.md", ""),     // files
                             Map.of()))                  // digests
                     .collect(java.util.stream.Collectors.toList());
+            int total = skillFiles.size();
+            String nextCursor = (offset + limit < total) ? String.valueOf(offset + limit) : null;
+            return new ListSkillsResult(page, nextCursor);
         }
 
         @Override
@@ -287,6 +295,7 @@ public class McpSkillsExtensionTest {
         assertEquals(1, contents.size());
         assertEquals("skill://refunds/scripts/check.py", contents.get(0).get("uri"));
         assertEquals("#!/usr/bin/env python3\nprint('check')", contents.get(0).get("text"));
+        assertEquals("text/x-python", contents.get(0).get("mimeType"));
     }
 
     @Test

@@ -25,6 +25,7 @@ import io.github.vinhphan812.mcp.api.dto.ElicitAction;
 import io.github.vinhphan812.mcp.api.dto.ElicitRequest;
 import io.github.vinhphan812.mcp.api.dto.ElicitationResult;
 import io.github.vinhphan812.mcp.api.dto.InputRequiredResult;
+import io.github.vinhphan812.mcp.api.dto.ListSkillsResult;
 import io.github.vinhphan812.mcp.api.dto.ListenRequest;
 import io.github.vinhphan812.mcp.api.dto.McpBlobContent;
 import io.github.vinhphan812.mcp.api.dto.SkillDTO;
@@ -2453,7 +2454,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             // Find the skill root by checking which stored skill URI is a prefix of the request URI.
             // This handles multi-segment skill names (e.g. skill://test/skill-one).
             String skillRoot = null;
-            for (SkillDTO skill : skillsExtension.listSkills(0, 1000)) {
+            for (SkillDTO skill : skillsExtension.listSkills(null, 1000).skills) {
                 if (uri.equals(skill.uri) || uri.startsWith(skill.uri + "/")) {
                     skillRoot = skill.uri;
                     break;
@@ -2482,17 +2483,15 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 return result;
             }
 
-            // Companion file request: pass the full URI to the extension so it can
-            // match against stored skill URIs. The extension is responsible for
-            // extracting the skill root and locating the file.
-            String fullUri = skillRoot + "/" + relativePath;
-            String content = skillsExtension.readManifestFile(fullUri, relativePath);
+            // Companion file request: readManifestFile(skillRoot, relativePath)
+            // relativePath is the path component after the skill root, e.g. "scripts/check.py"
+            String content = skillsExtension.readManifestFile(skillRoot, relativePath);
             if (content == null) {
                 throw McpException.invalidParams("Unknown skill file: " + uri);
             }
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("contents", List.of(
-                    Map.of("uri", uri, "mimeType", mimeTypeForUri(uri), "text", content)));
+                    Map.of("uri", uri, "mimeType", mimeTypeForSkillFile(relativePath), "text", content)));
             result.put("resultType", "complete");
             return result;
         }
@@ -2579,6 +2578,26 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             }
         }
         return null;
+    }
+
+    private String mimeTypeForSkillFile(String relativePath) {
+        if (relativePath == null) return "text/plain";
+        if (relativePath.endsWith(".md")) return "text/markdown";
+        if (relativePath.endsWith(".txt")) return "text/plain";
+        if (relativePath.endsWith(".json")) return "application/json";
+        if (relativePath.endsWith(".yaml") || relativePath.endsWith(".yml")) return "text/yaml";
+        if (relativePath.endsWith(".sh")) return "text/x-shellscript";
+        if (relativePath.endsWith(".py")) return "text/x-python";
+        if (relativePath.endsWith(".js")) return "application/javascript";
+        if (relativePath.endsWith(".ts")) return "application/typescript";
+        if (relativePath.endsWith(".html") || relativePath.endsWith(".htm")) return "text/html";
+        if (relativePath.endsWith(".css")) return "text/css";
+        if (relativePath.endsWith(".xml")) return "application/xml";
+        if (relativePath.endsWith(".csv")) return "text/csv";
+        if (relativePath.endsWith(".sql")) return "application/x-sql";
+        if (relativePath.endsWith(".java")) return "text/x-java-source";
+        if (relativePath.endsWith(".kt") || relativePath.endsWith(".kts")) return "text/x-kotlin";
+        return "text/plain";
     }
 
     private String mimeTypeForUri(String uri) {
@@ -2741,24 +2760,26 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     // ==================== Skills (SEP-2640) ====================
 
     private Map<String, Object> handleSkillsList(Map<String, Object> params) {
-        int offset = 0, limit = 100;
+        String cursor = null;
+        int limit = 100;
         if (params != null) {
-            if (params.get("cursor") instanceof String) {
-                String cursor = (String) params.get("cursor");
-                try { offset = Integer.parseInt(cursor); } catch (NumberFormatException ignored) {}
+            Object c = params.get("cursor");
+            if (c instanceof String && !((String) c).isEmpty()) {
+                cursor = (String) c;
             }
             Object l = params.get("limit");
-            if (l instanceof Number) limit = ((Number) l).intValue();
+            if (l instanceof Number) {
+                int requested = ((Number) l).intValue();
+                if (requested > 0) limit = Math.min(requested, 1000);
+            }
         }
-        List<SkillDTO> all = skillsExtension.listSkills(offset, limit);
+        ListSkillsResult result = skillsExtension.listSkills(cursor, limit);
         List<Map<String, Object>> items = new ArrayList<>();
-        for (SkillDTO s : all) items.add(s.toMap());
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("skills", items);
-        // Next cursor if more skills exist
-        List<SkillDTO> nextPage = skillsExtension.listSkills(offset + limit, 1);
-        if (!nextPage.isEmpty()) result.put("nextCursor", String.valueOf(offset + limit));
-        return result;
+        for (SkillDTO s : result.skills) items.add(s.toMap());
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("skills", items);
+        if (result.nextCursor != null) out.put("nextCursor", result.nextCursor);
+        return out;
     }
 
     private Map<String, Object> handleSkillsGet(Map<String, Object> params) {
