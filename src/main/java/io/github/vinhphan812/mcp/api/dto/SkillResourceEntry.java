@@ -57,7 +57,7 @@ public final class SkillResourceEntry {
     public Map<String, Object> toMap() {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("uri", uri);
-        m.put("name", name);
+        // The stable Skills wire contract intentionally omits the legacy name field.
         if (digest != null) m.put("digest", digest);
         if (size >= 0) m.put("size", size);
         return m;

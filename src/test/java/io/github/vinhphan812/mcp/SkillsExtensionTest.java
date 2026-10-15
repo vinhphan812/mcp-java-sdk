@@ -236,8 +236,12 @@ class SkillsExtensionTest {
                 JsonObject.class);
         JsonObject result = resp.getAsJsonObject("result");
         assertFalse(result.has("error"));
-        assertEquals("skill://test/skill-one", result.get("uri").getAsString());
-        assertEquals("skill-one", result.get("name").getAsString());
+        // B5: stable spec wraps skill in envelope
+        JsonObject skill = result.getAsJsonObject("skill");
+        assertEquals("skill://test/skill-one", skill.get("uri").getAsString());
+        // B1: stable spec uses frontmatter instead of top-level name
+        assertFalse(skill.has("name"), "name must not be at top level");
+        assertTrue(skill.has("frontmatter"), "frontmatter must be present");
     }
 
     @Test

@@ -679,7 +679,8 @@ public class McpSkillsExtensionTest {
                 "skill://test/README.md", "README.md", "sha256:abc123", 42);
         Map<String, Object> map = entry.toMap();
         assertEquals("skill://test/README.md", map.get("uri"));
-        assertEquals("README.md", map.get("name"));
+        // B4: stable spec intentionally omits name from wire
+        assertNull(map.get("name"));
         assertEquals("sha256:abc123", map.get("digest"));
         assertEquals(42L, map.get("size"));
     }

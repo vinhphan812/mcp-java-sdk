@@ -2414,10 +2414,13 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
     private static String normalizePath(String path) {
         if (path == null || path.isEmpty()) return "";
         String s = path;
+        int depth = 0;
+        final int maxDepth = 16;
 
         // Multi-pass decode: keep decoding until no %XX patterns remain.
         // This catches %252e%252e -> %2e%252e -> .. through recursive decode.
         while (true) {
+            if (++depth > maxDepth) return null; // reject deeply nested encoding
             // Scan for encoded slash (%2f / %2F) BEFORE any decode —
             // after decode it becomes a real / and can't be distinguished.
             for (int i = 0; i < s.length() - 2; i++) {
@@ -2991,9 +2994,11 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (uri == null || uri.trim().isEmpty()) throw McpException.invalidParams("uri required");
         SkillDTO skill = skillsExtension.getSkill(uri);
         if (skill == null) throw McpException.invalidParams("Unknown skill: " + uri);
-        Map<String, Object> result = new LinkedHashMap<>(skill.toMap());
-        // Stable spec cache contract
+        // Stable spec: wrap skill in envelope
+        Map<String, Object> result = new LinkedHashMap<>();
         result.put("resultType", "complete");
+        result.put("skill", skill.toMap());
+        // Stable spec cache contract
         result.put("ttlMs", 3600000L);
         result.put("cacheScope", "public");
         return result;
