@@ -481,6 +481,156 @@ class SkillsExtensionTest {
         assertEquals(-32602, resp.getAsJsonObject("error").get("code").getAsInt());
     }
 
+    // ==================== Boundary Tests: Pagination (B6) ====================
+
+    /**
+     * Test that nextCursor is NOT exposed when totalSkills() returns MAX_VALUE (unknown)
+     * and results exactly fit in one page (no extra from limit+1).
+     * This is the B6 fix for audit failure: legacy totalSkills() == MAX_VALUE
+     * pagination termination exposed incorrect nextCursor.
+     */
+    @Test
+    void skillsList_noNextCursor_withMaxValueTotal_whenResultsFitExactly() {
+        // Use extension where totalSkills() returns MAX_VALUE (the default)
+        McpProtocolHandler handler = new McpProtocolHandler(registry,
+                McpServerConfig.builder()
+                        .protocolVersion("2026-07-28")
+                        .skillsExtension(skillsExtension)
+                        .build());
+        String sessionId = initSession(handler);
+
+        // Request exactly 2 skills (we have 2 skills total)
+        // With limit=2, requestLimit=3, but we only have 2 skills
+        // So hasExtra=false, and with MAX_VALUE total, we should NOT expose nextCursor
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":30,\"method\":\"skills/list\",\"params\":{\"limit\":2}}";
+        JsonObject resp = GSON.fromJson(
+                handler.handleRequestResponse(req, sessionId).getBody(),
+                JsonObject.class);
+        JsonObject result = resp.getAsJsonObject("result");
+        assertEquals(2, result.getAsJsonArray("skills").size(),
+                "Should return both skills");
+        assertFalse(result.has("nextCursor"),
+                "nextCursor must NOT be present when results fit exactly (B6 fix)");
+    }
+
+    /**
+     * Test that nextCursor IS exposed when limit+1 returns more items.
+     * This verifies the limit+1 detection still works.
+     */
+    @Test
+    void skillsList_hasNextCursor_whenLimitPlusOneHasMore() {
+        McpProtocolHandler handler = new McpProtocolHandler(registry,
+                McpServerConfig.builder()
+                        .protocolVersion("2026-07-28")
+                        .skillsExtension(skillsExtension)
+                        .build());
+        String sessionId = initSession(handler);
+
+        // Request 1 skill when we have 2 - limit+1=2 will detect more
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":31,\"method\":\"skills/list\",\"params\":{\"limit\":1}}";
+        JsonObject resp = GSON.fromJson(
+                handler.handleRequestResponse(req, sessionId).getBody(),
+                JsonObject.class);
+        JsonObject result = resp.getAsJsonObject("result");
+        assertEquals(1, result.getAsJsonArray("skills").size(),
+                "Should return exactly 1 skill");
+        assertTrue(result.has("nextCursor"),
+                "nextCursor must be present when there are more skills");
+    }
+
+    /**
+     * Test cursor overflow validation - cursor that would cause overflow
+     * should be rejected as Invalid Params.
+     */
+    @Test
+    void skillsList_rejectsOverflowCursor() {
+        McpProtocolHandler handler = new McpProtocolHandler(registry,
+                McpServerConfig.builder()
+                        .protocolVersion("2026-07-28")
+                        .skillsExtension(skillsExtension)
+                        .build());
+        String sessionId = initSession(handler);
+
+        // Integer.MAX_VALUE is too large - combined with limit it would overflow
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":32,\"method\":\"skills/list\",\"params\":"
+                + "{\"cursor\":\"" + Integer.MAX_VALUE + "\",\"limit\":2}}";
+        JsonObject resp = GSON.fromJson(
+                handler.handleRequestResponse(req, sessionId).getBody(),
+                JsonObject.class);
+        assertTrue(resp.has("error"), "Should return error for overflow cursor");
+        assertEquals(-32602, resp.getAsJsonObject("error").get("code").getAsInt(),
+                "Error code should be -32602 (Invalid params)");
+    }
+
+    /**
+     * Test negative cursor validation.
+     */
+    @Test
+    void skillsList_rejectsNegativeCursor() {
+        McpProtocolHandler handler = new McpProtocolHandler(registry,
+                McpServerConfig.builder()
+                        .protocolVersion("2026-07-28")
+                        .skillsExtension(skillsExtension)
+                        .build());
+        String sessionId = initSession(handler);
+
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":33,\"method\":\"skills/list\",\"params\":"
+                + "{\"cursor\":\"-1\",\"limit\":10}}";
+        JsonObject resp = GSON.fromJson(
+                handler.handleRequestResponse(req, sessionId).getBody(),
+                JsonObject.class);
+        assertTrue(resp.has("error"), "Should return error for negative cursor");
+        assertEquals(-32602, resp.getAsJsonObject("error").get("code").getAsInt());
+    }
+
+    /**
+     * Test non-numeric cursor validation.
+     */
+    @Test
+    void skillsList_rejectsNonNumericCursor() {
+        McpProtocolHandler handler = new McpProtocolHandler(registry,
+                McpServerConfig.builder()
+                        .protocolVersion("2026-07-28")
+                        .skillsExtension(skillsExtension)
+                        .build());
+        String sessionId = initSession(handler);
+
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":34,\"method\":\"skills/list\",\"params\":"
+                + "{\"cursor\":\"abc\",\"limit\":10}}";
+        JsonObject resp = GSON.fromJson(
+                handler.handleRequestResponse(req, sessionId).getBody(),
+                JsonObject.class);
+        assertTrue(resp.has("error"), "Should return error for non-numeric cursor");
+        assertEquals(-32602, resp.getAsJsonObject("error").get("code").getAsInt());
+    }
+
+    // ==================== Boundary Tests: Exact Final Full Page (B6) ====================
+
+    /**
+     * Test exact boundary: when limit=2 and there are exactly 2 skills,
+     * nextCursor should NOT appear (even with MAX_VALUE total).
+     * This is the critical B6 audit fix.
+     */
+    @Test
+    void skillsList_exactFinalPage_noNextCursor() {
+        McpProtocolHandler handler = new McpProtocolHandler(registry,
+                McpServerConfig.builder()
+                        .protocolVersion("2026-07-28")
+                        .skillsExtension(skillsExtension)
+                        .build());
+        String sessionId = initSession(handler);
+
+        // Exactly matches our 2 skills - no nextCursor
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":35,\"method\":\"skills/list\",\"params\":{\"limit\":2}}";
+        JsonObject resp = GSON.fromJson(
+                handler.handleRequestResponse(req, sessionId).getBody(),
+                JsonObject.class);
+        JsonObject result = resp.getAsJsonObject("result");
+        assertEquals(2, result.getAsJsonArray("skills").size());
+        assertFalse(result.has("nextCursor"),
+                "CRITICAL B6: nextCursor must NOT appear on exact final full page");
+    }
+
     // Note: coexistence with Tasks tested via McpTaskExtensionTest which runs Skills
     // and Tasks simultaneously. Full integration test would require McpTaskExtension
     // setup which is covered in McpTaskExtensionTest.
