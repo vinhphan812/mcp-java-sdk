@@ -78,10 +78,12 @@ jobs:
           set -euo pipefail
           TAG_NAME="${GITHUB_REF_NAME}"
           TAG_REF="refs/tags/${TAG_NAME}"
-          EXPECTED_REMOTE="https://github.com/${EXPECTED_REPOSITORY}.git"
+          # H1 fix: strip .git suffix from EXPECTED_REMOTE so it matches the normalised
+          # CANONICAL_ORIGIN below (which strips .git and normalises git@… SSH form).
+          EXPECTED_REMOTE="https://github.com/${EXPECTED_REPOSITORY}"
 
           # Normalize origin URL to canonical https://github.com/owner/repo form.
-          # Strips trailing .git and converts git@github.com:owner/repo SSH form.
+          # H1 fix: strips trailing .git, normalises git@github.com:owner/repo SSH form.
           normalize_remote() {
               local url="$1"
               # Strip trailing .git
