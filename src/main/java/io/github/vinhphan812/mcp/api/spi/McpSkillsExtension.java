@@ -5,6 +5,7 @@ import io.github.vinhphan812.mcp.api.dto.ListSkillsResult;
 import io.github.vinhphan812.mcp.api.dto.SkillDTO;
 import io.github.vinhphan812.mcp.api.dto.SkillResource;
 import io.github.vinhphan812.mcp.api.dto.SkillResourceEntry;
+import io.github.vinhphan812.mcp.api.utils.McpException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -101,13 +102,20 @@ public interface McpSkillsExtension extends McpExtension {
             try {
                 offset = Integer.parseInt(cursor);
             } catch (NumberFormatException e) {
-                offset = 0;
+                throw McpException.invalidParams("invalid skills cursor");
             }
+            if (offset < 0) throw McpException.invalidParams("invalid skills cursor");
         }
-        List<SkillDTO> skills = listSkills(offset, limit);
+        // Request limit+1 to detect if there's a next page
+        int requestLimit = Math.addExact(limit, 1);
+        List<SkillDTO> skills = listSkills(offset, requestLimit);
+        boolean hasExtra = skills.size() > limit;
+        if (hasExtra) {
+            skills = new java.util.ArrayList<>(skills.subList(0, limit));
+        }
         int total = totalSkills();
-        boolean hasNextPage = offset + limit < total;
-        String nextCursor = hasNextPage ? String.valueOf(offset + limit) : null;
+        boolean hasNextPage = hasExtra || ((long) offset + limit < total);
+        String nextCursor = hasNextPage ? String.valueOf((long) offset + limit) : null;
         return new ListSkillsResult(skills, nextCursor);
     }
 
