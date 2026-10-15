@@ -1,174 +1,77 @@
 # Release Guardrails
 
-This document describes the GitHub branch/tag protection and release provenance guardrails enforced for the mcp-java-sdk repository.
+This document describes the release checks implemented in `.github/workflows/release.yml`. It does not change GitHub rulesets and it does not authorize retagging, release editing, or package overwrites.
 
----
+## Release trigger and tag policy
 
-## 1. Branch Protection (master)
+The workflow runs for tags matching `v*`, but only an exact `vMAJOR.MINOR.PATCH` tag is eligible to publish a production package and GitHub Release.
 
-The `master` branch is protected via GitHub branch protection API:
+- An exact production tag must be an **annotated tag**. It must be created and pushed before the workflow starts.
+- The workflow only inspects the triggering tag. It never creates, moves, deletes, or force-updates a tag.
+- Lightweight exact tags fail the production gate.
+- Tags with a suffix, including `v1.1.4-skills-fix`, are validation-only. They do not enter the publication job and cannot publish a production Maven coordinate.
 
-| Setting | Value | Source |
-|---------|-------|--------|
-| Required Status Checks | Validate Documentation, build (11), build (17), SBOM and dependency vulnerability gate, MCP 2026-07-28 conformance, grype | API |
-| Strict required_status_checks | true (must pass before merge) | API |
-| Require linear history | true (no merge commits) | API |
-| Allow force pushes | false | API |
-| Allow branch deletions | false | API |
-| Enforce admins | true | API |
+Tag protection is governed separately by ruleset `25088082`; this workflow neither reads nor changes that ruleset.
 
-**Verification command:**
+## Provenance validation
+
+Before any production publication, the validation job fails closed unless all of the following hold:
+
+1. `GITHUB_REPOSITORY` is exactly `vinhphan812/mcp-java-sdk` and `origin` is exactly its HTTPS GitHub URL.
+2. The triggering ref exists locally and can be inspected.
+3. The workflow records the tag object ID and its object type separately.
+4. `refs/tags/<tag>^{commit}` peels to a commit that equals both checkout `HEAD` and `GITHUB_SHA`.
+5. A deterministic full fetch of `origin/master` succeeds.
+6. The peeled tag commit is an ancestor of the fetched protected-master commit. Both SHA values are printed before the ancestry check.
+
+The workflow contains a hermetic regression simulation proving both annotated and lightweight tags peel to the intended commit, that a master commit passes ancestry, and that a feature-only commit fails it. These are workflow-local tests; they do not create repository tags or releases.
+
+## Version reuse policy
+
+For an eligible production tag, the publication job refuses to continue if:
+
+- a GitHub Release already exists for the tag; or
+- Maven metadata already contains the intended package version.
+
+An existing release or version is terminal for that version. Recovery requires a new patch version. Operators must never retarget a tag, edit a release into a replacement, or re-upload package assets for a reused version.
+
+## Publication and post-release verification
+
+After a clean Gradle build, test run, Javadoc generation, SBOM generation, and dependency scan, the job publishes the Maven coordinate and creates a GitHub Release with `--verify-tag`. It packages all of the following release assets:
+
+- main JAR;
+- sources JAR;
+- Javadoc JAR;
+- CycloneDX `bom.json`;
+- `asset-sha256sums.txt`; and
+- `provenance.json`.
+
+The generated provenance JSON records the repository, tag, semantic version, tag object SHA, peeled tag commit SHA, protected-master SHA, and SHA-256 manifest filename. It is uploaded as a machine-readable workflow artifact together with the manifest.
+
+The final verification step fails closed unless the release is public (not draft or prerelease), names the expected tag, includes every required asset, and the release tag still peels to the expected commit. It also requires Maven metadata to contain the published version and uses a temporary clean Gradle consumer project to resolve `io.github.vinhphan812.mcp:mcp-java-sdk:<version>` from GitHub Packages.
+
+## Operational checks
+
+Inspect an existing release without changing it:
+
 ```bash
-gh api repos/vinhphan812/mcp-java-sdk/branches/master/protection
+gh release view v1.2.3 --repo vinhphan812/mcp-java-sdk
 ```
 
----
+Inspect an existing tag's object and peeled commit:
 
-## 2. Tag Protection (Rulesets)
-
-A repository ruleset protects release tags from modification or deletion:
-
-| Property | Value |
-|----------|-------|
-| Ruleset Name | Tag Protection |
-| Target | tag |
-| Enforcement | active |
-| Conditions | Include: `refs/tags/*`, Exclude: `refs/tags/v*.*.*-*` |
-| Rules | `deletion` (block tag deletion), `update` (block force-push to tags) |
-
-**Note:** Pre-release tags matching `v*.*.*-*` (e.g., `v1.0.0-beta1`) are excluded from protection to allow iterative tagging during development.
-
-**Verification command:**
 ```bash
-gh api repos/vinhphan812/mcp-java-sdk/rulesets
-# or specific ruleset:
+git cat-file -t refs/tags/v1.2.3
+git rev-parse refs/tags/v1.2.3
+git rev-parse refs/tags/v1.2.3^{commit}
+```
+
+Inspect tag-protection rules without modifying them:
+
+```bash
 gh api repos/vinhphan812/mcp-java-sdk/rulesets/25088082
 ```
 
-**Ruleset UI:** https://github.com/vinhphan812/mcp-java-sdk/rules/25088082
+## Limits
 
----
-
-## 3. Release Provenance
-
-The release workflow (`.github/workflows/release.yml`) enforces release provenance:
-
-### 3.1 SHA Verification
-
-Before building, the workflow verifies that the tag's commit SHA matches the current HEAD:
-
-```yaml
-- name: Verify commit SHA matches tag SHA
-  run: |
-    TAG_SHA=$(git rev-parse "${GITHUB_REF}")
-    COMMIT_SHA=$(git rev-parse HEAD)
-    if [ "$TAG_SHA" != "$COMMIT_SHA" ]; then
-      echo "ERROR: Tag SHA does not match commit SHA"
-      exit 1
-    fi
-```
-
-If SHA mismatch is detected (e.g., from a force-push), the release fails immediately.
-
-### 3.2 Annotated Tag Creation
-
-The workflow creates an annotated tag with provenance metadata:
-
-```yaml
-- name: Create annotated tag with provenance metadata
-  run: |
-    TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    AUTHOR=$(git log -1 --format='%an <%ae>')
-    git tag -a "v${TAG_NAME}" -m "Release v${TAG_NAME}
-    Timestamp: ${TIMESTAMP}
-    Author: ${AUTHOR}
-    Commit: ${GITHUB_SHA}
-    "
-```
-
-The annotated tag includes:
-- **Version** — from the tag name (e.g., `v1.1.0`)
-- **Timestamp** — UTC ISO 8601 format
-- **Author** — name and email of the tagger
-- **Commit SHA** — the exact commit being released
-
-### 3.3 SBOM Generation and Publication
-
-The workflow generates a CycloneDX SBOM and publishes it as a release artifact:
-
-```yaml
-- name: Build release JAR, test, and generate CycloneDX SBOM
-  run: ./gradlew ... cyclonedxBom
-- name: Create GitHub Release
-  uses: softprops/action-gh-release@v2
-  with:
-    files: |
-      build/libs/mcp-java-sdk-*.jar
-      build/reports/bom.json
-```
-
----
-
-## 4. Required Status Checks
-
-All status checks that must pass before merging to master:
-
-| Check | Purpose |
-|-------|---------|
-| Validate Documentation | Markdown tables and links hygiene |
-| build (11) | Build with Java 11 |
-| build (17) | Build with Java 17 |
-| SBOM and dependency vulnerability gate | CycloneDX SBOM + Grype vulnerability scan |
-| MCP 2026-07-28 conformance | MCP spec conformance suite |
-| grype | Grype vulnerability scan (HIGH/CRITICAL blocking) |
-
----
-
-## 5. Verification Commands
-
-### Check branch protection:
-```bash
-gh api repos/vinhphan812/mcp-java-sdk/branches/master/protection --jq '.required_status_checks.contexts'
-```
-
-### Check tag ruleset:
-```bash
-gh api repos/vinhphan812/mcp-java-sdk/rulesets/25088082 --jq '.rules'
-```
-
-### List release tags:
-```bash
-gh api repos/vinhphan812/mcp-java-sdk/tags --jq '.[].name'
-```
-
-### View latest release:
-```bash
-gh release view latest
-```
-
----
-
-## 6. Exceptions and Exclusions
-
-- **No mandatory reviewer requirement** — vinhphan812 is the sole author/reviewer. Review-by-comment serves as architect acceptance.
-- **Pre-release tags excluded** — tags matching `v*.*.*-*` (e.g., `v1.0.0-beta1`) are not protected to allow iterative development tagging.
-
----
-
-## 7. Enforcement Summary
-
-| Threat | Guardrail |
-|--------|-----------|
-| Merge without CI passing | Required status checks (enforced) |
-| Merge with merge commits | Linear history requirement (enforced) |
-| Force-push to master | `allow_force_pushes: false` (enforced) |
-| Delete master branch | `allow_deletions: false` (enforced) |
-| Force-push release tag | Tag ruleset: `update` rule (enforced) |
-| Delete release tag | Tag ruleset: `deletion` rule (enforced) |
-| Release from wrong commit | SHA verification step (enforced in CI) |
-| No release provenance metadata | Annotated tag with version, timestamp, author, SHA (enforced in CI) |
-| Unvetted dependencies | SBOM + Grype vulnerability gate (enforced in CI) |
-
----
-
-_Last updated: 2026-10-14_
+These controls execute only when GitHub Actions runs with its configured token and GitHub Packages is reachable. They cannot retroactively validate, repair, delete, or replace historical releases, tags, or packages. GitHub repository and tag-protection settings remain separate administrative controls.
