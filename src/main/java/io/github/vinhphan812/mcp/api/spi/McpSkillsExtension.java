@@ -105,6 +105,10 @@ public interface McpSkillsExtension extends McpExtension {
                 throw McpException.invalidParams("invalid skills cursor");
             }
             if (offset < 0) throw McpException.invalidParams("invalid skills cursor");
+            // Validate cursor doesn't cause integer overflow
+            if (offset > Integer.MAX_VALUE - limit) {
+                throw McpException.invalidParams("invalid skills cursor");
+            }
         }
         // Request limit+1 to detect if there's a next page
         int requestLimit = Math.addExact(limit, 1);
@@ -113,9 +117,11 @@ public interface McpSkillsExtension extends McpExtension {
         if (hasExtra) {
             skills = new java.util.ArrayList<>(skills.subList(0, limit));
         }
-        int total = totalSkills();
-        boolean hasNextPage = hasExtra || ((long) offset + limit < total);
-        String nextCursor = hasNextPage ? String.valueOf((long) offset + limit) : null;
+        // B6: Proper limit+1 pagination. Only expose nextCursor when we know there's more
+        // (hasExtra is true). When totalSkills() returns MAX_VALUE (unknown), we cannot
+        // compute hasNextPage from total, so we only rely on hasExtra.
+        // This ensures no nextCursor is exposed on an exact final full page.
+        String nextCursor = hasExtra ? String.valueOf((long) offset + limit) : null;
         return new ListSkillsResult(skills, nextCursor);
     }
 
