@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - 'v*'
+  pull_request:
+    branches:
+      - master
 
 permissions:
   contents: write
@@ -11,59 +14,258 @@ permissions:
   security-events: write
 
 jobs:
-  release:
+  dry-run-provenance-guards:
+    name: Dry-run provenance guards (PR validation)
+    # Runs only on PR events; does not publish, create, or modify any artifact.
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # ── Release provenance: verify commit SHA matches tag SHA ──
-      - name: Verify commit SHA matches tag SHA
+      - name: Run provenance guard dry-run tests
+        run: python3 "$GITHUB_WORKSPACE/.github/workflows/scripts/dry_run_provenance_guards.py"
+
+      - name: Check Maven metadata for version-reuse conditions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_GROUP_PATH: io/github/vinhphan812/mcp
+          PACKAGE_ARTIFACT: mcp-java-sdk
         run: |
-          TAG_NAME="${GITHUB_REF_NAME#v}"
-          TAG_SHA=$(git rev-parse "${GITHUB_REF}" 2>/dev/null)
-          COMMIT_SHA=$(git rev-parse HEAD)
+          set -euo pipefail
+          metadata_url="https://maven.pkg.github.com/${GITHUB_REPOSITORY}/${PACKAGE_GROUP_PATH}/${PACKAGE_ARTIFACT}/maven-metadata.xml"
+          status=$(curl --silent --show-error --output metadata.xml --write-out '%{http_code}' \
+            --user "${GITHUB_ACTOR}:${GH_TOKEN}" "$metadata_url" 2>/dev/null) || status=000
+          case "$status" in
+            404) echo "PASS: Maven metadata not found (first release or fork); reuse check would pass." ;;
+            200)
+              echo "INFO: Maven metadata found. Checking for duplicate versions..."
+              python3 "$GITHUB_WORKSPACE/.github/workflows/scripts/check_maven_version.py" "0.0.0-placeholder" metadata.xml
+              echo "  (version check ran; 0.0.0-placeholder is not a real version)"
+              ;;
+            000) echo "INFO: Cannot reach Maven Packages (authentication or network); dry-run cannot fully validate."
+                   echo "      Expected for PRs from forks or when GITHUB_TOKEN is read-only."
+                   ;;
+            *)   echo "WARN: unexpected Maven metadata status $status" ;;
+          esac
 
-          echo "Tag: ${GITHUB_REF}"
-          echo "Tag SHA: $TAG_SHA"
-          echo "Commit SHA: $COMMIT_SHA"
+  validate-release-provenance:
+    name: Validate release provenance
+    runs-on: ubuntu-latest
+    # Only runs on tag-push events (not on PR events — dry-run-provenance-guards covers PR validation).
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+    outputs:
+      production: ${{ steps.provenance.outputs.production }}
+      version: ${{ steps.provenance.outputs.version }}
+      tag_commit: ${{ steps.provenance.outputs.tag_commit }}
+      tag_object: ${{ steps.provenance.outputs.tag_object }}
+      master_sha: ${{ steps.provenance.outputs.master_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
 
-          if [ "$TAG_SHA" != "$COMMIT_SHA" ]; then
-            echo "ERROR: Tag SHA ($TAG_SHA) does not match commit SHA ($COMMIT_SHA)"
-            echo "This may indicate a force-push or tag inconsistency."
+      - name: Validate tag identity, source, and production eligibility
+        id: provenance
+        env:
+          EXPECTED_REPOSITORY: vinhphan812/mcp-java-sdk
+        run: |
+          set -euo pipefail
+          TAG_NAME="${GITHUB_REF_NAME}"
+          TAG_REF="refs/tags/${TAG_NAME}"
+          # H1 fix: strip .git suffix from EXPECTED_REMOTE so it matches the normalised
+          # CANONICAL_ORIGIN below (which strips .git and normalises git@… SSH form).
+          EXPECTED_REMOTE="https://github.com/${EXPECTED_REPOSITORY}"
+
+          # Normalize origin URL to canonical https://github.com/owner/repo form.
+          # H1 fix: strips trailing .git, normalises git@github.com:owner/repo SSH form.
+          normalize_remote() {
+              local url="$1"
+              # Strip trailing .git
+              url="${url%.git}"
+              # Convert git@github.com:owner/repo SSH form to HTTPS
+              url="${url#git@github.com:}"
+              echo "https://github.com/${url#https://github.com/}"
+          }
+          CANONICAL_ORIGIN=$(normalize_remote "$(git remote get-url origin)")
+
+          echo "Repository: ${GITHUB_REPOSITORY}"
+          echo "Origin (raw): $(git remote get-url origin)"
+          echo "Origin (canonical): ${CANONICAL_ORIGIN}"
+          echo "Tag ref: ${TAG_REF}"
+          echo "GITHUB_SHA: ${GITHUB_SHA}"
+          echo "Checkout HEAD: $(git rev-parse HEAD)"
+
+          # Never rely on a fork or a substituted origin for publication.
+          [ "${GITHUB_REPOSITORY}" = "${EXPECTED_REPOSITORY}" ] || {
+            echo "ERROR: release must run in ${EXPECTED_REPOSITORY}"; exit 1;
+          }
+          [ "${CANONICAL_ORIGIN}" = "${EXPECTED_REMOTE}" ] || {
+            echo "ERROR: origin is not ${EXPECTED_REMOTE}"; exit 1;
+          }
+
+          # A tag-push workflow verifies the tag that already triggered it. It never
+          # creates, moves, or force-updates that tag.
+          TAG_OBJECT=$(git rev-parse --verify "${TAG_REF}") || {
+            echo "ERROR: triggering tag is unavailable locally"; exit 1;
+          }
+          TAG_OBJECT_TYPE=$(git cat-file -t "${TAG_OBJECT}") || {
+            echo "ERROR: cannot inspect tag object"; exit 1;
+          }
+          TAG_COMMIT=$(git rev-parse --verify "${TAG_REF}^{commit}") || {
+            echo "ERROR: tag does not peel to a commit"; exit 1;
+          }
+          HEAD_COMMIT=$(git rev-parse --verify HEAD)
+
+          echo "Tag object: ${TAG_OBJECT} (${TAG_OBJECT_TYPE})"
+          echo "Peeled tag commit: ${TAG_COMMIT}"
+          echo "Checkout HEAD: ${HEAD_COMMIT}"
+          [ "${TAG_COMMIT}" = "${HEAD_COMMIT}" ] || {
+            echo "ERROR: peeled tag commit differs from checkout HEAD"; exit 1;
+          }
+          [ "${TAG_COMMIT}" = "${GITHUB_SHA}" ] || {
+            echo "ERROR: peeled tag commit differs from GITHUB_SHA"; exit 1;
+          }
+
+          # Fetch exactly the full protected-master ref. A missing ref or an
+          # indeterminate graph is a release failure, not an implicit pass.
+          git fetch --no-tags --prune origin \
+            '+refs/heads/master:refs/remotes/origin/master'
+          MASTER_SHA=$(git rev-parse --verify refs/remotes/origin/master^{commit}) || {
+            echo "ERROR: protected master ref is unavailable"; exit 1;
+          }
+          echo "Tag commit: ${TAG_COMMIT}"
+          echo "Protected master commit: ${MASTER_SHA}"
+          git merge-base --is-ancestor "${TAG_COMMIT}" "${MASTER_SHA}" || {
+            echo "ERROR: tag commit is not an ancestor of origin/master"; exit 1;
+          }
+
+          if [[ "${TAG_NAME}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+            [ "${TAG_OBJECT_TYPE}" = tag ] || {
+              echo "ERROR: production tag ${TAG_NAME} must be annotated; lightweight tags are validation-only"; exit 1;
+            }
+            PRODUCTION=true
+          else
+            # Suffixed/pre-release/temporary tags are validated above but cannot
+            # enter the publication job or publish a production Maven coordinate.
+            VERSION=""
+            PRODUCTION=false
+            echo "Non-production tag ${TAG_NAME}: validation only; publication is disabled."
+          fi
+
+          {
+            echo "production=${PRODUCTION}"
+            echo "version=${VERSION}"
+            echo "tag_commit=${TAG_COMMIT}"
+            echo "tag_object=${TAG_OBJECT}"
+            echo "master_sha=${MASTER_SHA}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Regression simulation for tag peeling and master ancestry
+        run: |
+          set -euo pipefail
+          sandbox=$(mktemp -d)
+          trap 'rm -rf "$sandbox"' EXIT
+          git init -q "$sandbox"
+          git -C "$sandbox" config user.name release-test
+          git -C "$sandbox" config user.email release-test@example.invalid
+          git -C "$sandbox" commit --allow-empty -qm base
+          master_commit=$(git -C "$sandbox" rev-parse HEAD)
+          git -C "$sandbox" tag -a v9.9.9 -m annotated "$master_commit"
+          [ "$(git -C "$sandbox" cat-file -t v9.9.9)" = tag ]
+          [ "$(git -C "$sandbox" rev-parse v9.9.9^{commit})" = "$master_commit" ]
+          git -C "$sandbox" tag v9.9.8 "$master_commit"
+          [ "$(git -C "$sandbox" cat-file -t v9.9.8)" = commit ]
+          [ "$(git -C "$sandbox" rev-parse v9.9.8^{commit})" = "$master_commit" ]
+          git -C "$sandbox" checkout -qb feature-only
+          git -C "$sandbox" commit --allow-empty -qm feature
+          feature_commit=$(git -C "$sandbox" rev-parse HEAD)
+          git -C "$sandbox" checkout -q master
+          git -C "$sandbox" merge-base --is-ancestor "$master_commit" master
+          if git -C "$sandbox" merge-base --is-ancestor "$feature_commit" master; then
+            echo "ERROR: feature-only commit unexpectedly passed ancestry"; exit 1
+          fi
+          echo "Annotated/lightweight peeling and master ancestry regressions passed."
+
+  publish-production-release:
+    name: Publish production release
+    needs: validate-release-provenance
+    if: needs.validate-release-provenance.outputs.production == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      security-events: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.validate-release-provenance.outputs.version }}
+      TAG_NAME: ${{ github.ref_name }}
+      TAG_COMMIT: ${{ needs.validate-release-provenance.outputs.tag_commit }}
+      TAG_OBJECT: ${{ needs.validate-release-provenance.outputs.tag_object }}
+      MASTER_SHA: ${{ needs.validate-release-provenance.outputs.master_sha }}
+      PACKAGE_GROUP_PATH: io/github/vinhphan812/mcp
+      PACKAGE_ARTIFACT: mcp-java-sdk
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: Refetch and verify release commit
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --prune origin \
+            '+refs/heads/master:refs/remotes/origin/master'
+          [ "$(git rev-parse "refs/tags/${TAG_NAME}^{commit}")" = "${TAG_COMMIT}" ]
+          [ "$(git rev-parse HEAD)" = "${TAG_COMMIT}" ]
+          [ "$(git rev-parse refs/remotes/origin/master^{commit})" = "${MASTER_SHA}" ]
+
+      - name: Refuse release and package version reuse
+        run: |
+          set -euo pipefail
+          if gh release view "${TAG_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "ERROR: GitHub Release ${TAG_NAME} already exists. Recovery requires a new patch version; never retarget or re-upload."
             exit 1
           fi
-          echo "SHA verification PASSED"
-
-      # ── Release provenance: create annotated tag with metadata ──
-      - name: Create annotated tag with provenance metadata
-        run: |
-          TAG_NAME="${GITHUB_REF_NAME#v}"
-          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          AUTHOR=$(git log -1 --format='%an <%ae>')
-
-          # Create annotated tag with version, timestamp, author, commit SHA in message
-          git tag -a "v${TAG_NAME}" -m "Release v${TAG_NAME}
-          Timestamp: ${TIMESTAMP}
-          Author: ${AUTHOR}
-          Commit: ${GITHUB_SHA}
-          "
-          echo "Annotated tag created for v${TAG_NAME}"
+          metadata_url="https://maven.pkg.github.com/${GITHUB_REPOSITORY}/${PACKAGE_GROUP_PATH}/${PACKAGE_ARTIFACT}/maven-metadata.xml"
+          status=$(curl --silent --show-error --output metadata.xml --write-out '%{http_code}' \
+            --user "${GITHUB_ACTOR}:${GH_TOKEN}" "${metadata_url}") || {
+              echo "ERROR: cannot query Maven package metadata; failing closed"; exit 1;
+            }
+          case "${status}" in
+            404) echo "Maven coordinate has no metadata yet." ;;
+            200)
+              python3 "$GITHUB_WORKSPACE/.github/workflows/scripts/check_maven_version.py" "${VERSION}" metadata.xml || {
+                echo "ERROR: Maven version ${VERSION} already exists. Recovery requires a new patch version; never re-upload."
+                exit 1
+              }
+              ;;
+            *) echo "ERROR: unexpected Maven metadata status ${status}; failing closed"; exit 1 ;;
+          esac
+          # Git refs are unique; this explicit check prevents a mismatched semantic
+          # version from being treated as the triggering exact production tag.
+          [ "${TAG_NAME}" = "v${VERSION}" ] || {
+            echo "ERROR: semantic version does not uniquely match triggering tag"; exit 1;
+          }
 
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Build release JAR, test, and generate CycloneDX SBOM
-        run: ./gradlew -PsdkVersion=${GITHUB_REF_NAME#v} compileJava test build cyclonedxBom --console=plain
-
+      - name: Build release JARs, test, and generate CycloneDX SBOM
+        run: ./gradlew -PsdkVersion="${VERSION}" clean test build cyclonedxBom javadoc --console=plain
       - name: Compile examples (release gate)
-        run: ./gradlew -p examples compileJava -PsdkJar=../build/libs/mcp-java-sdk-${GITHUB_REF_NAME#v}.jar --console=plain
+        run: ./gradlew -p examples compileJava -PsdkJar="../build/libs/mcp-java-sdk-${VERSION}.jar" --console=plain
 
-      # anchore/scan-action@v6 accepts sbom=<file> for CycloneDX/JSON SBOM files.
-      # path=<dir> fails because it treats the JSON file as a directory target.
       - name: Report MEDIUM dependency vulnerabilities
         uses: anchore/scan-action@v6
         with:
@@ -79,14 +281,110 @@ jobs:
           output-format: table
 
       - name: Publish to GitHub Packages
-        run: ./gradlew publish --console=plain
+        run: ./gradlew -PsdkVersion="${VERSION}" publish --console=plain
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           GITHUB_ACTOR: ${{ github.actor }}
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+
+      - name: Create release asset manifest and provenance summary
+        run: |
+          set -euo pipefail
+          mkdir -p release-provenance
+          required=(
+            "build/libs/mcp-java-sdk-${VERSION}.jar"
+            "build/libs/mcp-java-sdk-${VERSION}-sources.jar"
+            "build/libs/mcp-java-sdk-${VERSION}-javadoc.jar"
+            "build/reports/bom.json"
+          )
+          for asset in "${required[@]}"; do
+            [ -f "${asset}" ] || { echo "ERROR: required asset missing: ${asset}"; exit 1; }
+          done
+          sha256sum "${required[@]}" > release-provenance/asset-sha256sums.txt
+          python3 - <<'PY' > release-provenance/provenance.json
+          import json, os
+          print(json.dumps({
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "tag": os.environ["TAG_NAME"],
+              "version": os.environ["VERSION"],
+              "tag_object": os.environ["TAG_OBJECT"],
+              "tag_commit": os.environ["TAG_COMMIT"],
+              "protected_master": os.environ["MASTER_SHA"],
+              "asset_sha256_manifest": "asset-sha256sums.txt"
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Create immutable GitHub Release
+        run: |
+          set -euo pipefail
+          gh release create "${TAG_NAME}" --repo "${GITHUB_REPOSITORY}" --verify-tag --generate-notes \
+            "build/libs/mcp-java-sdk-${VERSION}.jar" \
+            "build/libs/mcp-java-sdk-${VERSION}-sources.jar" \
+            "build/libs/mcp-java-sdk-${VERSION}-javadoc.jar" \
+            "build/reports/bom.json" \
+            "release-provenance/asset-sha256sums.txt" \
+            "release-provenance/provenance.json"
+
+      - name: Fail closed on post-release provenance verification
+        run: |
+          set -euo pipefail
+          release=$(gh release view "${TAG_NAME}" --repo "${GITHUB_REPOSITORY}" --json isDraft,isPrerelease,tagName,assets)
+          python3 - <<'PY' "$release"
+          import json, sys
+          release = json.loads(sys.argv[1])
+          if release["isDraft"] or release["isPrerelease"] or release["tagName"] != __import__("os").environ["TAG_NAME"]:
+              raise SystemExit("ERROR: release is not a public production release")
+          names = {asset["name"] for asset in release["assets"]}
+          version = __import__("os").environ["VERSION"]
+          expected = {
+              f"mcp-java-sdk-{version}.jar",
+              f"mcp-java-sdk-{version}-sources.jar",
+              f"mcp-java-sdk-{version}-javadoc.jar",
+              "bom.json", "asset-sha256sums.txt", "provenance.json"
+          }
+          missing = expected - names
+          if missing:
+              raise SystemExit(f"ERROR: release assets missing: {sorted(missing)}")
+          PY
+          [ "$(git rev-parse "refs/tags/${TAG_NAME}^{commit}")" = "${TAG_COMMIT}" ] || {
+            echo "ERROR: release tag no longer peels to expected commit"; exit 1;
+          }
+          curl --silent --show-error --fail --user "${GITHUB_ACTOR}:${GH_TOKEN}" \
+            "https://maven.pkg.github.com/${GITHUB_REPOSITORY}/${PACKAGE_GROUP_PATH}/${PACKAGE_ARTIFACT}/maven-metadata.xml" \
+            -o published-metadata.xml
+          python3 "$GITHUB_WORKSPACE/.github/workflows/scripts/check_published_version.py" "${VERSION}" published-metadata.xml || {
+            echo "ERROR: published package version is absent"; exit 1;
+          }
+
+      - name: Resolve published package from a clean consumer
+        run: |
+          set -euo pipefail
+          consumer=$(mktemp -d)
+          trap 'rm -rf "$consumer"' EXIT
+          cat > "$consumer/settings.gradle" <<'EOF'
+          rootProject.name = 'release-consumer-verification'
+          EOF
+          cat > "$consumer/build.gradle" <<EOF
+          plugins { id 'java' }
+          repositories {
+              mavenCentral()
+              maven {
+                  url = uri('https://maven.pkg.github.com/${GITHUB_REPOSITORY}')
+                  credentials {
+                      username = System.getenv('GITHUB_ACTOR')
+                      password = System.getenv('GH_TOKEN')
+                  }
+              }
+          }
+          dependencies { implementation 'io.github.vinhphan812.mcp:mcp-java-sdk:${VERSION}' }
+          tasks.register('resolvePublished') { doLast { configurations.compileClasspath.files.each { println it } } }
+          EOF
+          ./gradlew -p "$consumer" --no-daemon --console=plain resolvePublished
+
+      - name: Upload machine-readable provenance summary
+        uses: actions/upload-artifact@v4
         with:
-          generate_release_notes: true
-          files: |
-            build/libs/mcp-java-sdk-*.jar
-            build/reports/bom.json
+          name: release-provenance-${{ github.ref_name }}
+          if-no-files-found: error
+          path: |
+            release-provenance/provenance.json
+            release-provenance/asset-sha256sums.txt
