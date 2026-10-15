@@ -2589,25 +2589,41 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
             if (skillsExtension == null) {
                 throw McpException.methodNotFound("Skills not configured");
             }
+            // Strip /SKILL.md suffix from incoming URI so the longest-match
+            // lookup works with canonical skill URIs ending in /SKILL.md.
+            // Example: skill://test/skill-one/SKILL.md -> skill://test/skill-one
+            String lookupUri = uri;
+            if (uri.endsWith("/SKILL.md")) {
+                lookupUri = uri.substring(0, uri.length() - "/SKILL.md".length());
+            }
             // Find the skill root using longest-match: overlapping skills like
             // skill://a and skill://a/b are resolved by selecting the deepest match.
             String skillRoot = null;
             int bestMatch = -1;
             for (SkillDTO skill : skillsExtension.listSkills(null, 1000).skills) {
-                if (uri.equals(skill.uri) || uri.startsWith(skill.uri + "/")) {
-                    // Longer skill.uri = deeper match = better
-                    if (skill.uri.length() > bestMatch) {
-                        skillRoot = skill.uri;
-                        bestMatch = skill.uri.length();
+                // Strip /SKILL.md from registered skill URI for comparison
+                String registeredUri = skill.uri;
+                if (registeredUri.endsWith("/SKILL.md")) {
+                    registeredUri = registeredUri.substring(0, registeredUri.length() - "/SKILL.md".length());
+                }
+                if (lookupUri.equals(registeredUri) || lookupUri.startsWith(registeredUri + "/")) {
+                    // Longer registeredUri = deeper match = better
+                    if (registeredUri.length() > bestMatch) {
+                        skillRoot = skill.uri;  // keep full URI including /SKILL.md for serving
+                        bestMatch = registeredUri.length();
                     }
                 }
             }
             if (skillRoot == null) {
                 throw McpException.invalidParams("Unknown skill URI: " + uri);
             }
+            // skillRoot is the full canonical URI (with /SKILL.md); strip it to get the root for file access
+            String skillRootPath = skillRoot.endsWith("/SKILL.md")
+                    ? skillRoot.substring(0, skillRoot.length() - "/SKILL.md".length())
+                    : skillRoot;
             // Extract relative path after skill root; normalise to prevent traversal attacks
-            String rawRelativePath = uri.equals(skillRoot) || uri.equals(skillRoot + "/")
-                    ? "" : uri.substring(skillRoot.length() + 1);
+            String rawRelativePath = lookupUri.equals(skillRootPath) || lookupUri.equals(skillRootPath + "/")
+                    ? "" : lookupUri.substring(skillRootPath.length() + 1);
             String relativePath = normalizePath(rawRelativePath);
             if (relativePath == null) {
                 throw McpException.invalidParams("Invalid skill URI: path traversal or malformed encoding not allowed");
@@ -2615,7 +2631,7 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
 
             if (relativePath.isEmpty()) {
                 // Root request: serve SKILL.md
-                String manifest = skillsExtension.readManifestFile(skillRoot, "SKILL.md");
+                String manifest = skillsExtension.readManifestFile(skillRootPath, "SKILL.md");
                 if (manifest == null) {
                     throw McpException.invalidParams("Unknown skill: " + skillRoot);
                 }
@@ -2626,12 +2642,12 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 return result;
             }
 
-            // Companion file request: readSkillResource(skillRoot, relativePath, mimeType)
-            // skillRoot is the discovered skill root (e.g. "skill://test/skill-one")
+            // Companion file request: readSkillResource(skillRootPath, relativePath, mimeType)
+            // skillRootPath is the discovered skill root (e.g. "skill://test/skill-one")
             // relativePath is the normalised path component (e.g. "scripts/deploy.sh")
             String mimeType = mimeTypeForSkillFile(relativePath);
             io.github.vinhphan812.mcp.api.dto.SkillResource resource =
-                    skillsExtension.readSkillResource(skillRoot, relativePath, mimeType);
+                    skillsExtension.readSkillResource(skillRootPath, relativePath, mimeType);
             if (resource == null) {
                 throw McpException.invalidParams("Unknown skill file: " + uri);
             }
@@ -2841,10 +2857,16 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (!skillsExtension.supportsDirectoryRead()) {
             throw McpException.methodNotFound("directoryRead not supported");
         }
-        // Validate skill: readManifestFile checks the manifest at the skill root (original URI).
+        // Normalise incoming URI: strip trailing slash for consistent handling
+        String baseUri = uri.replaceAll("/+$", "");
+        // Canonical URI: strip /SKILL.md suffix so the extension lookup works
+        String skillLookupUri = baseUri.endsWith("/SKILL.md")
+                ? baseUri.substring(0, baseUri.length() - "/SKILL.md".length())
+                : baseUri;
+        // Validate skill: readManifestFile checks the manifest at the skill root.
         // The extension resolves the skill root from the given URI — it may navigate
         // up parent directories to find the SKILL.md. If no manifest found, the URI is invalid.
-        if (skillsExtension.readManifestFile(uri, "SKILL.md") == null) {
+        if (skillsExtension.readManifestFile(skillLookupUri, "SKILL.md") == null) {
             throw McpException.invalidParams("Unknown skill directory: " + uri);
         }
 
@@ -2860,10 +2882,10 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         // skillRoot is the discovered skill root; the extension uses it to navigate
         // direct children. For nested paths (e.g. skill://acme/billing/templates),
         // the discovered root is skill://acme.
-        String skillRoot = uri;
-        int lastSlash = uri.lastIndexOf('/');
+        String skillRoot = skillLookupUri;
+        int lastSlash = skillLookupUri.lastIndexOf('/');
         while (lastSlash > "skill://".length()) {
-            String candidate = uri.substring(0, lastSlash);
+            String candidate = skillLookupUri.substring(0, lastSlash);
             if (skillsExtension.readManifestFile(candidate, "SKILL.md") != null) {
                 skillRoot = candidate;
                 break;
@@ -2975,6 +2997,10 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
                 if (requested > 0) limit = Math.min(requested, 1000);
             }
         }
+        // Canonical URI enforcement: skills/list response must include only skills
+        // whose URIs end with /SKILL.md (root skills) or are valid skill URIs.
+        // This is validated at skill registration time; here we guard against
+        // a misconfigured extension returning invalid URIs.
         ListSkillsResult result = skillsExtension.listSkills(cursor, limit);
         List<Map<String, Object>> items = new ArrayList<>();
         for (SkillDTO s : result.skills) items.add(s.toMap());
@@ -2992,6 +3018,11 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (params == null) throw McpException.invalidParams("params required");
         String uri = params.get("uri") instanceof String ? (String) params.get("uri") : null;
         if (uri == null || uri.trim().isEmpty()) throw McpException.invalidParams("uri required");
+        // Canonical URI enforcement: skill URIs must end with /SKILL.md for root skills.
+        // This prevents serving content from non-skill URIs.
+        if (!uri.startsWith("skill://") || !uri.endsWith("/SKILL.md")) {
+            throw McpException.invalidParams("uri must be a valid skill URI ending with /SKILL.md");
+        }
         SkillDTO skill = skillsExtension.getSkill(uri);
         if (skill == null) throw McpException.invalidParams("Unknown skill: " + uri);
         // Stable spec: wrap skill in envelope

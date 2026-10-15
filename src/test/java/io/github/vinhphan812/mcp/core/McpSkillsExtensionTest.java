@@ -60,7 +60,7 @@ public class McpSkillsExtensionTest {
                     .skip(offset)
                     .limit(limit)
                     .map(name -> new SkillDTO(
-                            "skill://" + name,
+                            "skill://" + name + "/SKILL.md",
                             name,
                             name,
                             "Test skill",
@@ -73,10 +73,11 @@ public class McpSkillsExtensionTest {
 
         @Override
         public SkillDTO getSkill(String uri) {
-            String name = uri.replace("skill://", "").replace("/", "");
+            // Canonical URI ends with /SKILL.md: skill://refunds/SKILL.md
+            String name = uri.replace("skill://", "").replace("/SKILL.md", "").replace("/", "");
             if (skillFiles.containsKey(name)) {
                 return new SkillDTO(
-                        "skill://" + name, name, name, "Test skill",
+                        "skill://" + name + "/SKILL.md", name, name, "Test skill",
                         Map.of(),
                         buildResourceEntries("skill://" + name,
                                 skillFiles.get(name).keySet(), this));
@@ -86,6 +87,13 @@ public class McpSkillsExtensionTest {
 
         @Override
         public String readManifestFile(String uri, String fileName) {
+            byte[] bytes = readManifestFileBytes(uri, fileName);
+            if (bytes == null) return null;
+            return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+        }
+
+        @Override
+        public byte[] readManifestFileBytes(String uri, String fileName) {
             // Extract the skill name: full path after skill://
             // skill://refunds             -> "refunds"
             // skill://refunds/            -> "refunds"
@@ -95,7 +103,9 @@ public class McpSkillsExtensionTest {
             String name = uri.replace("skill://", "").replaceAll("/$", "");
             Map<String, String> files = skillFiles.get(name);
             if (files == null) return null;
-            return files.get(fileName);
+            String content = files.get(fileName);
+            if (content == null) return null;
+            return content.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         }
 
         @Override
@@ -286,12 +296,12 @@ public class McpSkillsExtensionTest {
         McpProtocolHandler handler = makeHandler(ext);
 
         Map<String, Object> result = send(handler, "resources/read",
-                Map.of("uri", "skill://refunds"));
+                Map.of("uri", "skill://refunds/SKILL.md"));
 
         @SuppressWarnings("unchecked")
         List<Map<String, String>> contents = (List<Map<String, String>>) result.get("contents");
         assertEquals(1, contents.size());
-        assertEquals("skill://refunds", contents.get(0).get("uri"));
+        assertEquals("skill://refunds/SKILL.md", contents.get(0).get("uri"));
         assertEquals("text/markdown", contents.get(0).get("mimeType"));
         assertEquals("# Refunds\n\nPolicy for refunds.", contents.get(0).get("text"));
     }
@@ -606,7 +616,7 @@ public class McpSkillsExtensionTest {
         McpProtocolHandler handler = makeHandler(ext);
 
         Map<String, Object> result = send(handler, "skills/get",
-                Map.of("uri", "skill://test"));
+                Map.of("uri", "skill://test/SKILL.md"));
 
         assertEquals("complete", result.get("resultType"),
                 "skills/get must include resultType: complete");
@@ -665,7 +675,7 @@ public class McpSkillsExtensionTest {
 
         // skill://a/b should resolve to skill://a/b (longest match)
         Map<String, Object> result = send(handler, "resources/read",
-                Map.of("uri", "skill://a/b"));
+                Map.of("uri", "skill://a/b/SKILL.md"));
         @SuppressWarnings("unchecked")
         String text = (String) ((Map<?, ?>) ((List<?>) result.get("contents")).get(0)).get("text");
         assertTrue(text.contains("Skill A/B"), "skill://a/b should match skill://a/b, not skill://a");
@@ -778,5 +788,270 @@ public class McpSkillsExtensionTest {
         assertFalse(textResource.isBlob());
         assertEquals("hello", textResource.text());
         assertNull(textResource.blob());
+    }
+
+    // ==================== Binary file digest/size integrity ====================
+
+    /**
+     * Verifies that buildResourceEntries computes digest from raw bytes, not UTF-8 re-encoded.
+     * A binary file containing 0x80 (UTF-8 BOM) must produce the same digest as
+     * the raw file bytes — not the digest of its (invalid) UTF-8 interpretation.
+     */
+    @Test
+    void buildResourceEntries_binaryFile_usesRawBytesForDigest() {
+        // Simulate a binary file with a byte that is NOT valid UTF-8
+        byte[] binaryContent = new byte[]{
+                (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,  // PNG magic
+                (byte) 0x80  // byte with high bit set, not valid UTF-8
+        };
+        // Create a mini extension that returns the raw binary bytes
+        McpSkillsExtension binaryExt = new McpSkillsExtension() {
+            @Override public List<SkillDTO> listSkills(int offset, int limit) { return List.of(); }
+            @Override public SkillDTO getSkill(String uri) { return null; }
+            @Override public byte[] readManifestFileBytes(String uri, String fileName) {
+                if ("logo.png".equals(fileName)) return binaryContent;
+                return null;
+            }
+        };
+        List<SkillResourceEntry> entries =
+                McpSkillsExtension.buildResourceEntries("skill://test",
+                        List.of("logo.png"), binaryExt);
+        assertEquals(1, entries.size());
+        SkillResourceEntry entry = entries.get(0);
+        // Digest must match SHA-256 of raw bytes (not UTF-8 decode of 0x80)
+        String expectedDigest = McpSkillsExtension.sha256Hex(binaryContent);
+        assertEquals(expectedDigest, entry.digest,
+                "Digest must be SHA-256 of raw bytes, not UTF-8 re-encoded string");
+        // Size must be exact byte count
+        assertEquals(binaryContent.length, entry.size,
+                "Size must be exact byte count of raw content");
+    }
+
+    /**
+     * Verifies that a text file's digest matches SHA-256 of its UTF-8 bytes.
+     * This confirms the sha256Hex(String) and sha256Hex(byte[]) overloads are consistent.
+     */
+    @Test
+    void buildResourceEntries_textFile_digestMatchesUtf8Bytes() {
+        String text = "# Title\n\nHello, 世界";
+        byte[] utf8Bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        String expectedDigest = McpSkillsExtension.sha256Hex(utf8Bytes);
+        McpSkillsExtension textExt = new McpSkillsExtension() {
+            @Override public List<SkillDTO> listSkills(int offset, int limit) { return List.of(); }
+            @Override public SkillDTO getSkill(String uri) { return null; }
+            @Override public byte[] readManifestFileBytes(String uri, String fileName) {
+                if ("README.md".equals(fileName)) return utf8Bytes;
+                return null;
+            }
+        };
+        List<SkillResourceEntry> entries =
+                McpSkillsExtension.buildResourceEntries("skill://test",
+                        List.of("README.md"), textExt);
+        assertEquals(1, entries.size());
+        assertEquals(expectedDigest, entries.get(0).digest);
+        assertEquals(utf8Bytes.length, entries.get(0).size);
+    }
+
+    // ==================== Resources boundary tests ====================
+
+    /**
+     * Verifies that a skill with many resources (512+) does not overflow.
+     * Tests that the buildResourceEntries loop handles large file lists.
+     */
+    @Test
+    void buildResourceEntries_handles512Resources() {
+        List<String> fileNames = new java.util.ArrayList<>();
+        byte[] dummyBytes = "x".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        // Add 512 files
+        for (int i = 0; i < 512; i++) {
+            fileNames.add("file_" + String.format("%04d", i) + ".txt");
+        }
+        // SKILL.md is prepended, so add 512 companion files
+        McpSkillsExtension ext = new McpSkillsExtension() {
+            @Override public List<SkillDTO> listSkills(int offset, int limit) { return List.of(); }
+            @Override public SkillDTO getSkill(String uri) { return null; }
+            @Override public byte[] readManifestFileBytes(String uri, String fileName) {
+                if ("SKILL.md".equals(fileName)) {
+                    return "# Test\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                }
+                return dummyBytes;
+            }
+        };
+        List<SkillResourceEntry> entries =
+                McpSkillsExtension.buildResourceEntries("skill://test", fileNames, ext);
+        // SKILL.md + 512 files = 513 entries
+        assertEquals(513, entries.size(), "SKILL.md + 512 companion files = 513 entries");
+        assertEquals("SKILL.md", entries.get(0).name, "SKILL.md must be first");
+    }
+
+    /**
+     * Verifies that a skill with 513 resources (boundary case) also works.
+     */
+    @Test
+    void buildResourceEntries_handles513Resources() {
+        List<String> fileNames = new java.util.ArrayList<>();
+        byte[] dummyBytes = "x".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        // Add 513 files
+        for (int i = 0; i < 513; i++) {
+            fileNames.add("file_" + String.format("%04d", i) + ".txt");
+        }
+        McpSkillsExtension ext = new McpSkillsExtension() {
+            @Override public List<SkillDTO> listSkills(int offset, int limit) { return List.of(); }
+            @Override public SkillDTO getSkill(String uri) { return null; }
+            @Override public byte[] readManifestFileBytes(String uri, String fileName) {
+                if ("SKILL.md".equals(fileName)) {
+                    return "# Test\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                }
+                return dummyBytes;
+            }
+        };
+        List<SkillResourceEntry> entries =
+                McpSkillsExtension.buildResourceEntries("skill://test", fileNames, ext);
+        assertEquals(514, entries.size(), "SKILL.md + 513 companion files = 514 entries");
+        assertEquals("SKILL.md", entries.get(0).name, "SKILL.md must be first");
+    }
+
+    /**
+     * Verifies total size limit: 16 MiB boundary.
+     * Tests that files summing to >16MiB can be processed without overflow.
+     */
+    @Test
+    void buildResourceEntries_totalSizeStaysWithin16MiB() {
+        // Each "file" is 1MB; 20 files = 20MB total. The loop must not overflow long.
+        List<String> fileNames = new java.util.ArrayList<>();
+        byte[] mb = new byte[1024 * 1024];  // 1 MiB
+        for (int i = 0; i < 20; i++) {
+            fileNames.add("chunk_" + i + ".bin");
+        }
+        McpSkillsExtension ext = new McpSkillsExtension() {
+            @Override public List<SkillDTO> listSkills(int offset, int limit) { return List.of(); }
+            @Override public SkillDTO getSkill(String uri) { return null; }
+            @Override public byte[] readManifestFileBytes(String uri, String fileName) {
+                if ("SKILL.md".equals(fileName)) {
+                    return "# Test\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                }
+                return mb;
+            }
+        };
+        List<SkillResourceEntry> entries =
+                McpSkillsExtension.buildResourceEntries("skill://test", fileNames, ext);
+        // SKILL.md (9 bytes UTF-8) + 20 x 1MB = 20MB + 9 bytes
+        assertEquals(21, entries.size(), "SKILL.md + 20 x 1MiB files");
+        // Check that size accumulation works (long, not int overflow)
+        long totalSize = entries.stream().mapToLong(e -> e.size).sum();
+        // SKILL.md is 7 bytes in UTF-8: "# Test\n"
+        long expected = 7 + 20L * 1024L * 1024L;
+        assertEquals(expected, totalSize,
+                "Total size must be exact sum without overflow (long arithmetic)");
+    }
+
+    // ==================== Deeply nested percent encoding ====================
+
+    /**
+     * Verifies that the MCP handler rejects deeply nested percent encoding
+     * in skill URIs (beyond 16 levels of decoding).
+     */
+    @Test
+    void normalizePath_rejectsDeeplyNestedPercentEncoding() {
+        // Build a deeply nested path: each level adds %2F (encoded /)
+        StringBuilder deep = new StringBuilder("skill://test/skill-one");
+        for (int i = 0; i < 20; i++) {
+            deep.append("/").append("%2Ffile").append(i);
+        }
+        TestSkillsExtension ext = new TestSkillsExtension(
+                Map.of("skill-one", Map.of("SKILL.md", "# Test\n")));
+        McpProtocolHandler handler = makeHandler(ext);
+        // Use the send helper which throws on error; catch it to assert error was thrown
+        try {
+            send(handler, "resources/read", Map.of("uri", deep.toString()));
+            fail("Deeply nested percent encoding must be rejected");
+        } catch (AssertionError e) {
+            // Expected: send() throws AssertionError for RPC errors
+            assertTrue(e.getMessage().contains("RPC error"),
+                    "Expected RPC error for deeply nested percent encoding: " + e.getMessage());
+        }
+    }
+
+    // ==================== Wire contract: resources="dynamic" literal ====================
+
+    /**
+     * Verifies that a dynamic skill serialises resources as the literal string "dynamic",
+     * not as an array or null.
+     */
+    @Test
+    void skillDTO_toMap_dynamicSerialisesAsLiteralDynamic() {
+        // Create a dynamic skill using the dynamic() sentinel entry.
+        // The toMap() method detects SkillResourceEntry.dynamic() and serialises
+        // resources as the literal string "dynamic".
+        SkillDTO dynamic = new SkillDTO(
+                "skill://dynamic/test/SKILL.md",
+                "DynamicSkill",
+                "A dynamic test skill",
+                "Dynamic",
+                Map.of(),
+                List.of(SkillResourceEntry.dynamic()));
+        Map<String, Object> map = dynamic.toMap();
+        assertEquals("dynamic", map.get("resources"),
+                "Dynamic skill must serialize resources as literal 'dynamic'");
+    }
+
+    // ==================== Pagination terminal page ====================
+
+    /**
+     * Verifies that totalSkills()=MAX_VALUE does NOT cause a false nextCursor
+     * when limit+1 detects no extra items (terminal page).
+     * This is the key fix for the pagination endless-cursor audit finding.
+     */
+    @Test
+    void listSkills_terminalPage_noNextCursor_despiteMaxValueTotal() {
+        // Create extension with totalSkills=MAX_VALUE but only 3 items
+        McpSkillsExtension ext = new McpSkillsExtension() {
+            private final List<SkillDTO> all = List.of(
+                    new SkillDTO("skill://s1/SKILL.md", "s1", "S1", "S1", Map.of(), List.of()),
+                    new SkillDTO("skill://s2/SKILL.md", "s2", "S2", "S2", Map.of(), List.of()),
+                    new SkillDTO("skill://s3/SKILL.md", "s3", "S3", "S3", Map.of(), List.of())
+            );
+            @Override public List<SkillDTO> listSkills(int offset, int limit) {
+                if (offset >= all.size()) return List.of();
+                return all.subList(offset, Math.min(offset + limit, all.size()));
+            }
+            @Override public int totalSkills() {
+                return Integer.MAX_VALUE;  // Simulate un-overridden default
+            }
+            @Override public SkillDTO getSkill(String uri) { return null; }
+            @Override public byte[] readManifestFileBytes(String uri, String fileName) { return null; }
+        };
+        ListSkillsResult result = ext.listSkills("", 3);
+        assertEquals(3, result.skills.size(),
+                "Should return all 3 skills");
+        assertNull(result.nextCursor,
+                "Terminal page (offset=0, limit=3, hasExtra=false) must NOT have nextCursor, " +
+                "even though totalSkills()=MAX_VALUE");
+    }
+
+    /**
+     * Verifies that the nextCursor IS present when there IS a next page
+     * (limit+1 returns extra item).
+     */
+    @Test
+    void listSkills_hasNextPage_hasNextCursor() {
+        McpSkillsExtension ext = new McpSkillsExtension() {
+            private final List<SkillDTO> all = List.of(
+                    new SkillDTO("skill://s1/SKILL.md", "s1", "S1", "S1", Map.of(), List.of()),
+                    new SkillDTO("skill://s2/SKILL.md", "s2", "S2", "S2", Map.of(), List.of()),
+                    new SkillDTO("skill://s3/SKILL.md", "s3", "S3", "S3", Map.of(), List.of())
+            );
+            @Override public List<SkillDTO> listSkills(int offset, int limit) {
+                if (offset >= all.size()) return List.of();
+                return all.subList(offset, Math.min(offset + limit, all.size()));
+            }
+            @Override public int totalSkills() { return 3; }
+            @Override public SkillDTO getSkill(String uri) { return null; }
+            @Override public byte[] readManifestFileBytes(String uri, String fileName) { return null; }
+        };
+        ListSkillsResult result = ext.listSkills("", 2);
+        assertEquals(2, result.skills.size());
+        assertNotNull(result.nextCursor, "Page 1 (limit=2, total=3) must have nextCursor");
+        assertEquals("2", result.nextCursor);
     }
 }
