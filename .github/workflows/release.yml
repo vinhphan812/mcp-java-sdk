@@ -28,7 +28,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run provenance guard dry-run tests
-        run: python3 "$GITHUB_ACTION_PATH/scripts/dry_run_provenance_guards.py"
+        run: python3 "$GITHUB_WORKSPACE/.github/workflows/scripts/dry_run_provenance_guards.py"
 
       - name: Check Maven metadata for version-reuse conditions
         env:
@@ -44,7 +44,7 @@ jobs:
             404) echo "PASS: Maven metadata not found (first release or fork); reuse check would pass." ;;
             200)
               echo "INFO: Maven metadata found. Checking for duplicate versions..."
-              python3 "$GITHUB_ACTION_PATH/scripts/check_maven_version.py" "0.0.0-placeholder" metadata.xml
+              python3 "$GITHUB_WORKSPACE/.github/workflows/scripts/check_maven_version.py" "0.0.0-placeholder" metadata.xml
               echo "  (version check ran; 0.0.0-placeholder is not a real version)"
               ;;
             000) echo "INFO: Cannot reach Maven Packages (authentication or network); dry-run cannot fully validate."
@@ -56,6 +56,8 @@ jobs:
   validate-release-provenance:
     name: Validate release provenance
     runs-on: ubuntu-latest
+    # Only runs on tag-push events (not on PR events — dry-run-provenance-guards covers PR validation).
+    if: github.event_name != 'pull_request'
     permissions:
       contents: read
     outputs:
@@ -241,7 +243,7 @@ jobs:
           case "${status}" in
             404) echo "Maven coordinate has no metadata yet." ;;
             200)
-              python3 "$GITHUB_ACTION_PATH/scripts/check_maven_version.py" "${VERSION}" metadata.xml || {
+              python3 "$GITHUB_WORKSPACE/.github/workflows/scripts/check_maven_version.py" "${VERSION}" metadata.xml || {
                 echo "ERROR: Maven version ${VERSION} already exists. Recovery requires a new patch version; never re-upload."
                 exit 1
               }
@@ -349,7 +351,7 @@ jobs:
           curl --silent --show-error --fail --user "${GITHUB_ACTOR}:${GH_TOKEN}" \
             "https://maven.pkg.github.com/${GITHUB_REPOSITORY}/${PACKAGE_GROUP_PATH}/${PACKAGE_ARTIFACT}/maven-metadata.xml" \
             -o published-metadata.xml
-          python3 "$GITHUB_ACTION_PATH/scripts/check_published_version.py" "${VERSION}" published-metadata.xml || {
+          python3 "$GITHUB_WORKSPACE/.github/workflows/scripts/check_published_version.py" "${VERSION}" published-metadata.xml || {
             echo "ERROR: published package version is absent"; exit 1;
           }
 
