@@ -20,11 +20,8 @@ import java.util.Map;
  * <ul>
  *   <li>{@link #listSkills(int, int)} — paginated skill listing</li>
  *   <li>{@link #getSkill(String)} — single skill by URI</li>
- *   <li>{@link #readManifestFile(String, String)} — raw file content for digest/size computation</li>
+ *   <li>{@link #readManifestFileBytes(String, String)} — raw file bytes for digest/size</li>
  * </ul>
- *
- * <p>For correct cursor pagination via {@link #listSkills(String, int)} without
- * requiring a {@link #totalSkills()} override, see the note on {@link #listSkills(String, int)}.
  *
  * @see SkillResourceEntry
  */
@@ -55,9 +52,8 @@ public interface McpSkillsExtension extends McpExtension {
      * written against the v1.1.2 API.
      *
      * <p>Note: for cursor-based pagination via {@link #listSkills(String, int)} to work
-     * without a {@link #totalSkills()} override, return at most {@code limit} items.
-     * If your data source can return more than {@code limit} items, override
-     * {@link #totalSkills()} with an accurate total count.
+     * correctly, return at most {@code limit} items. If your data source can return more
+     * than {@code limit} items, override {@link #totalSkills()} with an accurate count.
      *
      * @param offset skip the first {@code offset} skills
      * @param limit  maximum number of skills to return
@@ -68,12 +64,15 @@ public interface McpSkillsExtension extends McpExtension {
     /**
      * Returns the total number of skills known to this extension.
      * Used by the default {@link #listSkills(String, int)} implementation to compute
-     * cursor pagination correctly. Override to provide an accurate count.
+     * cursor pagination. The default {@link Integer#MAX_VALUE} is incorrect — it
+     * causes the last-page cursor to be returned even when there is no next page,
+     * producing an endless next cursor and violating the limit+1 semantics contract.
+     * Override with an accurate count (e.g. the size of the backing collection).
      *
-     * @return total skill count, or {@link Integer#MAX_VALUE} if unknown
+     * @return total skill count; must be accurate for correct pagination
      */
     default int totalSkills() {
-        return Integer.MAX_VALUE;
+        return Integer.MAX_VALUE; // DEPRECATED default — override with accurate count
     }
 
     /**
@@ -83,38 +82,55 @@ public interface McpSkillsExtension extends McpExtension {
      * to {@link #listSkills(int, int)}. Override this method directly if you
      * want native cursor semantics (opaque cursor string, not integer offset).
      *
-     * <p>Cursor pagination without {@link #totalSkills()}: the default implementation
-     * requests {@code limit+1} items from {@link #listSkills(int, int)} and detects
-     * the last page by comparing the returned size to {@code limit}. If your
-     * {@link #listSkills(int, int)} already caps at exactly {@code limit} items,
-     * the {@code limit+1} request means you receive {@code limit+1} items and
-     * would need to handle that. In that case, override {@link #totalSkills()}
-     * with an accurate count so the cursor can be computed correctly.
+     * <p>Pagination semantics (limit+1 pattern):
+     * <ul>
+     *   <li>Requests {@code limit+1} items from {@link #listSkills(int, int)}</li>
+     *   <li>If {@code limit+1} items are returned, there IS a next page</li>
+     *   <li>If only {@code limit} or fewer items are returned, there is NO next page
+     *       (cursor becomes null) even if {@link #totalSkills()} says otherwise</li>
+     *   <li>Overflow guard: if {@code offset+limit} exceeds {@link Integer#MAX_VALUE},
+     *       the cursor is treated as invalid and rejected</li>
+     * </ul>
      *
      * @param cursor opaque pagination cursor (null/empty for first page).
      *     If the cursor is a numeric string, it is decoded as the offset.
      * @param limit  maximum number of skills to return
-     * @return paginated result with optional nextCursor
+     * @return paginated result with optional nextCursor; nextCursor is null on the
+     *     terminal page (when {@code limit+1} detects no more items) regardless of
+     *     what {@link #totalSkills()} returns
      */
     default ListSkillsResult listSkills(String cursor, int limit) {
         int offset = 0;
         if (cursor != null && !cursor.isEmpty()) {
             try {
+                // Reject non-numeric cursors (malformed)
                 offset = Integer.parseInt(cursor);
             } catch (NumberFormatException e) {
                 throw McpException.invalidParams("invalid skills cursor");
             }
+            // Reject negative offsets
             if (offset < 0) throw McpException.invalidParams("invalid skills cursor");
+            // Reject overflow: offset near MAX_VALUE means next page would overflow
+            if (offset > Integer.MAX_VALUE - limit) {
+                throw McpException.invalidParams("invalid skills cursor");
+            }
         }
-        // Request limit+1 to detect if there's a next page
-        int requestLimit = Math.addExact(limit, 1);
+        // limit+1 pattern: request one extra to detect whether a next page exists.
+        // This is robust even when totalSkills() is not overridden.
+        int requestLimit;
+        try {
+            requestLimit = Math.addExact(limit, 1);
+        } catch (ArithmeticException e) {
+            requestLimit = Integer.MAX_VALUE; // overflow guard for extreme limit values
+        }
         List<SkillDTO> skills = listSkills(offset, requestLimit);
         boolean hasExtra = skills.size() > limit;
         if (hasExtra) {
             skills = new java.util.ArrayList<>(skills.subList(0, limit));
         }
-        int total = totalSkills();
-        boolean hasNextPage = hasExtra || ((long) offset + limit < total);
+        // Terminal page: when limit+1 returns <= limit items, there is no next page.
+        // This is the authoritative signal — ignore totalSkills() for terminal detection.
+        boolean hasNextPage = hasExtra;
         String nextCursor = hasNextPage ? String.valueOf((long) offset + limit) : null;
         return new ListSkillsResult(skills, nextCursor);
     }
@@ -129,23 +145,67 @@ public interface McpSkillsExtension extends McpExtension {
         return java.util.Collections.emptyList();
     }
 
+    /**
+     * Reads a skill file as a UTF-8 string.
+     *
+     * <p>This is the primary method for reading file content for source compatibility.
+     * Implementations that handle text-only content may implement only this method.
+     *
+     * <p>For binary files (images, PDFs, archives), also override
+     * {@link #readManifestFileBytes(String, String)} so digest/size computation
+     * uses the raw bytes directly.
+     *
+     * @param uri      the skill root URI (e.g. {@code "skill://acme"})
+     * @param fileName the file name / relative path within the skill
+     * @return file content as a string, or {@code null} if not found
+     */
     String readManifestFile(String uri, String fileName);
+
+    /**
+     * Reads a skill file as raw bytes.
+     *
+     * <p>Default implementation delegates to {@link #readManifestFile(String, String)}
+     * and encodes the result as UTF-8. Override this method when the underlying
+     * storage provides binary content (e.g. binary file formats, compressed files)
+     * where the byte-level representation matters for digest/size computation.
+     *
+     * @param uri      the skill root URI
+     * @param fileName the file name / relative path within the skill
+     * @return raw file bytes, or {@code null} if not found
+     */
+    default byte[] readManifestFileBytes(String uri, String fileName) {
+        String text = readManifestFile(uri, fileName);
+        if (text == null) return null;
+        return text.getBytes(StandardCharsets.UTF_8);
+    }
 
     /**
      * Reads a skill file resource, supporting both text and binary content.
      *
-     * <p>Default implementation wraps {@link #readManifestFile} as a text resource.
+     * <p>Default implementation calls {@link #readManifestFileBytes} and wraps
+     * the result as a {@link SkillResource} (text or blob depending on MIME type).
      * Override to serve binary files (images, archives) as blobs.
      *
      * @param uri      the skill URI being requested
-     * @param fileName the file name / relative path within the skill (e.g. {@code "scripts/check.py"})
+     * @param fileName the file name / relative path within the skill
      * @param mimeType the MIME type of the file (from {@link DirectoryEntry#mimeType()})
      * @return the file content as a {@link SkillResource}, or {@code null} if not found
      */
     default SkillResource readSkillResource(String uri, String fileName, String mimeType) {
-        String text = readManifestFile(uri, fileName);
-        if (text == null) return null;
-        return SkillResource.text(mimeType, text);
+        byte[] bytes = readManifestFileBytes(uri, fileName);
+        if (bytes == null) return null;
+        // Use the declared mimeType; default to text/plain if null.
+        String resolvedMime = mimeType != null ? mimeType : "text/plain";
+        // Text types are served as UTF-8 strings; everything else as binary.
+        if (resolvedMime.startsWith("text/")) {
+            try {
+                return SkillResource.text(resolvedMime,
+                        new String(bytes, StandardCharsets.UTF_8));
+            } catch (Exception e) {
+                // UTF-8 decode failed — treat as binary
+            }
+        }
+        return SkillResource.blob(resolvedMime, bytes);
     }
 
     // ── Digest and size utilities ────────────────────────────────────────────────
@@ -186,9 +246,13 @@ public interface McpSkillsExtension extends McpExtension {
      * Builds an ordered, deduplicated list of {@link SkillResourceEntry} for
      * the given skill root URI and file names.
      *
-     * <p>Each entry's digest and size are computed from the actual file content
-     * returned by {@link #readManifestFile(String, String)}. Files are sorted
-     * by URI and duplicate URIs are removed (first occurrence wins).
+     * <p>Each entry's digest and size are computed from the raw bytes returned
+     * by {@link #readManifestFileBytes(String, String)} — not from a UTF-8
+     * re-encoded string — so that binary files have correct SHA-256 digests
+     * and byte-accurate sizes.
+     *
+     * <p>Files are ordered by insertion (LinkedHashMap) with SKILL.md forced
+     * first, then deduplicated by name (first occurrence wins).
      *
      * <p>SKILL.md is always included as the first entry.
      *
@@ -209,13 +273,12 @@ public interface McpSkillsExtension extends McpExtension {
         Map<String, SkillResourceEntry> seen = new LinkedHashMap<>();
 
         // Always include SKILL.md first
-        String manifest = extension.readManifestFile(skillRootUri, "SKILL.md");
-        if (manifest != null) {
-            byte[] manifestBytes = manifest.getBytes(StandardCharsets.UTF_8);
+        byte[] manifestBytes = extension.readManifestFileBytes(skillRootUri, "SKILL.md");
+        if (manifestBytes != null) {
             seen.put("SKILL.md", new SkillResourceEntry(
                     skillRootUri + "/SKILL.md",
                     "SKILL.md",
-                    sha256Hex(manifest),
+                    sha256Hex(manifestBytes),
                     manifestBytes.length));
         }
 
@@ -224,14 +287,13 @@ public interface McpSkillsExtension extends McpExtension {
                 if (name == null || name.isEmpty() || name.equals("SKILL.md")) continue;
                 if (seen.containsKey(name)) continue; // deduplicate
 
-                String content = extension.readManifestFile(skillRootUri, name);
-                if (content != null) {
-                    byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
+                byte[] fileBytes = extension.readManifestFileBytes(skillRootUri, name);
+                if (fileBytes != null) {
                     seen.put(name, new SkillResourceEntry(
                             skillRootUri + "/" + name,
                             name,
-                            sha256Hex(content),
-                            contentBytes.length));
+                            sha256Hex(fileBytes),
+                            fileBytes.length));
                 }
             }
         }

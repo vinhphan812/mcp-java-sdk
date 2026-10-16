@@ -1,6 +1,7 @@
 package io.github.vinhphan812.mcp;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import io.github.vinhphan812.mcp.api.config.McpServerConfig;
 import io.github.vinhphan812.mcp.api.dto.ListSkillsResult;
@@ -12,6 +13,7 @@ import io.github.vinhphan812.mcp.core.McpRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -55,32 +57,49 @@ class SkillsExtensionTest {
         private final List<SkillDTO> skills = new ArrayList<>();
         private String lastReadUri;
         private String lastReadFile;
+        /** Tracks last bytes read via readManifestFileBytes */
+        private byte[] lastReadBytes;
+
+        // Static shared file content — initialized once, before any SkillDTO construction.
+        private static final java.util.Map<String, java.util.Map<String, String>> FILE_CONTENTS;
+        static {
+            java.util.Map<String, java.util.Map<String, String>> m = new java.util.LinkedHashMap<>();
+            m.put("skill://test/skill-one", java.util.Map.of(
+                    "SKILL.md", "# Test Skill\n\nThis is a test skill manifest.\n",
+                    "scripts/deploy.sh", "#!/bin/sh\necho deploying\n"));
+            m.put("skill://test/skill-two", java.util.Map.of(
+                    "SKILL.md", "# Test Skill\n\nThis is a test skill manifest.\n",
+                    "config.yaml", "key: value\n"));
+            FILE_CONTENTS = java.util.Collections.unmodifiableMap(m);
+        }
 
         TestSkillsExtension() {
-            // skill-one
+            // Skills are registered with ROOT URIs (not canonical /SKILL.md URIs).
+            // The handler passes canonical URIs to getSkill; we look up by root URI
+            // without stripping since skills are stored with root URIs.
+            String r1 = "skill://test/skill-one";
+            String r2 = "skill://test/skill-two";
             skills.add(new SkillDTO(
-                    "skill://test/skill-one",
+                    r1 + "/SKILL.md",
                     "skill-one",
                     "Test Skill One",
                     "A test skill",
                     Map.of("category", "test"),
-                    McpSkillsExtension.buildResourceEntries("skill://test/skill-one",
+                    McpSkillsExtension.buildResourceEntries(
+                            r1,
                             java.util.Arrays.asList("SKILL.md"), this)));
-            // skill-two
             skills.add(new SkillDTO(
-                    "skill://test/skill-two",
+                    r2 + "/SKILL.md",
                     "skill-two",
                     "Test Skill Two",
                     "Another test skill",
                     Map.of("category", "test"),
-                    McpSkillsExtension.buildResourceEntries("skill://test/skill-two",
+                    McpSkillsExtension.buildResourceEntries(
+                            r2,
                             java.util.Arrays.asList("SKILL.md"), this)));
         }
 
-        @Override
-        public boolean supportsDirectoryRead() {
-            return true;
-        }
+        @Override public boolean supportsDirectoryRead() { return true; }
 
         @Override
         public List<SkillDTO> listSkills(int offset, int limit) {
@@ -89,13 +108,11 @@ class SkillsExtensionTest {
             return new ArrayList<>(skills.subList(offset, end));
         }
 
-        @Override
-        public int totalSkills() {
-            return skills.size();
-        }
+        @Override public int totalSkills() { return skills.size(); }
 
         @Override
         public SkillDTO getSkill(String uri) {
+            // handler passes canonical URI; skills are stored with canonical URIs — direct match
             return skills.stream()
                     .filter(s -> s.uri.equals(uri))
                     .findFirst().orElse(null);
@@ -105,44 +122,58 @@ class SkillsExtensionTest {
         public String readManifestFile(String uri, String fileName) {
             lastReadUri = uri;
             lastReadFile = fileName;
-            // uri is the skill root (e.g. "skill://test/skill-one")
-            // fileName is the relative path (e.g. "SKILL.md" or "scripts/check.py")
-            if ("SKILL.md".equals(fileName)) {
-                for (SkillDTO skill : skills) {
-                    if (uri.equals(skill.uri)) {
-                        return "# Test Skill\n\nThis is a test skill manifest.\n";
-                    }
-                }
-            } else if ("scripts/deploy.sh".equals(fileName) && uri.equals("skill://test/skill-one")) {
-                return "#!/bin/sh\necho deploying\n";
-            } else if ("config.yaml".equals(fileName) && uri.equals("skill://test/skill-two")) {
-                return "key: value\n";
+            return getTextContent(uri, fileName);
+        }
+
+        @Override
+        public byte[] readManifestFileBytes(String uri, String fileName) {
+            lastReadUri = uri;
+            lastReadFile = fileName;
+            String content = getTextContent(uri, fileName);
+            if (content != null) {
+                lastReadBytes = content.getBytes(StandardCharsets.UTF_8);
+                return lastReadBytes;
             }
+            lastReadBytes = null;
             return null;
+        }
+
+        private String getTextContent(String uri, String fileName) {
+            // Strip /SKILL.md to get skill root
+            String root = uri.endsWith("/SKILL.md")
+                    ? uri.substring(0, uri.length() - "/SKILL.md".length())
+                    : uri;
+            java.util.Map<String, String> files = FILE_CONTENTS.get(root);
+            if (files == null) return null;
+            return files.get(fileName);
         }
 
         @Override
         public SkillResource readSkillResource(String uri, String fileName, String mimeType) {
             lastReadUri = uri;
             lastReadFile = fileName;
-            // uri is the skill root (e.g. "skill://test/skill-one")
-            // fileName is the relative path (e.g. "scripts/deploy.sh")
-            if ("scripts/deploy.sh".equals(fileName) && uri.equals("skill://test/skill-one")) {
-                return SkillResource.text("text/x-shellscript", "#!/bin/sh\necho deploying\n");
-            } else if ("config.yaml".equals(fileName) && uri.equals("skill://test/skill-two")) {
-                return SkillResource.text("text/yaml", "key: value\n");
+            byte[] bytes = readManifestFileBytes(uri, fileName);
+            if (bytes == null) return null;
+            if ("scripts/deploy.sh".equals(fileName)) {
+                return SkillResource.text("text/x-shellscript",
+                        new String(bytes, StandardCharsets.UTF_8));
+            } else if ("config.yaml".equals(fileName)) {
+                return SkillResource.text("text/yaml",
+                        new String(bytes, StandardCharsets.UTF_8));
             }
-            // Fall back to readManifestFile for SKILL.md and other text files
-            String text = readManifestFile(uri, fileName);
-            if (text != null) return SkillResource.text(mimeType, text);
-            return null;
+            return SkillResource.text(mimeType != null ? mimeType : "text/plain",
+                    new String(bytes, StandardCharsets.UTF_8));
         }
 
         @Override
         public List<DirectoryEntry> listDirectory(String skillRootUri) {
-            // Return SKILL.md as the only entry
+            String root = skillRootUri.endsWith("/SKILL.md")
+                    ? skillRootUri.substring(0, skillRootUri.length() - "/SKILL.md".length())
+                    : skillRootUri;
+            root = root.replaceAll("/+$", "");
+            final String rootFinal = root;
             return List.of(new DirectoryEntry() {
-                @Override public String uri() { return skillRootUri + "/SKILL.md"; }
+                @Override public String uri() { return rootFinal + "/SKILL.md"; }
                 @Override public String name() { return "SKILL.md"; }
                 @Override public boolean isDirectory() { return false; }
             });
@@ -168,6 +199,12 @@ class SkillsExtensionTest {
         assertFalse(result.has("error"));
         assertTrue(result.has("skills"));
         assertEquals(2, result.getAsJsonArray("skills").size());
+        // Verify each skill URI ends with /SKILL.md (canonical URI contract)
+        for (int i = 0; i < result.getAsJsonArray("skills").size(); i++) {
+            JsonObject skill = result.getAsJsonArray("skills").get(i).getAsJsonObject();
+            assertTrue(skill.get("uri").getAsString().endsWith("/SKILL.md"),
+                    "Skill URI must end with /SKILL.md: " + skill.get("uri"));
+        }
     }
 
     @Test
@@ -190,7 +227,8 @@ class SkillsExtensionTest {
         String cursor = result.get("nextCursor").getAsString();
 
         // Page 2: use cursor, should get remaining skills
-        String req2 = "{\"jsonrpc\":\"2.0\",\"id\":12,\"method\":\"skills/list\",\"params\":{\"cursor\":\"" + cursor + "\",\"limit\":10}}";
+        String req2 = "{\"jsonrpc\":\"2.0\",\"id\":12,\"method\":\"skills/list\","
+                + "\"params\":{\"cursor\":\"" + cursor + "\",\"limit\":10}}";
         JsonObject resp2 = GSON.fromJson(
                 handler.handleRequestResponse(req2, sessionId).getBody(),
                 JsonObject.class);
@@ -208,7 +246,6 @@ class SkillsExtensionTest {
                         .build());
         String sessionId = initSession(handler);
 
-        // All skills fit in one page
         String req = "{\"jsonrpc\":\"2.0\",\"id\":13,\"method\":\"skills/list\",\"params\":{\"limit\":10}}";
         JsonObject resp = GSON.fromJson(
                 handler.handleRequestResponse(req, sessionId).getBody(),
@@ -229,19 +266,24 @@ class SkillsExtensionTest {
                         .build());
         String sessionId = initSession(handler);
 
+        // Use canonical URI (ends with /SKILL.md)
         String req = "{\"jsonrpc\":\"2.0\",\"id\":12,\"method\":\"skills/get\","
-                + "\"params\":{\"uri\":\"skill://test/skill-one\"}}";
-        JsonObject resp = GSON.fromJson(
-                handler.handleRequestResponse(req, sessionId).getBody(),
-                JsonObject.class);
+                + "\"params\":{\"uri\":\"skill://test/skill-one/SKILL.md\","
+                + "\"protocolVersion\":\"2026-07-28\"}}";
+        String body = handler.handleRequestResponse(req, sessionId).getBody();
+        JsonObject resp = GSON.fromJson(body, JsonObject.class);
         JsonObject result = resp.getAsJsonObject("result");
         assertFalse(result.has("error"));
         // B5: stable spec wraps skill in envelope
         JsonObject skill = result.getAsJsonObject("skill");
-        assertEquals("skill://test/skill-one", skill.get("uri").getAsString());
+        assertEquals("skill://test/skill-one/SKILL.md", skill.get("uri").getAsString());
         // B1: stable spec uses frontmatter instead of top-level name
         assertFalse(skill.has("name"), "name must not be at top level");
         assertTrue(skill.has("frontmatter"), "frontmatter must be present");
+        // Stable spec: no legacy wire fields
+        assertFalse(skill.has("manifest"), "manifest must not be at top level");
+        assertFalse(skill.has("files"), "files must not be at top level");
+        assertFalse(skill.has("digests"), "digests must not be at top level");
     }
 
     @Test
@@ -254,7 +296,8 @@ class SkillsExtensionTest {
         String sessionId = initSession(handler);
 
         String req = "{\"jsonrpc\":\"2.0\",\"id\":13,\"method\":\"skills/get\","
-                + "\"params\":{\"uri\":\"skill://unknown/skill\"}}";
+                + "\"params\":{\"uri\":\"skill://unknown/skill/SKILL.md\","
+                + "\"protocolVersion\":\"2026-07-28\"}}";
         JsonObject resp = GSON.fromJson(
                 handler.handleRequestResponse(req, sessionId).getBody(),
                 JsonObject.class);
@@ -271,12 +314,95 @@ class SkillsExtensionTest {
         String sessionId = initSession(handler);
 
         String req = "{\"jsonrpc\":\"2.0\",\"id\":14,\"method\":\"skills/get\","
-                + "\"params\":{\"uri\":\"skill://test/skill-one\"}}";
+                + "\"params\":{\"uri\":\"skill://test/skill-one/SKILL.md\","
+                + "\"protocolVersion\":\"2026-07-28\"}}";
         JsonObject resp = GSON.fromJson(
                 handler.handleRequestResponse(req, sessionId).getBody(),
                 JsonObject.class);
         assertTrue(resp.has("error"));
         assertEquals(-32601, resp.getAsJsonObject("error").get("code").getAsInt());
+    }
+
+    @Test
+    void skillsGet_rejectsNonCanonicalUri() {
+        McpProtocolHandler handler = new McpProtocolHandler(registry,
+                McpServerConfig.builder()
+                        .protocolVersion("2026-07-28")
+                        .skillsExtension(skillsExtension)
+                        .build());
+        String sessionId = initSession(handler);
+
+        // URI without /SKILL.md suffix must be rejected
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":15,\"method\":\"skills/get\","
+                + "\"params\":{\"uri\":\"skill://test/skill-one\"}}";
+        JsonObject resp = GSON.fromJson(
+                handler.handleRequestResponse(req, sessionId).getBody(),
+                JsonObject.class);
+        assertTrue(resp.has("error"), "URI without /SKILL.md suffix must be rejected");
+        assertEquals(-32602, resp.getAsJsonObject("error").get("code").getAsInt());
+    }
+
+    // ==================== Pagination Boundary Tests ====================
+
+    @Test
+    void skillsList_rejectsNegativeCursor() {
+        McpProtocolHandler handler = new McpProtocolHandler(registry,
+                McpServerConfig.builder()
+                        .protocolVersion("2026-07-28")
+                        .skillsExtension(skillsExtension)
+                        .build());
+        String sessionId = initSession(handler);
+
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":30,\"method\":\"skills/list\","
+                + "\"params\":{\"cursor\":\"-5\",\"limit\":10}}";
+        JsonObject resp = GSON.fromJson(
+                handler.handleRequestResponse(req, sessionId).getBody(),
+                JsonObject.class);
+        assertTrue(resp.has("error"), "negative cursor must be rejected");
+        assertEquals(-32602, resp.getAsJsonObject("error").get("code").getAsInt());
+    }
+
+    @Test
+    void skillsList_rejectsMalformedCursor() {
+        McpProtocolHandler handler = new McpProtocolHandler(registry,
+                McpServerConfig.builder()
+                        .protocolVersion("2026-07-28")
+                        .skillsExtension(skillsExtension)
+                        .build());
+        String sessionId = initSession(handler);
+
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":31,\"method\":\"skills/list\","
+                + "\"params\":{\"cursor\":\"abc\",\"limit\":10}}";
+        JsonObject resp = GSON.fromJson(
+                handler.handleRequestResponse(req, sessionId).getBody(),
+                JsonObject.class);
+        assertTrue(resp.has("error"), "malformed cursor must be rejected");
+        assertEquals(-32602, resp.getAsJsonObject("error").get("code").getAsInt());
+    }
+
+    @Test
+    void skillsList_terminalPage_hasNoNextCursor() {
+        // Tests that when totalSkills == offset + limit (exact terminal page),
+        // the nextCursor is null even if totalSkills() returns MAX_VALUE.
+        // This is the limit+1 semantics fix.
+        McpProtocolHandler handler = new McpProtocolHandler(registry,
+                McpServerConfig.builder()
+                        .protocolVersion("2026-07-28")
+                        .skillsExtension(skillsExtension)
+                        .build());
+        String sessionId = initSession(handler);
+
+        // skillsExtension has 2 skills; request limit=2 starting at offset=0
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":32,\"method\":\"skills/list\","
+                + "\"params\":{\"limit\":2}}";
+        JsonObject resp = GSON.fromJson(
+                handler.handleRequestResponse(req, sessionId).getBody(),
+                JsonObject.class);
+        JsonObject result = resp.getAsJsonObject("result");
+        assertEquals(2, result.getAsJsonArray("skills").size(),
+                "Should return exactly 2 skills");
+        assertFalse(result.has("nextCursor"),
+                "Terminal page (offset=0, limit=2, total=2) must NOT have nextCursor");
     }
 
     // ==================== Skill Resources (skill://) ====================
@@ -299,8 +425,8 @@ class SkillsExtensionTest {
         JsonObject result = resp.getAsJsonObject("result");
         assertFalse(result.has("error"));
         assertEquals("complete", result.get("resultType").getAsString());
-        assertEquals("skill://test/skill-one", result.getAsJsonArray("contents")
-                .get(0).getAsJsonObject().get("uri").getAsString());
+        assertEquals("skill://test/skill-one",
+                result.getAsJsonArray("contents").get(0).getAsJsonObject().get("uri").getAsString());
         assertTrue(result.getAsJsonArray("contents").get(0).getAsJsonObject()
                 .get("text").getAsString().contains("Test Skill"));
     }
@@ -315,13 +441,10 @@ class SkillsExtensionTest {
                         .build());
         String sessionId = initSession(handler);
 
-        // Full URI (skillRoot) is passed as the uri parameter, "SKILL.md" as the file name
         String req = "{\"jsonrpc\":\"2.0\",\"id\":16,\"method\":\"resources/read\","
                 + "\"params\":{\"uri\":\"skill://test/skill-two\"}}";
         handler.handleRequestResponse(req, sessionId);
 
-        // Handler calls readSkillResource(uri=skillRoot, fileName="SKILL.md", mimeType)
-        // Which delegates to readManifestFile(uri=skillRoot, fileName="SKILL.md")
         assertEquals("skill://test/skill-two", skillsExtension.lastReadUri);
         assertEquals("SKILL.md", skillsExtension.lastReadFile);
     }
@@ -346,7 +469,6 @@ class SkillsExtensionTest {
         JsonObject result = resp.getAsJsonObject("result");
         assertFalse(result.has("error"));
         assertEquals("complete", result.get("resultType").getAsString());
-        // skillRoot passed to extension, not the full URI
         assertEquals("skill://test/skill-one", skillsExtension.lastReadUri);
         assertEquals("scripts/deploy.sh", skillsExtension.lastReadFile);
         assertTrue(result.getAsJsonArray("contents").get(0).getAsJsonObject()
@@ -428,7 +550,7 @@ class SkillsExtensionTest {
         String req = "{\"jsonrpc\":\"2.0\",\"id\":18,\"method\":\"resources/directory/read\","
                 + "\"params\":{\"uri\":\"skill://test/skill-one\"}}";
         McpProtocolHandler.McpResponse rawResp = handler.handleRequestResponse(req, sessionId);
-        assertNotNull(rawResp.getBody(), "Response body should not be null: " + rawResp.getStreamingSubscriptionId());
+        assertNotNull(rawResp.getBody(), "Response body should not be null");
         JsonObject resp = GSON.fromJson(rawResp.getBody(), JsonObject.class);
         if (resp.has("error") && !resp.get("error").isJsonNull()) {
             fail("Unexpected error: " + resp.getAsJsonObject("error").toString());
@@ -438,7 +560,6 @@ class SkillsExtensionTest {
         JsonObject result = resp.getAsJsonObject("result");
         assertFalse(result.has("error"));
         assertEquals("complete", result.get("resultType").getAsString());
-        // New response shape: "resources" field (not "entries")
         assertTrue(result.has("resources"));
         assertEquals(1, result.getAsJsonArray("resources").size());
     }
@@ -480,8 +601,4 @@ class SkillsExtensionTest {
         assertTrue(resp.has("error"));
         assertEquals(-32602, resp.getAsJsonObject("error").get("code").getAsInt());
     }
-
-    // Note: coexistence with Tasks tested via McpTaskExtensionTest which runs Skills
-    // and Tasks simultaneously. Full integration test would require McpTaskExtension
-    // setup which is covered in McpTaskExtensionTest.
 }
