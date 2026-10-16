@@ -3018,11 +3018,14 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (params == null) throw McpException.invalidParams("params required");
         String uri = params.get("uri") instanceof String ? (String) params.get("uri") : null;
         if (uri == null || uri.trim().isEmpty()) throw McpException.invalidParams("uri required");
-        // Canonical URI enforcement: skill URIs must end with /SKILL.md for root skills.
-        // This prevents serving content from non-skill URIs.
+        // SEP-2640: skills/get requires the canonical /SKILL.md URI, not a root URI.
+        // Validate this early so non-skill URIs are rejected before any extension calls.
         if (!uri.startsWith("skill://") || !uri.endsWith("/SKILL.md")) {
             throw McpException.invalidParams("uri must be a valid skill URI ending with /SKILL.md");
         }
+        // Pass the full canonical URI directly to getSkill — existing implementations
+        // that accept root URIs will strip /SKILL.md internally. This avoids forcing
+        // a root-URI format on implementations that store canonical URIs.
         SkillDTO skill = skillsExtension.getSkill(uri);
         if (skill == null) throw McpException.invalidParams("Unknown skill: " + uri);
         // Stable spec: wrap skill in envelope
