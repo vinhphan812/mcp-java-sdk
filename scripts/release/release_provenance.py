@@ -1,403 +1,214 @@
 #!/usr/bin/env python3
+"""Fail-closed release provenance checker.
+
+The candidate release-note section in ``CHANGELOG.md`` must contain exactly one
+reviewable declaration:
+
+    Release-note PRs: none
+
+or:
+
+    Release-note PRs: #12, #34
+
+For every declared PR, this checker queries the GitHub API for the repository
+that is publishing the candidate.  The PR must be merged into ``master``, have
+a non-null merge commit SHA, and that merge commit must be an ancestor of the
+peeled candidate tag commit.  Every parse, API, repository, ref, object, or
+ancestry failure blocks publication.
+
+Fixture input exists only for hermetic unit tests; production workflow runs use
+GitHub's API with the ephemeral workflow token and never print the token.
 """
-Release provenance checker.
 
-Validates that:
-  1. The tag commit SHA is recorded in the release notes / CHANGELOG.
-  2. Release notes reference only PRs that are reachable from the tag commit.
-
-This script is intended to be run as a post-tag CI gate:
-  python scripts/release/release_provenance.py --tag v1.2.3
-
-It can also be run against the local repository:
-  python scripts/release/release_provenance.py [--repo <path>]
-
-Exit codes:
-  0  = all provenance checks pass
-  1  = one or more checks failed
-  2  = usage / setup error
-"""
 import argparse
+import json
 import os
 import re
 import subprocess
 import sys
+import urllib.error
+import urllib.request
+
+SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+DECLARATION_RE = re.compile(r"^Release-note PRs:\s*(.+?)\s*$", re.MULTILINE)
+PR_LIST_RE = re.compile(r"^#[1-9][0-9]*(?:, #[1-9][0-9]*)*$")
 
 
-# ----------------------------------------------------------------------
-# Git helpers
-# ----------------------------------------------------------------------
-
-def git(args, repo=".", capture=True):
-    """Run a git command and return stdout (stripped). Raises on non-zero exit."""
-    opts = {} if capture else {}
-    try:
-        result = subprocess.run(
-            ["git"] + args,
-            cwd=repo,
-            capture_output=capture,
-            text=True,
-            check=True,
-        )
-        return result.stdout.strip() if capture else ""
-    except subprocess.CalledProcessError as e:
-        print(f"ERROR: git {' '.join(args)} failed: {e.stderr or e}", file=sys.stderr)
-        sys.exit(2)
+def run_git(args, repo):
+    result = subprocess.run(
+        ["git"] + args, cwd=repo, text=True, capture_output=True, check=False
+    )
+    if result.returncode:
+        raise ValueError("git " + " ".join(args) + " failed")
+    return result.stdout.strip()
 
 
-def tag_sha(tag):
-    """Return the commit SHA for a given tag."""
-    return git(["rev-list", "--max-count=1", tag])
 
-
-def tag_date(tag):
-    """Return the ISO-8601 date of a tag (YYYY-MM-DD)."""
-    return git(["log", "-1", "--format=%ci", tag]).split()[0]
-
-
-def merge_base(commit_a, commit_b):
+def merge_base(commit_a, commit_b, repo):
     """Return the merge-base of two commits."""
-    return git(["merge-base", commit_a, commit_b])
+    return run_git(["merge-base", commit_a, commit_b], repo)
 
 
-def is_ancestor(ancestor, descendant):
+def is_ancestor(ancestor, descendant, repo):
     """Return True if `ancestor` is an ancestor of `descendant`."""
-    base = merge_base(ancestor, descendant)
-    return base == git(["rev-parse", ancestor])
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+        cwd=repo, text=True, capture_output=True, check=False
+    )
+    return result.returncode == 0
 
 
-def commits_between(from_exclusive, to_inclusive):
-    """Return list of commit SHAs from `from` (exclusive) to `to` (inclusive)."""
-    if is_ancestor(from_exclusive, to_inclusive):
-        return git(["log", "--format=%H", f"{from_exclusive}..{to_inclusive}"]).splitlines()
-    # `from_exclusive` is not an ancestor — return all commits up to `to`
-    return git(["log", "--format=%H", "-n", "500", to_inclusive]).splitlines()
+def canonical_origin(repo):
+    raw = run_git(["remote", "get-url", "origin"], repo)
+    if raw.startswith("git@github.com:"):
+        raw = raw[len("git@github.com:") :]
+    elif raw.startswith("https://github.com/"):
+        raw = raw[len("https://github.com/") :]
+    else:
+        raise ValueError("origin is not a GitHub repository URL")
+    return raw.removesuffix(".git")
 
 
-def pr_from_commit(commit_sha):
-    """Try to extract a PR number from a commit message (e.g. 'fix(#44): ...')."""
-    msg = git(["log", "-1", "--format=%B", commit_sha])
-    m = re.search(r'\(#(\d+)\)', msg)
-    return int(m.group(1)) if m else None
+def peeled_tag_commit(tag, repo):
+    if not tag or not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?", tag):
+        raise ValueError("tag is malformed")
+    sha = run_git(["rev-parse", "--verify", f"refs/tags/{tag}^{{commit}}"], repo)
+    if not SHA_RE.fullmatch(sha):
+        raise ValueError("tag does not peel to a full commit SHA")
+    return sha
 
 
-def prs_in_range(sha_list):
-    """Return sorted unique list of PR numbers mentioned in commits."""
-    prs = set()
-    for sha in sha_list:
-        pr = pr_from_commit(sha)
-        if pr:
-            prs.add(pr)
-    return sorted(prs)
-
-
-def tag_message(tag):
-    """Return the annotated tag message, or '' if lightweight."""
+def release_section(changelog, tag):
     try:
-        return git(["tag", "-l", "--format=%(contents:subject)%0a%0a%(contents:body)", tag])
-    except Exception:
-        return ""
+        text = open(changelog, encoding="utf-8").read()
+    except OSError as exc:
+        raise ValueError(f"cannot read release notes: {exc}") from exc
+    version = re.escape(tag.removeprefix("v"))
+    match = re.search(
+        rf"(?m)^##\s+\[v?{version}\][^\n]*(?:\n|$)(.*?)(?=^##\s+\[|\Z)",
+        text,
+        re.DOTALL,
+    )
+    if not match:
+        raise ValueError(f"release notes have no section for {tag}")
+    return match.group(1)
 
 
-# ----------------------------------------------------------------------
-# Provenance checks
-# ----------------------------------------------------------------------
-
-def check_tag_recorded_in_changelog(tag, tag_sha_val, changelog_path="CHANGELOG.md"):
-    """
-    Verify that CHANGELOG.md contains an entry for `tag` with the tag SHA.
-
-    Looks for a heading like:
-        ## [v1.2.3] — YYYY-MM-DD
-
-    And checks that the SHA is mentioned somewhere in that section.
-    """
-    if not os.path.exists(changelog_path):
-        return [], [f"CHANGELOG.md not found at {changelog_path}"]
-
-    with open(changelog_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    errors = []
-    warnings = []
-
-    # Normalise tag (strip leading 'v')
-    version = tag.lstrip("v")
-
-    # Find changelog section for this tag
-    section_pattern = rf"(?:^|\n)##\s+\[v?{re.escape(version)}\].*?(?=\n##\s|\Z)"
-    section_match = re.search(section_pattern, content, re.IGNORECASE | re.DOTALL)
-
-    if not section_match:
-        errors.append(
-            f"No CHANGELOG entry found for {tag}. "
-            f"Add a section: ## [{tag}] — YYYY-MM-DD"
-        )
-        return errors, warnings
-
-    section_text = section_match.group(0)
-
-    # Check for SHA presence
-    if tag_sha_val[:8] not in section_text:
-        warnings.append(
-            f"Tag SHA {tag_sha_val[:8]} not found in CHANGELOG entry for {tag}. "
-            f"Consider recording: '{tag_sha_val}' (commit SHA)"
-        )
-    else:
-        print(f"  [OK] Tag SHA {tag_sha_val[:8]} found in CHANGELOG")
-
-    return errors, warnings
+def declared_prs(section):
+    declarations = DECLARATION_RE.findall(section)
+    if len(declarations) != 1:
+        raise ValueError("release notes must contain exactly one 'Release-note PRs:' declaration")
+    value = declarations[0]
+    if value == "none":
+        return []
+    if not PR_LIST_RE.fullmatch(value):
+        raise ValueError("release-note PR declaration is malformed; use 'none' or '#12, #34'")
+    prs = [int(part[1:]) for part in value.split(", ")]
+    if len(set(prs)) != len(prs):
+        raise ValueError("release-note PR declaration contains duplicate PR numbers")
+    return prs
 
 
-def check_prs_reachable_from_tag(tag_sha_val, changelog_path="CHANGELOG.md",
-                                 min_release_prs=None):
-    """
-    Verify that every PR referenced in CHANGELOG under the `tag` section
-    is reachable from the tag commit.
-
-    PRs are extracted from commit messages via the '(#N)' convention.
-    """
-    if not os.path.exists(changelog_path):
-        return [], []
-
-    with open(changelog_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    errors = []
-    warnings = []
-
-    # Find section for the tag
-    # We need to know which tag version we're looking at
-    # Use the sha to find the right section: look for all ## [vx.y.z] headings,
-    # then find the one that contains commits reachable from this tag SHA.
-
-    # Get all section headings
-    headings = list(re.finditer(r"(?:^|\n)##\s+\[v?(\d+\.\d+\.\d+)\]", content))
-
-    if not headings:
-        return [], [f"No version headings found in {changelog_path}"]
-
-    for i, heading in enumerate(headings):
-        version = heading.group(1)
-        start = heading.start()
-        end = headings[i + 1].start() if i + 1 < len(headings) else len(content)
-        section = content[start:end]
-
-        # Check for PR references in this section
-        pr_refs = re.findall(r"\(#(\d+)\)", section)
-        if not pr_refs:
-            continue
-
-        # For each PR number, check if there's a commit in the repo that:
-        # 1. Mentions that PR, AND
-        # 2. Is an ancestor of the tag SHA (or IS the tag SHA itself)
-        for pr_str in pr_refs:
-            pr_num = int(pr_str)
-            # Find commits mentioning this PR
-            search_results = git(
-                ["log", "--all", "--oneline", "--grep", f"(#{pr_num})", "-n", "5"],
-                capture=True
-            )
-            if not search_results:
-                warnings.append(
-                    f"PR #{pr_num} referenced in CHANGELOG for {version} "
-                    f"but no matching commits found in repository"
-                )
-                continue
-
-            # Check each candidate commit
-            reachable = False
-            for line in search_results.splitlines():
-                commit_sha = line.split()[0]
-                # Is this commit an ancestor of the tag? (or the tag itself)
-                if is_ancestor(commit_sha, tag_sha_val) or commit_sha == tag_sha_val:
-                    reachable = True
-                    break
-
-            if not reachable:
-                errors.append(
-                    f"PR #{pr_num} referenced in CHANGELOG entry for {version} "
-                    f"is not reachable from tag commit {tag_sha_val[:8]}. "
-                    f"Release notes must not reference PRs outside the tag ancestry."
-                )
-
-    return errors, warnings
+def load_fixtures(path):
+    try:
+        data = json.load(open(path, encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"cannot parse PR fixture file: {exc}") from exc
+    if not isinstance(data, dict) or not all(isinstance(key, str) for key in data):
+        raise ValueError("PR fixture file must be an object keyed by PR number")
+    return data
 
 
-def check_readme_version(tag):
-    """Verify README mentions the correct version matching the tag."""
-    errors = []
-    warnings = []
-
-    readme_path = "README.md"
-    if not os.path.exists(readme_path):
-        return errors, warnings
-
-    with open(readme_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    version = tag.lstrip("v")
-
-    patterns = [
-        (r"io\.github\.vinhphan812\.mcp:mcp-java-sdk:" + re.escape(version),
-         "Gradle dependency"),
-        (r"mcp-java-sdk-" + re.escape(version) + r"\.jar",
-         "JAR filename"),
-    ]
-
-    for pattern, location in patterns:
-        if re.search(pattern, content):
-            print(f"  [OK] README {location} matches v{version}")
-        else:
-            errors.append(
-                f"README {location} does not match v{version}; "
-                f"update before tagging"
-            )
-
-    return errors, warnings
+def github_pr(repository, number, api_url, token):
+    request = urllib.request.Request(
+        f"{api_url.rstrip('/')}/repos/{repository}/pulls/{number}",
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            payload = json.load(response)
+    except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError) as exc:
+        raise ValueError(f"GitHub API lookup for PR #{number} failed") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"GitHub API returned malformed data for PR #{number}")
+    return payload
 
 
-def check_gradle_version(tag, repo="."):
-    """Verify sdkVersion in build.gradle derives from the tag."""
-    errors = []
-    warnings = []
-
-    gradle_path = os.path.join(repo, "build.gradle")
-    if not os.path.exists(gradle_path):
-        warnings.append(f"build.gradle not found at {gradle_path}")
-        return errors, warnings
-
-    with open(gradle_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    version = tag.lstrip("v")
-
-    # sdkVersion is derived; check it uses the GITHUB_REF_NAME pattern
-    if "GITHUB_REF_NAME" in content or "releaseVersion" in content:
-        print(f"  [OK] build.gradle uses dynamic version from GITHUB_REF_NAME")
-    else:
-        # Check for hard-coded version
-        m = re.search(r'version\s*=\s*["\']([^"\']+)["\']', content)
-        if m and m.group(1) != version:
-            errors.append(
-                f"build.gradle has hard-coded version '{m.group(1)}' "
-                f"which does not match tag v{version}"
-            )
-
-    return errors, warnings
+def field(payload, path, number):
+    value = payload
+    for key in path:
+        if not isinstance(value, dict) or key not in value:
+            raise ValueError(f"PR #{number} API payload is malformed ({'.'.join(path)} missing)")
+        value = value[key]
+    return value
 
 
-# ----------------------------------------------------------------------
-# Main
-# ----------------------------------------------------------------------
+def verify_pr(payload, repository, candidate_sha, repo, number):
+    api_repo = field(payload, ("base", "repo", "full_name"), number)
+    api_ref = field(payload, ("base", "ref"), number)
+    api_url = field(payload, ("url",), number)
+    expected_url = f"https://api.github.com/repos/{repository}/pulls/{number}"
+    if api_repo != repository or api_url != expected_url:
+        raise ValueError(f"PR #{number} belongs to the wrong repository")
+    if api_ref != "master":
+        raise ValueError(f"PR #{number} targets '{api_ref}', not protected master")
+    if payload.get("state") != "closed" or payload.get("merged") is not True or not payload.get("merged_at"):
+        raise ValueError(f"PR #{number} is not merged")
+    merge_sha = payload.get("merge_commit_sha")
+    if not isinstance(merge_sha, str) or not SHA_RE.fullmatch(merge_sha):
+        raise ValueError(f"PR #{number} has no valid merge commit SHA")
+    try:
+        run_git(["cat-file", "-e", f"{merge_sha}^{{commit}}"], repo)
+    except ValueError as exc:
+        raise ValueError(f"PR #{number} merge commit is unavailable locally") from exc
+    if not is_ancestor(merge_sha, candidate_sha, repo):
+        raise ValueError(f"PR #{number} merge commit is not an ancestor of candidate tag")
+
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Validate release provenance (tag SHA, CHANGELOG, PR reachability)."
-    )
-    parser.add_argument(
-        "--tag", "-t", default=None,
-        help="Tag to validate (default: latest annotated tag from git describe --tags)"
-    )
-    parser.add_argument(
-        "--repo", "-r", default=".",
-        help="Path to repository root (default: current directory)"
-    )
-    parser.add_argument(
-        "--skip-changelog", action="store_true",
-        help="Skip CHANGELOG SHA check"
-    )
-    parser.add_argument(
-        "--skip-pr-reachability", action="store_true",
-        help="Skip PR reachability check"
-    )
-    parser.add_argument(
-        "--skip-readme", action="store_true",
-        help="Skip README version check"
-    )
-    parser.add_argument(
-        "--skip-gradle", action="store_true",
-        help="Skip Gradle version check"
-    )
+    parser = argparse.ArgumentParser(description="Fail-closed release-note PR provenance gate.")
+    parser.add_argument("--tag", required=True)
+    parser.add_argument("--repo", default=os.environ.get("TEST_REPO", "."))
+    parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY"))
+    parser.add_argument("--changelog", default="CHANGELOG.md")
+    parser.add_argument("--github-api-url", default=os.environ.get("GITHUB_API_URL", "https://api.github.com"))
+    parser.add_argument("--pr-fixtures", help="Hermetic test fixture JSON; never used by the release workflow")
     args = parser.parse_args()
 
-    # Resolve tag
-    tag = args.tag
-    if not tag:
-        # Use latest tag from git
-        try:
-            tag = git(["describe", "--tags", "--abbrev=0"], repo=args.repo)
-        except SystemExit:
-            print("ERROR: Could not determine latest tag. Pass --tag explicitly.", file=sys.stderr)
-            sys.exit(2)
-
-    print(f"\n=== Release Provenance Check ===")
-    print(f"Tag: {tag}")
-
-    # Get tag metadata
     try:
-        tag_sha_val = tag_sha(tag)
-        tag_date_val = tag_date(tag)
-    except SystemExit:
-        print(f"ERROR: Tag '{tag}' not found in repository.", file=sys.stderr)
-        sys.exit(2)
-
-    print(f"Tag SHA: {tag_sha_val}")
-    print(f"Tag date: {tag_date_val}")
-    print()
-
-    all_errors = []
-    all_warnings = []
-
-    # Check 1: CHANGELOG records tag SHA
-    if not args.skip_changelog:
-        print("--- CHANGELOG SHA check ---")
-        errs, warns = check_tag_recorded_in_changelog(tag, tag_sha_val)
-        all_errors.extend(errs)
-        all_warnings.extend(warns)
-        print()
-
-    # Check 2: PRs in CHANGELOG are reachable from tag
-    if not args.skip_pr_reachability:
-        print("--- PR reachability check ---")
-        errs, warns = check_prs_reachable_from_tag(tag_sha_val)
-        all_errors.extend(errs)
-        all_warnings.extend(warns)
-        print()
-
-    # Check 3: README version matches tag
-    if not args.skip_readme:
-        print("--- README version check ---")
-        errs, warns = check_readme_version(tag)
-        all_errors.extend(errs)
-        all_warnings.extend(warns)
-        print()
-
-    # Check 4: Gradle version (dynamic)
-    if not args.skip_gradle:
-        print("--- Gradle version check ---")
-        errs, warns = check_gradle_version(tag, args.repo)
-        all_errors.extend(errs)
-        all_warnings.extend(warns)
-        print()
-
-    # Report
-    if all_warnings:
-        print("\nWarnings (non-blocking):")
-        for w in all_warnings:
-            print(f"  {w}")
-
-    if all_errors:
-        print("\nFAIL: Provenance checks failed:")
-        for e in all_errors:
-            print(f"  {e}")
-        print()
-        print("Immutability rule: do not edit CHANGELOG after publishing a release.")
-        sys.exit(1)
-    else:
-        print("\nPASS: All provenance checks passed!")
-        sys.exit(0)
+        if not args.repository or not REPOSITORY_RE.fullmatch(args.repository):
+            raise ValueError("repository input is malformed")
+        if canonical_origin(args.repo) != args.repository:
+            raise ValueError("repository input does not match origin")
+        candidate_sha = peeled_tag_commit(args.tag, args.repo)
+        section = release_section(os.path.join(args.repo, args.changelog), args.tag)
+        numbers = declared_prs(section)
+        fixtures = load_fixtures(args.pr_fixtures) if args.pr_fixtures else None
+        token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+        if fixtures is None and numbers and not token:
+            raise ValueError("GitHub token is unavailable")
+        for number in numbers:
+            if fixtures is not None:
+                if str(number) not in fixtures:
+                    raise ValueError(f"PR #{number} fixture is missing")
+                payload = fixtures[str(number)]
+                if not isinstance(payload, dict):
+                    raise ValueError(f"PR #{number} fixture is malformed")
+            else:
+                payload = github_pr(args.repository, number, args.github_api_url, token)
+            verify_pr(payload, args.repository, candidate_sha, args.repo, number)
+            print(f"[OK] Release-note PR #{number} is merged into master and precedes candidate")
+        print(f"PASS: {len(numbers)} release-note PR(s) verified for {args.tag} at {candidate_sha}")
+    except ValueError as exc:
+        print(f"FAIL: {exc}", file=sys.stderr)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

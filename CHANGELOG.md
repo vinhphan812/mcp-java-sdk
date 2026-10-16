@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+Release-note PRs: #96, #95
+
 ## [v1.1.3] — 2026-10-14
 
 > Tag: `13ac3d6` (full SHA: `13ac3d6f7ff047b149a9d9fe5b2d4ed0e054aa6b`)
@@ -51,6 +53,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cursor; concurrent sessions no longer share replay state.
 
 ---
+
+Release-note PRs: none
 
 ## [v1.1.2] — 2026-10-13
 

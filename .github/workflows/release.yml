@@ -195,6 +195,27 @@ jobs:
           fi
           echo "Annotated/lightweight peeling and master ancestry regressions passed."
 
+      - name: Verify release-note PRs are merged and precede candidate tag
+        # Fail-closed gate: every PR declared in the release-note section of CHANGELOG.md
+        # must be (a) in this repository, (b) MERGED, (c) targeting master, (d) have a
+        # merge commit SHA that is a git ancestor of the peeled candidate tag commit.
+        # Uses GITHUB_TOKEN (workflow ephemeral); token is never printed or logged.
+        # Only runs for production tags (not suffixed/validation tags).
+        if: steps.provenance.outputs.production == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_API_URL: ${{ github.api_url }}
+        run: |
+          set -euo pipefail
+          TAG_NAME="${GITHUB_REF_NAME}"
+          echo "Verifying release-note PRs for tag ${TAG_NAME}..."
+          python3 "$GITHUB_WORKSPACE/scripts/release/release_provenance.py" \
+            --tag "${TAG_NAME}" \
+            --repository "${{ github.repository }}" \
+            --github-api-url "${{ github.api_url }}" \
+            --changelog "CHANGELOG.md" \
+            --repo "$GITHUB_WORKSPACE"
+
   publish-production-release:
     name: Publish production release
     needs: validate-release-provenance

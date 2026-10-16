@@ -159,16 +159,40 @@ Checks:
 
 ### Gate 3: `release_provenance` (post-tag, triggered by tag push)
 
+The release workflow invokes this gate automatically for every production tag push
+(`vX.Y.Z` matching strict SemVer).  Suffixed/validation tags (`vX.Y.Z-foo`) skip
+publication and run only the H1–H4 checks; this PR ancestry gate runs only for
+production tags.
+
 ```bash
-python scripts/release/release_provenance.py --tag v1.2.0
+python scripts/release/release_provenance.py \
+  --tag v1.2.0 \
+  --repository vinhphan812/mcp-java-sdk \
+  --github-api-url https://api.github.com \
+  --changelog CHANGELOG.md \
+  --repo .
 ```
 
+**Required declaration:** Every release-note section in `CHANGELOG.md` must contain
+exactly one `Release-note PRs:` declaration:
+
+- `Release-note PRs: none` — no PRs were used for this release (e.g. pure documentation).
+- `Release-note PRs: #12, #34` — PRs #12 and #34 are the release-note PRs for this version.
+
 Validates:
-1. **CHANGELOG SHA check** — `CHANGELOG.md` contains an entry for the tag version
+
+1. **Release-note PR ancestry check** — For each declared PR number:
+   - Queries the GitHub API (`/repos/{repo}/pulls/{n}`) using the ephemeral workflow
+     token (never printed or logged).
+   - The PR must belong to the same repository, be in `merged: true` state, target
+     `master`, have a non-null `merge_commit_sha`, and that SHA must be a local git
+     ancestor of the peeled candidate tag commit.
+   - Missing fixture (in tests), wrong repository, unmerged state, null SHA, non-master
+     target, or non-ancestor merge commit all fail the gate.
+   - This is a **PR-time** gate: it verifies that the PR was merged *before* the tag was
+     cut, not that a tag-push triggered from a PR branch is valid.
+2. **CHANGELOG SHA check** — `CHANGELOG.md` contains an entry for the tag version
    with the commit SHA visible in the section.
-2. **PR reachability check** — Every `(#N)` PR reference in the tag's CHANGELOG
-   section corresponds to a commit that is an ancestor of the tag commit.
-   PRs not reachable from the tag commit cause a hard failure.
 3. **README version check** — Gradle snippet and JAR filenames in README
    match the tag version.
 4. **Gradle dynamic version** — `build.gradle` uses `GITHUB_REF_NAME` for dynamic
