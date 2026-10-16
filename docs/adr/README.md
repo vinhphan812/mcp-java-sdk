@@ -28,6 +28,7 @@ flowchart LR
     Core11["ADR-0011: Security & rate limiting\n(owner sessions, abuse scoring)"]
     Core22["ADR-0022: MRTR / Elicitation\n(server-initiated requests)"]
     Core23["ADR-0023: Sampling/Roots/Logging\ndeprecation strategy"]
+    Core24["ADR-0024: Command Authorization\nLease & Acknowledgement"]
 
     Core1 --> Core2
     Core1 --> Core3
@@ -70,9 +71,8 @@ flowchart LR
 | [ADR-0019](ADR-0019-java-runtime-floor.md)                             | Java Runtime Floor: Java 11+ Required for Grizzly Transport                     | Accepted   | 2026-09-29 |
 | [ADR-0021](ADR-0021-cors-loopback-origin-policy.md)                    | CORS Loopback Origin Policy: Preflight, Allowlist, and Response Headers         | Accepted   | 2026-09-30 |
 || [ADR-0022](ADR-0022-server-to-client-mrtr-elicitation-foundation.md) | MRTR Server-to-Client Foundation and Elicitation                               | Accepted   | 2026-10-02 |
-|| [ADR-0023](ADR-0023-deprecation-sampling-roots-logging.md)            | Deprecation Strategy: Sampling, Roots, and Logging Capabilities                | Accepted   | 2026-10-05 |
-
-> **ADR-0024 was closed as not planned and has been removed.**
+|| [ADR-0023](ADR-0023-deprecation-sampling-roots-logging.md)            | Deprecation Strategy: Sampling, Roots, and Logging Capabilities                | Accepted   | 2026-10-05 ||
+|| [ADR-0024](ADR-0024-command-authorization-lifecycle.md)              | Command Authorization, Lease, and Acknowledgement Lifecycle                   | Accepted   | 2026-10-17 |
 
 ## When to create an ADR
 
