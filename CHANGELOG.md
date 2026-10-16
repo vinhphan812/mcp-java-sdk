@@ -23,6 +23,8 @@ Release-note PRs: #96, #95
 
 > Tag: `e6271c0` (full SHA: `e6271c00a0a65af2fb27fd84e918e0974739b260`)
 
+Release-note PRs: #96, #95
+
 ### Added
 
 - **Skills stable wire contract (SEP-2640)** — canonical `/SKILL.md` URI enforced at protocol handler level; `resources` serializes as `"dynamic"` string; `SkillResourceEntry` omits `name` field on wire
