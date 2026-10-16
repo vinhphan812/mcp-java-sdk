@@ -201,7 +201,7 @@ jobs:
         # merge commit SHA that is a git ancestor of the peeled candidate tag commit.
         # Uses GITHUB_TOKEN (workflow ephemeral); token is never printed or logged.
         # Only runs for production tags (not suffixed/validation tags).
-        if: needs.validate-release-provenance.outputs.production == 'true'
+        if: steps.provenance.outputs.production == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_API_URL: ${{ github.api_url }}
