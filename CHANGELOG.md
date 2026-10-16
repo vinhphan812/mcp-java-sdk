@@ -19,6 +19,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Release-note PRs: #96, #95
 
+## [v1.1.6] — 2026-10-16
+
+> Tag: `cb1456c` (full SHA: `cb1456cc6553cc48ccbca347876261117b4b844a`)
+
+### Added
+
+- **Skills stable wire contract (SEP-2640)** — canonical `/SKILL.md` URI enforced at protocol handler level; `resources` serializes as `"dynamic"` string; `SkillResourceEntry` omits `name` field on wire
+- **Release provenance guardrails** — fail-closed annotated-tag gate, SemVer classification, master ancestry precondition, Maven XML namespace-agnostic parser, version reuse prevention, post-publication verification
+- **Release-note PR ancestry gate** — every declared release-note PR verified via GitHub API: MERGED state, master base, merge commit SHA, ancestor of candidate tag
+
+### Fixed
+
+- **Binary manifest integrity** — resource digest and size computed from raw bytes served by `resources/read`, not UTF-8 re-encoded String
+- **Pagination termination** — `limit+1` semantics prevent false `nextCursor` on exact terminal page
+- **Percent-decoding bounds** — traversal rejects `..`, encoded slashes, malformed escapes, and nested depth > 16
+
 ## [v1.1.5] — 2026-10-16
 
 > Tag: `dc1a13e` (full SHA: `dc1a13e51fba9e32123766647d772d7b54a5b1bc`)
