@@ -95,6 +95,22 @@ def release_section(changelog, tag):
     return match.group(1)
 
 
+def unreleased_prs(changelog):
+    """Read the ## [Unreleased] section for Release-note PRs when no version section exists."""
+    try:
+        text = open(changelog, encoding="utf-8").read()
+    except OSError as exc:
+        raise ValueError(f"cannot read release notes: {exc}") from exc
+    match = re.search(
+        r"(?m)^##\s+\[Unreleased\](.*?)(?=^##\s+\[|\Z)",
+        text,
+        re.DOTALL,
+    )
+    if not match:
+        return []
+    return declared_prs(match.group(1))
+
+
 def declared_prs(section):
     declarations = DECLARATION_RE.findall(section)
     if len(declarations) != 1:
@@ -186,8 +202,14 @@ def main():
         if canonical_origin(args.repo) != args.repository:
             raise ValueError("repository input does not match origin")
         candidate_sha = peeled_tag_commit(args.tag, args.repo)
-        section = release_section(os.path.join(args.repo, args.changelog), args.tag)
-        numbers = declared_prs(section)
+        try:
+            section = release_section(os.path.join(args.repo, args.changelog), args.tag)
+            numbers = declared_prs(section)
+        except ValueError as exc:
+            if "release notes have no section for" in str(exc):
+                numbers = unreleased_prs(os.path.join(args.repo, args.changelog))
+            else:
+                raise
         fixtures = load_fixtures(args.pr_fixtures) if args.pr_fixtures else None
         token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
         if fixtures is None and numbers and not token:
