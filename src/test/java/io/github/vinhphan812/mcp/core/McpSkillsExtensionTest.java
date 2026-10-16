@@ -812,6 +812,7 @@ public class McpSkillsExtensionTest {
                 if ("logo.png".equals(fileName)) return binaryContent;
                 return null;
             }
+            @Override public String readManifestFile(String uri, String fileName) { return null; }
         };
         List<SkillResourceEntry> entries =
                 McpSkillsExtension.buildResourceEntries("skill://test",
@@ -843,6 +844,7 @@ public class McpSkillsExtensionTest {
                 if ("README.md".equals(fileName)) return utf8Bytes;
                 return null;
             }
+            @Override public String readManifestFile(String uri, String fileName) { return null; }
         };
         List<SkillResourceEntry> entries =
                 McpSkillsExtension.buildResourceEntries("skill://test",
@@ -876,6 +878,7 @@ public class McpSkillsExtensionTest {
                 }
                 return dummyBytes;
             }
+            @Override public String readManifestFile(String uri, String fileName) { return null; }
         };
         List<SkillResourceEntry> entries =
                 McpSkillsExtension.buildResourceEntries("skill://test", fileNames, ext);
@@ -904,6 +907,7 @@ public class McpSkillsExtensionTest {
                 }
                 return dummyBytes;
             }
+            @Override public String readManifestFile(String uri, String fileName) { return null; }
         };
         List<SkillResourceEntry> entries =
                 McpSkillsExtension.buildResourceEntries("skill://test", fileNames, ext);
@@ -932,6 +936,7 @@ public class McpSkillsExtensionTest {
                 }
                 return mb;
             }
+            @Override public String readManifestFile(String uri, String fileName) { return null; }
         };
         List<SkillResourceEntry> entries =
                 McpSkillsExtension.buildResourceEntries("skill://test", fileNames, ext);
@@ -1020,6 +1025,7 @@ public class McpSkillsExtensionTest {
             }
             @Override public SkillDTO getSkill(String uri) { return null; }
             @Override public byte[] readManifestFileBytes(String uri, String fileName) { return null; }
+            @Override public String readManifestFile(String uri, String fileName) { return null; }
         };
         ListSkillsResult result = ext.listSkills("", 3);
         assertEquals(3, result.skills.size(),
@@ -1048,10 +1054,40 @@ public class McpSkillsExtensionTest {
             @Override public int totalSkills() { return 3; }
             @Override public SkillDTO getSkill(String uri) { return null; }
             @Override public byte[] readManifestFileBytes(String uri, String fileName) { return null; }
+            @Override public String readManifestFile(String uri, String fileName) { return null; }
         };
         ListSkillsResult result = ext.listSkills("", 2);
         assertEquals(2, result.skills.size());
         assertNotNull(result.nextCursor, "Page 1 (limit=2, total=3) must have nextCursor");
         assertEquals("2", result.nextCursor);
+    }
+
+    // ==================== SEP-2640: /SKILL.md canonical URI enforcement ====================
+
+    @Test
+    void skillsGet_rejectsRootUri_missingSkillMdSuffix() {
+        // The canonical skills/get URI must end with /SKILL.md — root URIs are invalid.
+        Map<String, String> files = Map.of("SKILL.md", "# Test Skill\n");
+        McpSkillsExtension ext = new TestSkillsExtension(Map.of("test", files));
+        McpProtocolHandler handler = makeHandler(ext);
+
+        String body = GSON.toJson(Map.of(
+                "jsonrpc", "2.0", "id", 1,
+                "method", "skills/get",
+                "params", Map.of("uri", "skill://test",
+                        "protocolVersion", "2026-07-28")));
+        assertRpcError(handler.handleRequest(body), -32602);
+    }
+
+    @Test
+    void skillsGet_acceptsCanonicalSkillMdUri() {
+        // A valid canonical /SKILL.md URI must succeed.
+        Map<String, String> files = Map.of("SKILL.md", "# Test Skill\n");
+        McpSkillsExtension ext = new TestSkillsExtension(Map.of("test", files));
+        McpProtocolHandler handler = makeHandler(ext);
+
+        Map<String, Object> result = send(handler, "skills/get",
+                Map.of("uri", "skill://test/SKILL.md"));
+        assertEquals("complete", result.get("resultType"));
     }
 }

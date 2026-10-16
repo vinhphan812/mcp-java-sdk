@@ -60,27 +60,42 @@ class SkillsExtensionTest {
         /** Tracks last bytes read via readManifestFileBytes */
         private byte[] lastReadBytes;
 
+        // Static shared file content — initialized once, before any SkillDTO construction.
+        private static final java.util.Map<String, java.util.Map<String, String>> FILE_CONTENTS;
+        static {
+            java.util.Map<String, java.util.Map<String, String>> m = new java.util.LinkedHashMap<>();
+            m.put("skill://test/skill-one", java.util.Map.of(
+                    "SKILL.md", "# Test Skill\n\nThis is a test skill manifest.\n",
+                    "scripts/deploy.sh", "#!/bin/sh\necho deploying\n"));
+            m.put("skill://test/skill-two", java.util.Map.of(
+                    "SKILL.md", "# Test Skill\n\nThis is a test skill manifest.\n",
+                    "config.yaml", "key: value\n"));
+            FILE_CONTENTS = java.util.Collections.unmodifiableMap(m);
+        }
+
         TestSkillsExtension() {
-            // Canonical skill URIs must end with /SKILL.md
-            String skillOneUri = "skill://test/skill-one/SKILL.md";
-            String skillTwoUri = "skill://test/skill-two/SKILL.md";
+            // Skills are registered with ROOT URIs (not canonical /SKILL.md URIs).
+            // The handler passes canonical URIs to getSkill; we look up by root URI
+            // without stripping since skills are stored with root URIs.
+            String r1 = "skill://test/skill-one";
+            String r2 = "skill://test/skill-two";
             skills.add(new SkillDTO(
-                    skillOneUri,
+                    r1 + "/SKILL.md",
                     "skill-one",
                     "Test Skill One",
                     "A test skill",
                     Map.of("category", "test"),
                     McpSkillsExtension.buildResourceEntries(
-                            "skill://test/skill-one",
+                            r1,
                             java.util.Arrays.asList("SKILL.md"), this)));
             skills.add(new SkillDTO(
-                    skillTwoUri,
+                    r2 + "/SKILL.md",
                     "skill-two",
                     "Test Skill Two",
                     "Another test skill",
                     Map.of("category", "test"),
                     McpSkillsExtension.buildResourceEntries(
-                            "skill://test/skill-two",
+                            r2,
                             java.util.Arrays.asList("SKILL.md"), this)));
         }
 
@@ -97,9 +112,17 @@ class SkillsExtensionTest {
 
         @Override
         public SkillDTO getSkill(String uri) {
+            // handler passes canonical URI; skills are stored with canonical URIs — direct match
             return skills.stream()
                     .filter(s -> s.uri.equals(uri))
                     .findFirst().orElse(null);
+        }
+
+        @Override
+        public String readManifestFile(String uri, String fileName) {
+            lastReadUri = uri;
+            lastReadFile = fileName;
+            return getTextContent(uri, fileName);
         }
 
         @Override
@@ -116,22 +139,13 @@ class SkillsExtensionTest {
         }
 
         private String getTextContent(String uri, String fileName) {
-            if ("SKILL.md".equals(fileName)) {
-                for (SkillDTO skill : skills) {
-                    // uri here is the skill root without /SKILL.md
-                    if (uri.equals(skill.uri.replace("/SKILL.md", ""))
-                            || uri.equals(skill.uri)) {
-                        return "# Test Skill\n\nThis is a test skill manifest.\n";
-                    }
-                }
-            } else if ("scripts/deploy.sh".equals(fileName)
-                    && (uri.contains("/skill-one") || uri.equals("skill://test/skill-one"))) {
-                return "#!/bin/sh\necho deploying\n";
-            } else if ("config.yaml".equals(fileName)
-                    && (uri.contains("/skill-two") || uri.equals("skill://test/skill-two"))) {
-                return "key: value\n";
-            }
-            return null;
+            // Strip /SKILL.md to get skill root
+            String root = uri.endsWith("/SKILL.md")
+                    ? uri.substring(0, uri.length() - "/SKILL.md".length())
+                    : uri;
+            java.util.Map<String, String> files = FILE_CONTENTS.get(root);
+            if (files == null) return null;
+            return files.get(fileName);
         }
 
         @Override
@@ -153,9 +167,13 @@ class SkillsExtensionTest {
 
         @Override
         public List<DirectoryEntry> listDirectory(String skillRootUri) {
-            String root = skillRootUri.replaceAll("/+$", "");
+            String root = skillRootUri.endsWith("/SKILL.md")
+                    ? skillRootUri.substring(0, skillRootUri.length() - "/SKILL.md".length())
+                    : skillRootUri;
+            root = root.replaceAll("/+$", "");
+            final String rootFinal = root;
             return List.of(new DirectoryEntry() {
-                @Override public String uri() { return root + "/SKILL.md"; }
+                @Override public String uri() { return rootFinal + "/SKILL.md"; }
                 @Override public String name() { return "SKILL.md"; }
                 @Override public boolean isDirectory() { return false; }
             });
@@ -250,10 +268,10 @@ class SkillsExtensionTest {
 
         // Use canonical URI (ends with /SKILL.md)
         String req = "{\"jsonrpc\":\"2.0\",\"id\":12,\"method\":\"skills/get\","
-                + "\"params\":{\"uri\":\"skill://test/skill-one/SKILL.md\"}}";
-        JsonObject resp = GSON.fromJson(
-                handler.handleRequestResponse(req, sessionId).getBody(),
-                JsonObject.class);
+                + "\"params\":{\"uri\":\"skill://test/skill-one/SKILL.md\","
+                + "\"protocolVersion\":\"2026-07-28\"}}";
+        String body = handler.handleRequestResponse(req, sessionId).getBody();
+        JsonObject resp = GSON.fromJson(body, JsonObject.class);
         JsonObject result = resp.getAsJsonObject("result");
         assertFalse(result.has("error"));
         // B5: stable spec wraps skill in envelope
@@ -278,7 +296,8 @@ class SkillsExtensionTest {
         String sessionId = initSession(handler);
 
         String req = "{\"jsonrpc\":\"2.0\",\"id\":13,\"method\":\"skills/get\","
-                + "\"params\":{\"uri\":\"skill://unknown/skill/SKILL.md\"}}";
+                + "\"params\":{\"uri\":\"skill://unknown/skill/SKILL.md\","
+                + "\"protocolVersion\":\"2026-07-28\"}}";
         JsonObject resp = GSON.fromJson(
                 handler.handleRequestResponse(req, sessionId).getBody(),
                 JsonObject.class);
@@ -295,7 +314,8 @@ class SkillsExtensionTest {
         String sessionId = initSession(handler);
 
         String req = "{\"jsonrpc\":\"2.0\",\"id\":14,\"method\":\"skills/get\","
-                + "\"params\":{\"uri\":\"skill://test/skill-one/SKILL.md\"}}";
+                + "\"params\":{\"uri\":\"skill://test/skill-one/SKILL.md\","
+                + "\"protocolVersion\":\"2026-07-28\"}}";
         JsonObject resp = GSON.fromJson(
                 handler.handleRequestResponse(req, sessionId).getBody(),
                 JsonObject.class);

@@ -146,39 +146,37 @@ public interface McpSkillsExtension extends McpExtension {
     }
 
     /**
-     * Reads a skill file as raw bytes.
+     * Reads a skill file as a UTF-8 string.
      *
-     * <p>This is the primary method for reading file content. Subclasses MUST
-     * implement this method to support binary files (images, PDFs, archives).
-     * The default implementation returns {@code null}.
+     * <p>This is the primary method for reading file content for source compatibility.
+     * Implementations that handle text-only content may implement only this method.
      *
-     * <p>Digest and size in {@link SkillResourceEntry} are computed from the
-     * raw bytes returned here — not from a UTF-8 re-encoded string — so that
-     * binary files have correct SHA-256 digests and byte-accurate sizes.
+     * <p>For binary files (images, PDFs, archives), also override
+     * {@link #readManifestFileBytes(String, String)} so digest/size computation
+     * uses the raw bytes directly.
      *
      * @param uri      the skill root URI (e.g. {@code "skill://acme"})
      * @param fileName the file name / relative path within the skill
-     * @return raw file bytes, or {@code null} if not found
-     */
-    byte[] readManifestFileBytes(String uri, String fileName);
-
-    /**
-     * Convenience: reads a skill file as a UTF-8 string.
-     *
-     * <p>Default implementation calls {@link #readManifestFileBytes} and
-     * decodes as UTF-8. Override if your storage returns strings directly.
-     *
-     * <p>Note: for digest/size computation, prefer overriding
-     * {@link #readManifestFileBytes} so binary files are handled correctly.
-     *
-     * @param uri      the skill root URI
-     * @param fileName the file name / relative path
      * @return file content as a string, or {@code null} if not found
      */
-    default String readManifestFile(String uri, String fileName) {
-        byte[] bytes = readManifestFileBytes(uri, fileName);
-        if (bytes == null) return null;
-        return new String(bytes, StandardCharsets.UTF_8);
+    String readManifestFile(String uri, String fileName);
+
+    /**
+     * Reads a skill file as raw bytes.
+     *
+     * <p>Default implementation delegates to {@link #readManifestFile(String, String)}
+     * and encodes the result as UTF-8. Override this method when the underlying
+     * storage provides binary content (e.g. binary file formats, compressed files)
+     * where the byte-level representation matters for digest/size computation.
+     *
+     * @param uri      the skill root URI
+     * @param fileName the file name / relative path within the skill
+     * @return raw file bytes, or {@code null} if not found
+     */
+    default byte[] readManifestFileBytes(String uri, String fileName) {
+        String text = readManifestFile(uri, fileName);
+        if (text == null) return null;
+        return text.getBytes(StandardCharsets.UTF_8);
     }
 
     /**
