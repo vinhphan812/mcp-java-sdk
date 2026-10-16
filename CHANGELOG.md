@@ -19,6 +19,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Release-note PRs: #96, #95
 
+## [v1.3.0] â 2026-10-16
+
+> Tag: `167dda9` (full SHA: `167dda9cd86522aac612ac0728187b9f6d1d5571`)
+
+Release-note PRs: none
+
+### Added
+
+- **Skills stable wire contract (SEP-2640)** â canonical  URI enforced at protocol handler level;  serializes as `"dynamic"` string;  omits  field on wire
+- **Release provenance guardrails** â fail-closed annotated-tag gate, SemVer classification, master ancestry precondition, Maven XML namespace-agnostic parser, version reuse prevention, post-publication verification
+- **Release-note PR ancestry gate** â every declared release-note PR verified via GitHub API: MERGED state, master base, merge commit SHA, ancestor of candidate tag
+
+### Fixed
+
+- **Binary manifest integrity** â resource digest and size computed from raw bytes served by , not UTF-8 re-encoded String
+- **Pagination termination** â  semantics prevent false  on exact terminal page
+- **Percent-decoding bounds** â traversal rejects , encoded slashes, malformed escapes, and nested depth > 16
+
 ## [v1.2.0] — 2026-10-16
 
 > Tag: `e6271c0` (full SHA: `e6271c00a0a65af2fb27fd84e918e0974739b260`)
