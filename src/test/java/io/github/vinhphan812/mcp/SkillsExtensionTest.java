@@ -96,8 +96,16 @@ class SkillsExtensionTest {
 
         @Override
         public SkillDTO getSkill(String uri) {
+            // Handle canonical URIs: skill://test/skill-one/SKILL.md -> root URI match
+            final String lookupUri;
+            if (uri.endsWith("/SKILL.md")) {
+                // Extract root: skill://test/skill-one/SKILL.md -> skill://test/skill-one
+                lookupUri = uri.substring(0, uri.length() - "/SKILL.md".length());
+            } else {
+                lookupUri = uri;
+            }
             return skills.stream()
-                    .filter(s -> s.uri.equals(uri))
+                    .filter(s -> s.uri.equals(lookupUri))
                     .findFirst().orElse(null);
         }
 
@@ -229,8 +237,9 @@ class SkillsExtensionTest {
                         .build());
         String sessionId = initSession(handler);
 
+        // Use canonical /SKILL.md URI
         String req = "{\"jsonrpc\":\"2.0\",\"id\":12,\"method\":\"skills/get\","
-                + "\"params\":{\"uri\":\"skill://test/skill-one\"}}";
+                + "\"params\":{\"uri\":\"skill://test/skill-one/SKILL.md\"}}";
         JsonObject resp = GSON.fromJson(
                 handler.handleRequestResponse(req, sessionId).getBody(),
                 JsonObject.class);
@@ -238,7 +247,7 @@ class SkillsExtensionTest {
         assertFalse(result.has("error"));
         // B5: stable spec wraps skill in envelope
         JsonObject skill = result.getAsJsonObject("skill");
-        assertEquals("skill://test/skill-one", skill.get("uri").getAsString());
+        assertEquals("skill://test/skill-one/SKILL.md", skill.get("uri").getAsString());
         // B1: stable spec uses frontmatter instead of top-level name
         assertFalse(skill.has("name"), "name must not be at top level");
         assertTrue(skill.has("frontmatter"), "frontmatter must be present");

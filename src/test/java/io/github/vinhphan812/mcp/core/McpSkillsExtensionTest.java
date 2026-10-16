@@ -73,7 +73,15 @@ public class McpSkillsExtensionTest {
 
         @Override
         public SkillDTO getSkill(String uri) {
-            String name = uri.replace("skill://", "").replace("/", "");
+            // Handle canonical URIs: skill://test/SKILL.md -> "test"
+            // Handle root URIs: skill://test -> "test"
+            String name = uri.replace("skill://", "");
+            // Remove /SKILL.md suffix if present
+            name = name.replaceAll("/SKILL\\.md$", "");
+            // Remove trailing slashes
+            name = name.replaceAll("/+$", "");
+            // Remove any remaining path components
+            name = name.replace("/", "");
             if (skillFiles.containsKey(name)) {
                 return new SkillDTO(
                         "skill://" + name, name, name, "Test skill",
@@ -605,13 +613,66 @@ public class McpSkillsExtensionTest {
         McpSkillsExtension ext = new TestSkillsExtension(Map.of("test", files));
         McpProtocolHandler handler = makeHandler(ext);
 
+        // Use canonical /SKILL.md URI
         Map<String, Object> result = send(handler, "skills/get",
-                Map.of("uri", "skill://test"));
+                Map.of("uri", "skill://test/SKILL.md"));
 
         assertEquals("complete", result.get("resultType"),
                 "skills/get must include resultType: complete");
         assertNotNull(result.get("ttlMs"), "skills/get must include ttlMs");
         assertNotNull(result.get("cacheScope"), "skills/get must include cacheScope");
+    }
+
+    // ==================== Stable spec: canonical SKILL.md URI enforcement ====================
+
+    @Test
+    void skillsGet_rejectsRootUri() {
+        // Root URIs (skill://name) must be rejected - only canonical URIs (skill://name/SKILL.md) allowed
+        String manifestContent = "# Test\n";
+        Map<String, String> files = Map.of("SKILL.md", manifestContent);
+        McpSkillsExtension ext = new TestSkillsExtension(Map.of("test", files));
+        McpProtocolHandler handler = makeHandler(ext);
+
+        // Send root URI (skill://test) - should fail
+        String body = GSON.toJson(Map.of(
+                "jsonrpc", "2.0", "id", 1,
+                "method", "skills/get",
+                "params", Map.of("uri", "skill://test",
+                        "protocolVersion", "2026-07-28")));
+        assertRpcError(handler.handleRequest(body), -32602);
+    }
+
+    @Test
+    void skillsGet_rejectsRootUriWithTrailingSlash() {
+        // skill://test/ should also be rejected
+        String manifestContent = "# Test\n";
+        Map<String, String> files = Map.of("SKILL.md", manifestContent);
+        McpSkillsExtension ext = new TestSkillsExtension(Map.of("test", files));
+        McpProtocolHandler handler = makeHandler(ext);
+
+        String body = GSON.toJson(Map.of(
+                "jsonrpc", "2.0", "id", 1,
+                "method", "skills/get",
+                "params", Map.of("uri", "skill://test/",
+                        "protocolVersion", "2026-07-28")));
+        assertRpcError(handler.handleRequest(body), -32602);
+    }
+
+    @Test
+    void skillsGet_acceptsCanonicalSkillMdUri() {
+        // Canonical URIs ending with /SKILL.md should work
+        String manifestContent = "# Test Skill\nThis is a test skill.";
+        Map<String, String> files = Map.of("SKILL.md", manifestContent);
+        McpSkillsExtension ext = new TestSkillsExtension(Map.of("test", files));
+        McpProtocolHandler handler = makeHandler(ext);
+
+        Map<String, Object> result = send(handler, "skills/get",
+                Map.of("uri", "skill://test/SKILL.md"));
+
+        assertEquals("complete", result.get("resultType"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> skill = (Map<String, Object>) result.get("skill");
+        assertNotNull(skill);
     }
 
     // ==================== Stable spec: directory file:// URI rejection ====================

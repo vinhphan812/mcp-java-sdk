@@ -132,6 +132,23 @@ public interface McpSkillsExtension extends McpExtension {
     String readManifestFile(String uri, String fileName);
 
     /**
+     * Reads a skill file as raw bytes.
+     *
+     * <p>Default implementation delegates to {@link #readManifestFile(String, String)}
+     * and encodes the result as UTF-8. Override this method to support binary files
+     * with accurate digest/size computation.
+     *
+     * @param uri      the skill root URI (e.g. {@code "skill://acme"})
+     * @param fileName the file name / relative path within the skill
+     * @return raw file bytes, or {@code null} if not found
+     */
+    default byte[] readManifestFileBytes(String uri, String fileName) {
+        String text = readManifestFile(uri, fileName);
+        if (text == null) return null;
+        return text.getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
      * Reads a skill file resource, supporting both text and binary content.
      *
      * <p>Default implementation wraps {@link #readManifestFile} as a text resource.

@@ -2992,8 +2992,22 @@ public class McpProtocolHandler implements McpRegistrar, McpRegistryChangeListen
         if (params == null) throw McpException.invalidParams("params required");
         String uri = params.get("uri") instanceof String ? (String) params.get("uri") : null;
         if (uri == null || uri.trim().isEmpty()) throw McpException.invalidParams("uri required");
+        // Stable spec: canonical SKILL.md URI must end with /SKILL.md
+        if (!uri.endsWith("/SKILL.md")) {
+            throw McpException.invalidParams("uri must be a canonical skill URI ending with /SKILL.md");
+        }
+        // Extract root URI: skill://test/SKILL.md -> skill://test
+        String rootUri = uri.substring(0, uri.length() - "/SKILL.md".length());
         SkillDTO skill = skillsExtension.getSkill(uri);
-        if (skill == null) throw McpException.invalidParams("Unknown skill: " + uri);
+        if (skill == null) {
+            // Try with root URI for backward compatibility with extensions
+            skill = skillsExtension.getSkill(rootUri);
+            if (skill == null) throw McpException.invalidParams("Unknown skill: " + uri);
+        }
+        // Always normalize URI to canonical form in response
+        if (!skill.uri.equals(uri)) {
+            skill = new SkillDTO(uri, skill.frontmatter, skill.resources, null, null, null, null);
+        }
         // Stable spec: wrap skill in envelope
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("resultType", "complete");
